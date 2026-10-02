@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.familyhome.messaging.OutboxMapper">
+    <insert id="insert">
+        INSERT INTO event_outbox (id, aggregate_type, aggregate_id, event_type, household_id,
+            payload, status, attempts, next_attempt_at, created_at)
+        VALUES (#{id}, #{aggregateType}, #{aggregateId}, #{eventType}, #{householdId},
+            #{payload}, 'PENDING', 0, CURRENT_TIMESTAMP, #{createdAt})
+    </insert>
+    <select id="pending" resultType="map">
+        SELECT id, aggregate_type, aggregate_id, event_type, household_id, payload, attempts
+        FROM event_outbox WHERE status = 'PENDING' AND next_attempt_at &lt;= CURRENT_TIMESTAMP
+        ORDER BY created_at LIMIT 50
+    </select>
+    <update id="published">
+        UPDATE event_outbox SET status='PUBLISHED', published_at=CURRENT_TIMESTAMP
+        WHERE id=#{id} AND status='PENDING'
+    </update>
+    <update id="retry">
+        UPDATE event_outbox SET attempts=attempts+1, next_attempt_at=#{nextAttemptAt},
+            last_error=#{lastError} WHERE id=#{id} AND status='PENDING'
+    </update>
+</mapper>

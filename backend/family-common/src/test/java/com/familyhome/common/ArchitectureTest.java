@@ -26,7 +26,7 @@ class ArchitectureTest {
                 String text = Files.readString(path),
                         name = path.getFileName().toString(),
                         display = backend.relativize(path).toString();
-                if (text.contains("JdbcTemplate")
+                if (text.contains("JdbcTemplate") || text.contains("JdbcOperations")
                         || text.contains("jakarta.persistence")
                         || text.contains("JpaRepository")) failures.add(display + ": 禁止旧持久化访问");
                 if (Pattern.compile(
