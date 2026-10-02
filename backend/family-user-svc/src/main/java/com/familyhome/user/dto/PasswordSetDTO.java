@@ -1,0 +1,11 @@
+package com.familyhome.user.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
+public record PasswordSetDTO(@NotBlank @Size(min = 12, max = 64) String password) {
+    @Override
+    public String toString() {
+        return "PasswordSetDTO[凭据已隐藏]";
+    }
+}

@@ -1,0 +1,7 @@
+CREATE TABLE family_file (
+ id VARCHAR(36) PRIMARY KEY, household_id BIGINT NOT NULL, owner_id BIGINT NOT NULL,
+ name VARCHAR(255) NOT NULL, mime VARCHAR(128) NOT NULL, size_bytes BIGINT NOT NULL,
+ visibility VARCHAR(16) NOT NULL, deleted BOOLEAN NOT NULL DEFAULT FALSE,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ INDEX idx_file_family (household_id)
+);

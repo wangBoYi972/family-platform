@@ -1,0 +1,35 @@
+server:
+  port: 8088
+spring:
+  application:
+    name: family-archive-svc
+  datasource:
+    url: ${FAMILY_ARCHIVE_DB_URL:jdbc:mysql://127.0.0.1:3306/family_archive?serverTimezone=Asia/Shanghai}
+    username: ${FAMILY_ARCHIVE_DB_USERNAME:family_app}
+    password: ${FAMILY_ARCHIVE_DB_PASSWORD:}
+  flyway:
+    enabled: true
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 2000
+            readTimeout: 5000
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 21MB
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+springdoc:
+  api-docs:
+    enabled: ${FAMILY_DOCS_ENABLED:false}
+  swagger-ui:
+    enabled: ${FAMILY_DOCS_ENABLED:false}

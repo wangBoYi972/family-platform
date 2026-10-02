@@ -1,0 +1,36 @@
+server:
+  address: 127.0.0.1
+spring:
+  cloud:
+    nacos:
+      discovery:
+        enabled: false
+    gateway:
+      routes:
+        - id: family-user-local
+          uri: http://127.0.0.1:8081
+          predicates:
+            - Path=/api/auth/**,/api/users/**
+        - id: family-content-local
+          uri: http://127.0.0.1:8082
+          predicates:
+            - Path=/api/tasks/**,/api/notices/**,/api/calendar/**,/api/dynamics/**,/api/albums/**
+        - id: family-file-local
+          uri: http://127.0.0.1:8087
+          predicates:
+            - Path=/api/files/**
+        - id: family-archive-local
+          uri: http://127.0.0.1:8088
+          predicates:
+            - Path=/api/archives/**
+        - id: family-im-local
+          uri: http://127.0.0.1:8089
+          predicates:
+            - Path=/api/im/**
+        - id: family-media-local
+          uri: http://127.0.0.1:8090
+          predicates:
+            - Path=/api/media/**
+family:
+  auth:
+    jwt-secret: ${FAMILY_JWT_SECRET:local-development-secret-32-characters-min}

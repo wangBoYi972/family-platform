@@ -1,0 +1,10 @@
+CREATE TABLE family_archive (
+ id VARCHAR(36) PRIMARY KEY, household_id BIGINT NOT NULL, owner_id BIGINT NOT NULL,
+ title VARCHAR(120) NOT NULL, category VARCHAR(16) NOT NULL, visibility VARCHAR(16) NOT NULL,
+ encrypted_body TEXT NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ INDEX idx_archive_family (household_id)
+);
+CREATE TABLE archive_access_log (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT, household_id BIGINT NOT NULL,user_id BIGINT NOT NULL,
+ archive_id VARCHAR(36) NOT NULL, action VARCHAR(16) NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

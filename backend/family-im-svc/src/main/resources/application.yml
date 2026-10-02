@@ -1,0 +1,52 @@
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+server:
+  port: 8089
+spring:
+  application:
+    name: family-im-svc
+  datasource:
+    url: ${FAMILY_IM_DB_URL:jdbc:mysql://127.0.0.1:3306/family_im?serverTimezone=Asia/Shanghai}
+    username: ${FAMILY_IM_DB_USERNAME:family_app}
+    password: ${FAMILY_IM_DB_PASSWORD:}
+  flyway:
+    enabled: true
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 2000
+            readTimeout: 5000
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:family}
+    password: ${RABBITMQ_PASSWORD:}
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 21MB
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+springdoc:
+  api-docs:
+    enabled: ${FAMILY_DOCS_ENABLED:false}
+  swagger-ui:
+    enabled: ${FAMILY_DOCS_ENABLED:false}
+family:
+  messaging:
+    enabled: ${FAMILY_MESSAGING_ENABLED:false}
+    service-name: family-im-svc
+    exchange: family.events

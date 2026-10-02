@@ -1,0 +1,12 @@
+# 本地构建与调试
+**/.idea/
+**/.local/
+**/node_modules/
+**/dist/
+**/target/
+*.log
+.env
+.verification.log
+
+# Git
+.git/

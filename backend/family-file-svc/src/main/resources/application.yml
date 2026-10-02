@@ -1,0 +1,60 @@
+server:
+  port: 8087
+spring:
+  application:
+    name: family-file-svc
+  datasource:
+    url: ${FAMILY_FILE_DB_URL:jdbc:mysql://127.0.0.1:3306/family_file?serverTimezone=Asia/Shanghai}
+    username: ${FAMILY_FILE_DB_USERNAME:family_app}
+    password: ${FAMILY_FILE_DB_PASSWORD:}
+  flyway:
+    enabled: true
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 2000
+            readTimeout: 5000
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:family}
+    password: ${RABBITMQ_PASSWORD:}
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 21MB
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+springdoc:
+  api-docs:
+    enabled: ${FAMILY_DOCS_ENABLED:false}
+  swagger-ui:
+    enabled: ${FAMILY_DOCS_ENABLED:false}
+family:
+  messaging:
+    enabled: ${FAMILY_MESSAGING_ENABLED:false}
+    service-name: family-file-svc
+    exchange: family.events
+  file:
+    storage:
+      type: ${FAMILY_FILE_STORAGE_TYPE:local}
+      root: ${FAMILY_FILE_ROOT:./.local/files}
+      s3:
+        endpoint: ${FAMILY_S3_ENDPOINT:}
+        region: ${FAMILY_S3_REGION:us-east-1}
+        bucket: ${FAMILY_S3_BUCKET:}
+        access-key: ${FAMILY_S3_ACCESS_KEY:}
+        secret-key: ${FAMILY_S3_SECRET_KEY:}

@@ -1,0 +1,223 @@
+services:
+  nacos:
+    image: nacos/nacos-server:v2.4.2
+    environment:
+      MODE: standalone
+      NACOS_AUTH_ENABLE: "true"
+      NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN:?请在 .env 中配置 Nacos 鉴权令牌}
+    ports:
+      - "8848:8848"
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 .env 中配置数据库 root 密码}
+      MYSQL_APP_PASSWORD: ${MYSQL_APP_PASSWORD:?请在 .env 中配置业务账号密码}
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: family
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?请在 .env 中配置 RabbitMQ 密码}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+
+  family-gateway:
+    build:
+      context: ..
+      dockerfile: backend/family-gateway/Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      NACOS_SERVER_ADDR: nacos:8848
+      FAMILY_JWT_SECRET: ${FAMILY_JWT_SECRET:?请在 .env 中配置 JWT 密钥}
+      FAMILY_RATE_LIMIT_ENABLED: ${FAMILY_RATE_LIMIT_ENABLED:true}
+      REDIS_HOST: redis
+      FAMILY_RATE_LIMIT_REPLENISH: ${FAMILY_RATE_LIMIT_REPLENISH:20}
+      FAMILY_RATE_LIMIT_BURST: ${FAMILY_RATE_LIMIT_BURST:40}
+    ports:
+      - "8080:8080"
+    depends_on:
+      - nacos
+      - mysql
+      - redis
+      - rabbitmq
+
+  family-user-svc:
+    build:
+      context: ..
+      dockerfile: backend/family-user-svc/Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      NACOS_SERVER_ADDR: nacos:8848
+      FAMILY_USER_DB_URL: jdbc:mysql://mysql:3306/family_user?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+      FAMILY_USER_DB_USERNAME: family_app
+      FAMILY_USER_DB_PASSWORD: ${MYSQL_APP_PASSWORD:?}
+      FAMILY_JWT_SECRET: ${FAMILY_JWT_SECRET:?}
+      FAMILY_BOOTSTRAP_ENABLED: "true"
+      FAMILY_BOOTSTRAP_HOUSEHOLD_NAME: ${FAMILY_BOOTSTRAP_HOUSEHOLD_NAME:}
+      FAMILY_BOOTSTRAP_ADMIN_PHONE: ${FAMILY_BOOTSTRAP_ADMIN_PHONE:}
+      FAMILY_BOOTSTRAP_ADMIN_PASSWORD: ${FAMILY_BOOTSTRAP_ADMIN_PASSWORD:}
+    depends_on:
+      - nacos
+      - mysql
+
+  family-content-svc:
+    build:
+      context: ..
+      dockerfile: backend/family-content-svc/Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      NACOS_SERVER_ADDR: nacos:8848
+      FAMILY_CONTENT_DB_URL: jdbc:mysql://mysql:3306/family_content?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+      FAMILY_CONTENT_DB_USERNAME: family_app
+      FAMILY_CONTENT_DB_PASSWORD: ${MYSQL_APP_PASSWORD:?}
+      FAMILY_JWT_SECRET: ${FAMILY_JWT_SECRET:?}
+      FAMILY_MESSAGING_ENABLED: ${FAMILY_MESSAGING_ENABLED:true}
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?}
+    depends_on:
+      - nacos
+      - mysql
+      - redis
+      - rabbitmq
+
+  family-file-svc:
+    build:
+      context: ..
+      dockerfile: backend/family-file-svc/Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      NACOS_SERVER_ADDR: nacos:8848
+      FAMILY_FILE_DB_URL: jdbc:mysql://mysql:3306/family_file?serverTimezone=Asia/Shanghai
+      FAMILY_FILE_DB_USERNAME: family_app
+      FAMILY_FILE_DB_PASSWORD: ${MYSQL_APP_PASSWORD:?}
+      FAMILY_JWT_SECRET: ${FAMILY_JWT_SECRET:?}
+      FAMILY_MESSAGING_ENABLED: ${FAMILY_MESSAGING_ENABLED:true}
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?}
+      FAMILY_FILE_STORAGE_TYPE: ${FAMILY_FILE_STORAGE_TYPE:local}
+      FAMILY_FILE_ROOT: /data/files
+      FAMILY_S3_ENDPOINT: ${FAMILY_S3_ENDPOINT:}
+      FAMILY_S3_REGION: ${FAMILY_S3_REGION:us-east-1}
+      FAMILY_S3_BUCKET: ${FAMILY_S3_BUCKET:}
+      FAMILY_S3_ACCESS_KEY: ${FAMILY_S3_ACCESS_KEY:}
+      FAMILY_S3_SECRET_KEY: ${FAMILY_S3_SECRET_KEY:}
+    volumes:
+      - file-data:/data/files
+    depends_on:
+      - nacos
+      - mysql
+      - redis
+      - rabbitmq
+
+  family-archive-svc:
+    build:
+      context: ..
+      dockerfile: backend/family-archive-svc/Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      NACOS_SERVER_ADDR: nacos:8848
+      FAMILY_ARCHIVE_DB_URL: jdbc:mysql://mysql:3306/family_archive?serverTimezone=Asia/Shanghai
+      FAMILY_ARCHIVE_DB_USERNAME: family_app
+      FAMILY_ARCHIVE_DB_PASSWORD: ${MYSQL_APP_PASSWORD:?}
+      FAMILY_JWT_SECRET: ${FAMILY_JWT_SECRET:?}
+      FAMILY_ARCHIVE_KEY: ${FAMILY_ARCHIVE_KEY:?请在 .env 中配置 32 字节档案密钥 Base64}
+    depends_on:
+      - nacos
+      - mysql
+
+  family-im-svc:
+    build:
+      context: ..
+      dockerfile: backend/family-im-svc/Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      NACOS_SERVER_ADDR: nacos:8848
+      FAMILY_IM_DB_URL: jdbc:mysql://mysql:3306/family_im?serverTimezone=Asia/Shanghai
+      FAMILY_IM_DB_USERNAME: family_app
+      FAMILY_IM_DB_PASSWORD: ${MYSQL_APP_PASSWORD:?}
+      FAMILY_JWT_SECRET: ${FAMILY_JWT_SECRET:?}
+      FAMILY_MESSAGING_ENABLED: ${FAMILY_MESSAGING_ENABLED:true}
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?}
+    depends_on:
+      - nacos
+      - mysql
+      - redis
+      - rabbitmq
+
+  family-media-svc:
+    build:
+      context: ..
+      dockerfile: backend/family-media-svc/Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      NACOS_SERVER_ADDR: nacos:8848
+      FAMILY_MEDIA_DB_URL: jdbc:mysql://mysql:3306/family_media?serverTimezone=Asia/Shanghai
+      FAMILY_MEDIA_DB_USERNAME: family_app
+      FAMILY_MEDIA_DB_PASSWORD: ${MYSQL_APP_PASSWORD:?}
+      FAMILY_JWT_SECRET: ${FAMILY_JWT_SECRET:?}
+    depends_on:
+      - nacos
+      - mysql
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      - family-gateway
+      - family-user-svc
+      - family-content-svc
+      - family-file-svc
+      - family-archive-svc
+      - family-im-svc
+      - family-media-svc
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./grafana/family-platform-overview.json:/var/lib/grafana/dashboards/family-platform-overview.json:ro
+    depends_on:
+      - prometheus
+
+volumes:
+  mysql-data:
+  redis-data:
+  file-data:
+  prometheus-data:
+  grafana-data:
+  rabbitmq-data:

@@ -1,0 +1,1 @@
+CREATE TABLE media_session (id VARCHAR(36) PRIMARY KEY, household_id BIGINT NOT NULL, creator_id BIGINT NOT NULL, kind VARCHAR(16) NOT NULL, status VARCHAR(16) NOT NULL, created_at TIMESTAMP NOT NULL);

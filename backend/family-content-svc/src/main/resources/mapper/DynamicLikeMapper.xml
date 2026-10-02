@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.familyhome.content.mapper.DynamicLikeMapper">
+    <select id="lock" resultType="java.lang.Long">
+        SELECT id FROM family_dynamic
+        WHERE id = #{id} AND household_id = #{household} AND visibility = 'FAMILY'
+        FOR UPDATE
+    </select>
+    <select id="count" resultType="int">
+        SELECT COUNT(*) FROM dynamic_like WHERE dynamic_id = #{id} AND user_id = #{user}
+    </select>
+    <insert id="insert">
+        INSERT INTO dynamic_like(dynamic_id, user_id) VALUES(#{id}, #{user})
+    </insert>
+    <update id="increment">
+        UPDATE family_dynamic SET likes = likes + 1 WHERE id = #{id} AND household_id = #{household}
+    </update>
+    <delete id="delete">
+        DELETE FROM dynamic_like WHERE dynamic_id = #{id}
+    </delete>
+</mapper>

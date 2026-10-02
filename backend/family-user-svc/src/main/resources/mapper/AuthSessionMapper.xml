@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.familyhome.user.mapper.AuthSessionMapper">
+    <select id="countActive" resultType="int">
+        SELECT COUNT(*)
+        FROM auth_session s
+        JOIN family_user u ON s.user_id = u.id
+        JOIN family_white_list w ON u.phone = w.phone AND s.household_id = w.household_id
+        WHERE s.id = #{p.sessionId} AND s.user_id = #{p.userId}
+          AND s.household_id = #{p.householdId} AND s.role = #{p.role}
+          AND s.client = #{p.client} AND s.revoked = FALSE
+          AND s.expires_at &gt; CURRENT_TIMESTAMP AND w.enabled = TRUE AND w.role = s.role
+    </select>
+</mapper>

@@ -1,0 +1,20 @@
+server:
+  address: 127.0.0.1
+spring:
+  datasource:
+    url: jdbc:h2:file:./.local/archive;MODE=MySQL;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password: ${FAMILY_LOCAL_DB_PASSWORD:}
+  cloud:
+    nacos:
+      discovery:
+        enabled: false
+family:
+  clients:
+    user-url: http://127.0.0.1:8081
+    file-url: http://127.0.0.1:8087
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true

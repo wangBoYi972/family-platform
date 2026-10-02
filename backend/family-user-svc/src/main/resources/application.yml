@@ -1,0 +1,44 @@
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+server:
+  port: 8081
+spring:
+  application:
+    name: family-user-svc
+  datasource:
+    url: ${FAMILY_USER_DB_URL:jdbc:mysql://127.0.0.1:3306/family_user?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${FAMILY_USER_DB_USERNAME:family_app}
+    password: ${FAMILY_USER_DB_PASSWORD:}
+  flyway:
+    enabled: true
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 2000
+            readTimeout: 5000
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+family:
+  auth:
+    mock-login-enabled: false
+    mock-code: ${FAMILY_AUTH_MOCK_CODE:}
+    jwt-secret: ${FAMILY_JWT_SECRET:}
+    token-expiration-minutes: ${FAMILY_TOKEN_EXPIRATION_MINUTES:60}
+  bootstrap:
+    enabled: ${FAMILY_BOOTSTRAP_ENABLED:false}
+    household-name: ${FAMILY_BOOTSTRAP_HOUSEHOLD_NAME:}
+    admin-phone: ${FAMILY_BOOTSTRAP_ADMIN_PHONE:}
+    admin-password: ${FAMILY_BOOTSTRAP_ADMIN_PASSWORD:}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+springdoc:
+  api-docs:
+    enabled: ${FAMILY_DOCS_ENABLED:false}
+  swagger-ui:
+    enabled: ${FAMILY_DOCS_ENABLED:false}

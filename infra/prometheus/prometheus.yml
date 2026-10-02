@@ -1,0 +1,21 @@
+# Prometheus 抓取配置：各服务 /actuator/prometheus（prod 已开放该端点）。
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: family-gateway
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["family-gateway:8080"]
+
+  - job_name: family-services
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - "family-user-svc:8081"
+          - "family-content-svc:8082"
+          - "family-file-svc:8087"
+          - "family-archive-svc:8088"
+          - "family-im-svc:8089"
+          - "family-media-svc:8090"

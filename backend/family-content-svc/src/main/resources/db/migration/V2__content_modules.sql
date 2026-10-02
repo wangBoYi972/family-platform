@@ -1,0 +1,43 @@
+ALTER TABLE family_task ADD COLUMN creator_id BIGINT;
+ALTER TABLE family_task ADD COLUMN assignee_id BIGINT;
+CREATE TABLE family_notice (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT,
+ household_id BIGINT NOT NULL, creator_id BIGINT NOT NULL,
+ title VARCHAR(120) NOT NULL, body TEXT,
+ event_date DATE, yearly BOOLEAN NOT NULL DEFAULT FALSE,
+ pinned BOOLEAN NOT NULL DEFAULT FALSE, visibility VARCHAR(16) NOT NULL DEFAULT 'FAMILY',
+ file_ids VARCHAR(2000), likes INT NOT NULL DEFAULT 0,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ INDEX idx_family_notice_household (household_id)
+);
+CREATE TABLE family_calendar (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT,
+ household_id BIGINT NOT NULL, creator_id BIGINT NOT NULL,
+ title VARCHAR(120) NOT NULL, body TEXT,
+ event_date DATE, yearly BOOLEAN NOT NULL DEFAULT FALSE,
+ pinned BOOLEAN NOT NULL DEFAULT FALSE, visibility VARCHAR(16) NOT NULL DEFAULT 'FAMILY',
+ file_ids VARCHAR(2000), likes INT NOT NULL DEFAULT 0,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ INDEX idx_family_calendar_household (household_id)
+);
+CREATE TABLE family_dynamic (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT,
+ household_id BIGINT NOT NULL, creator_id BIGINT NOT NULL,
+ title VARCHAR(120) NOT NULL, body TEXT,
+ event_date DATE, yearly BOOLEAN NOT NULL DEFAULT FALSE,
+ pinned BOOLEAN NOT NULL DEFAULT FALSE, visibility VARCHAR(16) NOT NULL DEFAULT 'FAMILY',
+ file_ids VARCHAR(2000), likes INT NOT NULL DEFAULT 0,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ INDEX idx_family_dynamic_household (household_id)
+);
+CREATE TABLE family_album (
+ id BIGINT PRIMARY KEY AUTO_INCREMENT,
+ household_id BIGINT NOT NULL, creator_id BIGINT NOT NULL,
+ title VARCHAR(120) NOT NULL, body TEXT,
+ event_date DATE, yearly BOOLEAN NOT NULL DEFAULT FALSE,
+ pinned BOOLEAN NOT NULL DEFAULT FALSE, visibility VARCHAR(16) NOT NULL DEFAULT 'FAMILY',
+ file_ids VARCHAR(2000), likes INT NOT NULL DEFAULT 0,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ INDEX idx_family_album_household (household_id)
+);
+CREATE TABLE dynamic_like(dynamic_id BIGINT NOT NULL,user_id BIGINT NOT NULL,PRIMARY KEY(dynamic_id,user_id));

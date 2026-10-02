@@ -1,0 +1,53 @@
+server:
+  port: 8080
+spring:
+  application:
+    name: family-gateway
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+    gateway:
+      routes:
+        - id: family-user
+          uri: lb://family-user-svc
+          predicates:
+            - Path=/api/auth/**,/api/users/**
+        - id: family-content
+          uri: lb://family-content-svc
+          predicates:
+            - Path=/api/tasks/**,/api/notices/**,/api/calendar/**,/api/dynamics/**,/api/albums/**
+        - id: family-file
+          uri: lb://family-file-svc
+          predicates:
+            - Path=/api/files/**
+        - id: family-archive
+          uri: lb://family-archive-svc
+          predicates:
+            - Path=/api/archives/**
+        - id: family-im
+          uri: lb://family-im-svc
+          predicates:
+            - Path=/api/im/**
+        - id: family-media
+          uri: lb://family-media-svc
+          predicates:
+            - Path=/api/media/**
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+family:
+  auth:
+    jwt-secret: ${FAMILY_JWT_SECRET:}
+  gateway:
+    rate-limit:
+      enabled: ${FAMILY_RATE_LIMIT_ENABLED:false}
+      replenish-rate: ${FAMILY_RATE_LIMIT_REPLENISH:20}
+      burst-capacity: ${FAMILY_RATE_LIMIT_BURST:40}

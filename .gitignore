@@ -1,0 +1,20 @@
+**/target/
+.idea/
+.vscode/
+*.iml
+.env
+
+node_modules/
+dist/
+*.local
+
+# 本地运行数据与验证产物
+.local/
+.playwright-cli/
+output/
+*.log
+*.mv.db
+*.trace.db
+.env.*
+!.env.example
+

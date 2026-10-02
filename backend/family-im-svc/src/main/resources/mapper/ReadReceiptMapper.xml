@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.familyhome.im.mapper.ReadReceiptMapper">
+    <select id="list" resultType="com.familyhome.im.model.ReadReceipt">
+        SELECT user_id, last_message_id FROM im_message_read WHERE conversation_id = #{id}
+        ORDER BY user_id
+    </select>
+    <select id="unread" resultType="long">
+        SELECT COUNT(*) FROM im_message m
+        WHERE m.conversation_id = #{id} AND m.sender_id != #{user}
+          AND m.id &gt; COALESCE((SELECT last_message_id FROM im_message_read
+                               WHERE conversation_id = #{id} AND user_id = #{user}), 0)
+    </select>
+    <insert id="insert">
+        INSERT INTO im_message_read(conversation_id, user_id, last_message_id)
+        VALUES(#{id}, #{user}, 0)
+    </insert>
+    <update id="advance">
+        UPDATE im_message_read SET last_message_id = #{message}
+        WHERE conversation_id = #{id} AND user_id = #{user} AND last_message_id &lt; #{message}
+    </update>
+</mapper>
