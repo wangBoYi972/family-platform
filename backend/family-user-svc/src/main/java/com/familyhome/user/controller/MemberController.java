@@ -50,6 +50,22 @@ public class MemberController {
         return ApiResponse.success(service.members(SessionPrincipal.from(r)));
     }
 
+    /**
+     * 批量查询用户信息
+     * 用于避免 N+1 查询问题
+     *
+     * @param r HTTP 请求
+     * @param ids 用户ID列表(逗号分隔,如 "1,2,3")
+     * @return 用户ID -> 用户信息的映射
+     */
+    @GetMapping("/users/batch")
+    public ApiResponse<java.util.Map<Long, MemberVO>> batchGetUsers(
+            HttpServletRequest r,
+            @RequestParam("ids") @NotBlank String ids) {
+        SessionPrincipal p = SessionPrincipal.from(r);
+        return ApiResponse.success(service.batchGetUsers(p, ids));
+    }
+
     @GetMapping("/users/whitelist")
     public ApiResponse<List<WhitelistVO>> whitelist(HttpServletRequest r) {
         return ApiResponse.success(service.whitelist(SessionPrincipal.from(r)));

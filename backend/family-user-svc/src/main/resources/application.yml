@@ -9,6 +9,14 @@ spring:
     url: ${FAMILY_USER_DB_URL:jdbc:mysql://127.0.0.1:3306/family_user?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
     username: ${FAMILY_USER_DB_USERNAME:family_app}
     password: ${FAMILY_USER_DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      leak-detection-threshold: 60000
+      pool-name: UserHikariPool
   flyway:
     enabled: true
   cloud:

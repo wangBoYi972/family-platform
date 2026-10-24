@@ -74,6 +74,50 @@ public class MemberServiceImpl implements MemberService {
                 .toList();
     }
 
+    @Override
+    public Map<Long, MemberVO> batchGetUsers(SessionPrincipal p, String userIds) {
+        if (userIds == null || userIds.isBlank()) {
+            return Map.of();
+        }
+
+        // 解析用户ID列表
+        List<Long> ids = Arrays.stream(userIds.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .map(Long::parseLong)
+                .distinct()
+                .toList();
+
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+
+        // 批量查询用户信息
+        List<FamilyUser> userList = users.selectList(
+                new LambdaQueryWrapper<FamilyUser>()
+                        .in(FamilyUser::getId, ids)
+        );
+
+        // 查询角色信息
+        List<WhitelistEntry> entries = whitelist.selectList(
+                new LambdaQueryWrapper<WhitelistEntry>()
+                        .eq(WhitelistEntry::getHouseholdId, p.householdId())
+                        .eq(WhitelistEntry::getEnabled, true)
+        );
+
+        Map<String, String> phoneToRole = new HashMap<>();
+        entries.forEach(e -> phoneToRole.put(e.getPhone(), e.getRole()));
+
+        // 构造返回映射
+        Map<Long, MemberVO> result = new HashMap<>();
+        for (FamilyUser user : userList) {
+            String role = phoneToRole.getOrDefault(user.getPhone(), "MEMBER");
+            result.put(user.getId(), new MemberVO(user.getId(), user.getDisplayName(), role));
+        }
+
+        return result;
+    }
+
     public List<WhitelistVO> whitelist(SessionPrincipal p) {
         p.requireAdmin();
         return whitelist

@@ -1,0 +1,39 @@
+# 数据源连接池默认配置
+# 可被各服务的 application.yml 引用
+
+spring:
+  datasource:
+    hikari:
+      # 连接池配置
+      maximum-pool-size: 10              # 最大连接数
+      minimum-idle: 5                     # 最小空闲连接数
+      connection-timeout: 30000           # 连接超时 30 秒
+      idle-timeout: 600000                # 空闲连接超时 10 分钟
+      max-lifetime: 1800000               # 连接最大生命周期 30 分钟
+
+      # 连接验证
+      connection-test-query: SELECT 1
+      validation-timeout: 3000
+
+      # 泄漏检测
+      leak-detection-threshold: 60000     # 连接泄漏检测阈值 1 分钟
+
+      # 连接池名称
+      pool-name: FamilyHikariPool
+
+      # 性能优化
+      auto-commit: true
+      register-mbeans: false
+
+      # 数据库属性
+      data-source-properties:
+        cachePrepStmts: true
+        prepStmtCacheSize: 250
+        prepStmtCacheSqlLimit: 2048
+        useServerPrepStmts: true
+        useLocalSessionState: true
+        rewriteBatchedStatements: true
+        cacheResultSetMetadata: true
+        cacheServerConfiguration: true
+        elideSetAutoCommits: true
+        maintainTimeStats: false

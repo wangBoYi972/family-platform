@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * UserFeignClient 降级处理
@@ -26,6 +27,12 @@ public class UserFeignClientFallback implements UserFeignClient {
     @Override
     public ApiResponse<List<MemberApiVO>> members(String bearer) {
         log.error("UserFeignClient.members 调用失败,触发降级");
+        return ApiResponse.failure(503, "用户服务暂时不可用");
+    }
+
+    @Override
+    public ApiResponse<Map<Long, MemberApiVO>> batchGetUsers(String bearer, String userIds) {
+        log.error("UserFeignClient.batchGetUsers 调用失败,触发降级,userIds: {}", userIds);
         return ApiResponse.failure(503, "用户服务暂时不可用");
     }
 }

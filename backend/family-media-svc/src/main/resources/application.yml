@@ -7,6 +7,14 @@ spring:
     url: ${FAMILY_MEDIA_DB_URL:jdbc:mysql://127.0.0.1:3306/family_media?serverTimezone=Asia/Shanghai}
     username: ${FAMILY_MEDIA_DB_USERNAME:family_app}
     password: ${FAMILY_MEDIA_DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      leak-detection-threshold: 60000
+      pool-name: MediaHikariPool
   flyway:
     enabled: true
   cloud:
