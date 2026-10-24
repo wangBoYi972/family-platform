@@ -10,7 +10,8 @@ import org.springframework.web.bind.annotation.*;
 @FeignClient(
         name = "family-user-svc",
         contextId = "familyUserClient",
-        url = "${family.clients.user-url:}")
+        url = "${family.clients.user-url:}",
+        fallback = UserFeignClientFallback.class)
 public interface UserFeignClient {
     @GetMapping("/api/auth/session")
     ApiResponse<UserSessionApiVO> session(@RequestHeader("Authorization") String bearer);

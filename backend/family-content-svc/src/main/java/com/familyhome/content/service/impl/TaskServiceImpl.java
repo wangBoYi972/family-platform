@@ -3,7 +3,7 @@ package com.familyhome.content.service.impl;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.familyhome.api.user.feign.UserFeignClient;
+import com.familyhome.api.user.service.MemberCacheService;
 import com.familyhome.content.converter.ContentConverter;
 import com.familyhome.content.dto.TaskCreateDTO;
 import com.familyhome.content.dto.TaskUpdateDTO;
@@ -32,7 +32,7 @@ public class TaskServiceImpl implements TaskService {
     @Autowired
     private FamilyTaskMapper tasks;
     @Autowired
-    private UserFeignClient users;
+    private MemberCacheService memberCache;
     @Autowired
     private OutboxEventStore outbox;
 
@@ -51,14 +51,10 @@ public class TaskServiceImpl implements TaskService {
     @Transactional
     public TaskVO create(SessionPrincipal p, String bearer, TaskCreateDTO i) {
         String name = null;
-        if (i.assigneeId() != null)
-            name =
-                    users.members(bearer).data().stream()
-                            .filter(m -> Objects.equals(m.id(), i.assigneeId()))
-                            .findFirst()
-                            .orElseThrow(
-                                    () -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "负责人必须是本家庭启用成员"))
-                            .displayName();
+        if (i.assigneeId() != null) {
+            // 使用缓存服务获取成员信息,减少远程调用
+            name = memberCache.getMemberById(bearer, p.householdId(), i.assigneeId()).displayName();
+        }
         var t = new FamilyTask();
         t.setHouseholdId(p.householdId());
         t.setCreatorId(p.userId());
@@ -79,14 +75,10 @@ public class TaskServiceImpl implements TaskService {
         var t = own(p, id);
         String title = i.title().trim();
         String name = null;
-        if (i.assigneeId() != null)
-            name =
-                    users.members(bearer).data().stream()
-                            .filter(m -> Objects.equals(m.id(), i.assigneeId()))
-                            .findFirst()
-                            .orElseThrow(
-                                    () -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "负责人必须是本家庭启用成员"))
-                            .displayName();
+        if (i.assigneeId() != null) {
+            // 使用缓存服务获取成员信息
+            name = memberCache.getMemberById(bearer, p.householdId(), i.assigneeId()).displayName();
+        }
         t.setTitle(title);
         t.setAssigneeId(i.assigneeId());
         t.setAssigneeName(name);
