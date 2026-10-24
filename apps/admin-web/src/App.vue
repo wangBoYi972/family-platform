@@ -39,8 +39,21 @@ onUnmounted(() => window.removeEventListener("family-session-ended", ended));
 </script>
 
 <template>
-  <LoginView v-if="!authenticated" @authenticated="handleAuthenticated" />
-  <TaskDashboard v-else-if="activeView === '任务'" @logout="handleLogout" @navigate="navigate" />
-  <AccountView v-else-if="activeView === '成员'" @navigate="navigate" />
-  <ContentView v-else :key="contentKind" :kind="contentKind" @navigate="navigate" />
+  <Transition name="page" mode="out-in">
+    <LoginView v-if="!authenticated" key="login" @authenticated="handleAuthenticated" />
+    <TaskDashboard v-else-if="activeView === '任务'" key="task" @logout="handleLogout" @navigate="navigate" />
+    <AccountView v-else-if="activeView === '成员'" key="account" @navigate="navigate" />
+    <ContentView v-else :key="'content-' + contentKind" :kind="contentKind" @navigate="navigate" />
+  </Transition>
 </template>
+
+<style>
+/* 页面切换：新页从下方淡入，旧页向上淡出 */
+.page-enter-active { transition: opacity 320ms var(--e-out), transform 320ms var(--e-out); }
+.page-leave-active { transition: opacity 200ms var(--e-out), transform 200ms var(--e-out); }
+.page-enter-from { opacity: 0; transform: translate3d(0, 16px, 0); }
+.page-leave-to { opacity: 0; transform: translate3d(0, -8px, 0); }
+@media (prefers-reduced-motion: reduce) {
+  .page-enter-active, .page-leave-active { transition-duration: 1ms; }
+}
+</style>

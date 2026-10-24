@@ -1,0 +1,470 @@
+/* ==========================================================================
+   家庭空间 · 设计语言 v2
+   Warm Morandi + Soft Glass + Purposeful Motion
+   —— 所有组件共用同一套 token，禁止再写硬编码色值 ——
+   ========================================================================== */
+
+:root,
+page {
+  /* —— 底色：燕麦奶油 —— */
+  --c-bg: #f7f2eb;
+  --c-bg-2: #f1e9de;
+  --c-surface: #ffffff;
+  --c-surface-2: #fbf7f1;
+
+  /* —— 玻璃层 —— */
+  --c-glass: rgba(255, 255, 255, 0.72);
+  --c-glass-2: rgba(255, 255, 255, 0.5);
+  --c-glass-line: rgba(255, 255, 255, 0.7);
+
+  /* —— 主色：暖陶土 —— */
+  --c-primary: #c4795a;
+  --c-primary-deep: #a6603f;
+  --c-primary-soft: #f4e3d8;
+  --c-primary-tint: rgba(196, 121, 90, 0.12);
+
+  /* —— 辅助色：莫兰迪四色 —— */
+  --c-sky: #7e9ab0;
+  --c-sky-soft: #e6edf2;
+  --c-sage: #8ca394;
+  --c-sage-soft: #e7efe8;
+  --c-rose: #c9a0a0;
+  --c-rose-soft: #f5eaea;
+  --c-sand: #cfa769;
+  --c-sand-soft: #f8eedc;
+  --c-plum: #8a6a8f;
+  --c-plum-soft: #f1e9f2;
+  --c-danger: #b96a5b;
+  --c-danger-soft: #f7e7e3;
+
+  /* —— 文字 —— */
+  --c-ink: #3a342e;
+  --c-ink-2: #6e655c;
+  --c-muted: #9c9289;
+
+  /* —— 线条 —— */
+  --c-line: rgba(58, 52, 46, 0.1);
+  --c-line-soft: rgba(58, 52, 46, 0.055);
+
+  /* —— 圆角 —— */
+  --r-xs: 10px;
+  --r-sm: 14px;
+  --r-md: 18px;
+  --r-lg: 24px;
+  --r-xl: 32px;
+  --r-pill: 999px;
+
+  /* —— 阴影（带高光描边，模拟顶部打光）—— */
+  --sh-1: 0 1px 2px rgba(58, 52, 46, 0.05), 0 2px 6px rgba(58, 52, 46, 0.04);
+  --sh-2: 0 2px 4px rgba(58, 52, 46, 0.05), 0 10px 24px -8px rgba(58, 52, 46, 0.14);
+  --sh-3: 0 4px 10px rgba(58, 52, 46, 0.07), 0 22px 44px -14px rgba(58, 52, 46, 0.22);
+  --sh-edge: inset 0 0 0 1px rgba(255, 255, 255, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+
+  /* —— 动效曲线 —— */
+  --e-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --e-io: cubic-bezier(0.65, 0.02, 0.28, 1);
+  --e-spring: cubic-bezier(0.34, 1.42, 0.64, 1);
+  --t-fast: 150ms;
+  --t: 260ms;
+  --t-slow: 520ms;
+
+  /* —— 兼容旧语义变量名（老组件直接复用）—— */
+  --family-primary: var(--c-primary);
+  --family-bg: var(--c-bg);
+  --family-text: var(--c-ink);
+  --family-muted: var(--c-muted);
+  --family-border: var(--c-line);
+  --family-surface: var(--c-surface-2);
+  --family-primary-soft: var(--c-primary-soft);
+}
+
+/* —— 页面底：暖奶油 + 三团缓慢漂移的光晕 —— */
+page {
+  background: var(--c-bg);
+  color: var(--c-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI",
+    "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ============================ 动效 ============================ */
+
+@keyframes mf-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes mf-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes mf-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+  68% {
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes mf-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -11px, 0);
+  }
+}
+@keyframes mf-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  33% {
+    transform: translate3d(5%, -4%, 0) scale(1.08);
+  }
+  66% {
+    transform: translate3d(-4%, 5%, 0) scale(0.94);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+@keyframes mf-shimmer {
+  0% {
+    background-position: -180% 0;
+  }
+  100% {
+    background-position: 180% 0;
+  }
+}
+@keyframes mf-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(196, 121, 90, 0.32);
+  }
+  70% {
+    box-shadow: 0 0 0 13px rgba(196, 121, 90, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(196, 121, 90, 0);
+  }
+}
+@keyframes mf-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes mf-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+/* ============================ 通用件 ============================ */
+
+/* 玻璃卡：所有卡片的统一皮肤 */
+.mf-card {
+  position: relative;
+  background: var(--c-glass);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
+  border: 1px solid var(--c-glass-line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-2), var(--sh-edge);
+  overflow: hidden;
+  transition: box-shadow var(--t) var(--e-out), transform var(--t) var(--e-out);
+}
+.mf-card--flat {
+  background: var(--c-surface);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* 卡片顶部一道极细的高光，像玻璃边缘的反光 */
+.mf-card::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.95),
+    transparent
+  );
+  pointer-events: none;
+}
+
+/* 入场编排：父级给子元素依次加 --i，就能瀑布式淡入 */
+.mf-rise {
+  animation: mf-rise var(--t-slow) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+  will-change: opacity, transform;
+}
+.mf-fade {
+  animation: mf-fade var(--t-slow) var(--e-out) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+.mf-pop {
+  animation: mf-pop 460ms var(--e-spring) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+
+/* 按压反馈：任何可点元素都能挂 */
+.mf-press {
+  transition: transform var(--t-fast) var(--e-spring),
+    box-shadow var(--t) var(--e-out), background var(--t) var(--e-out);
+}
+.mf-press:active {
+  transform: scale(0.965);
+  box-shadow: var(--sh-1);
+}
+
+/* hover 抬升（桌面 H5 才生效） */
+@media (hover: hover) {
+  .mf-lift:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--sh-3), var(--sh-edge);
+  }
+}
+
+/* 胶囊标签 */
+.mf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: var(--r-pill);
+  font-size: 11px;
+  line-height: 1.5;
+  background: var(--c-primary-soft);
+  color: var(--c-primary-deep);
+  white-space: nowrap;
+}
+.mf-chip--sky {
+  background: var(--c-sky-soft);
+  color: #5c788d;
+}
+.mf-chip--sage {
+  background: var(--c-sage-soft);
+  color: #5f7d68;
+}
+.mf-chip--rose {
+  background: var(--c-rose-soft);
+  color: #9c6f6f;
+}
+.mf-chip--sand {
+  background: var(--c-sand-soft);
+  color: #96702f;
+}
+.mf-chip--danger {
+  background: var(--c-danger-soft);
+  color: var(--c-danger);
+}
+.mf-chip--ghost {
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--c-line);
+  color: var(--c-ink-2);
+}
+
+/* 主按钮：暖陶渐变 + 光晕 */
+.mf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: var(--r-pill);
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(135deg, #cd8465 0%, var(--c-primary) 55%, #b26a4c 100%);
+  box-shadow: 0 2px 6px rgba(166, 96, 63, 0.24),
+    0 12px 26px -10px rgba(166, 96, 63, 0.55);
+  transition: transform var(--t-fast) var(--e-spring), box-shadow var(--t) var(--e-out),
+    filter var(--t) var(--e-out);
+}
+.mf-btn:active {
+  transform: scale(0.96);
+  box-shadow: 0 1px 3px rgba(166, 96, 63, 0.22);
+}
+.mf-btn[disabled] {
+  filter: grayscale(0.4) opacity(0.55);
+}
+/* 按钮上一道扫过的高光 */
+.mf-btn--shine {
+  position: relative;
+  overflow: hidden;
+}
+.mf-btn--shine::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(
+    100deg,
+    transparent,
+    rgba(255, 255, 255, 0.55),
+    transparent
+  );
+  transform: skewX(-18deg);
+  animation: mf-sweep 3.6s var(--e-io) infinite;
+}
+@keyframes mf-sweep {
+  0%,
+  62% {
+    left: -60%;
+  }
+  100% {
+    left: 130%;
+  }
+}
+
+/* 骨架屏 */
+.mf-skeleton {
+  border-radius: var(--r-sm);
+  background: linear-gradient(
+    100deg,
+    rgba(58, 52, 46, 0.055) 20%,
+    rgba(58, 52, 46, 0.11) 42%,
+    rgba(58, 52, 46, 0.055) 64%
+  );
+  background-size: 220% 100%;
+  animation: mf-shimmer 1.5s linear infinite;
+}
+
+/* 空状态 */
+.mf-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 44px 20px;
+  color: var(--c-muted);
+  font-size: 13px;
+}
+.mf-empty__mark {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  font-size: 24px;
+  background: var(--c-surface-2);
+  box-shadow: var(--sh-1);
+  animation: mf-float 5s var(--e-io) infinite;
+}
+
+/* 分区标题 */
+.mf-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 26px 0 14px;
+}
+.mf-section__title {
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.2px;
+  color: var(--c-ink);
+}
+.mf-section__more {
+  font-size: 12px;
+  color: var(--c-muted);
+  padding: 0;
+  background: none;
+}
+.mf-section__more::after {
+  border: 0;
+}
+
+/* 数字 */
+.mf-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  letter-spacing: -0.5px;
+}
+
+/* 分割线 */
+.mf-hr {
+  height: 1px;
+  background: var(--c-line-soft);
+  margin: 18px 0;
+}
+
+/* 滚动条（H5） */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(58, 52, 46, 0.16);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ============================ 按钮基线 ============================ */
+/* uni 默认按钮是灰底方角大按钮，统一重置为暖色胶囊；各面板的局部样式可再覆盖 */
+button {
+  margin: 0;
+  padding: 0 30rpx;
+  /* min-height 而非固定 height：快捷入口/底部导航等「图标+文字」多行按钮需要自然撑高，固定高度会配合 uni-button 的 overflow:hidden 裁掉文字 */
+  min-height: 64rpx;
+  line-height: 64rpx;
+  font-size: 25rpx;
+  font-weight: 500;
+  color: var(--c-primary);
+  background: var(--c-primary-soft);
+  border: none;
+  border-radius: 999rpx;
+  box-sizing: border-box;
+  transition: transform .12s var(--e-spring), box-shadow .2s ease;
+}
+button::after { border: none; }
+button:active { transform: scale(.94); }
+button[disabled] { opacity: .55; color: var(--c-primary); background: var(--c-primary-soft); }
+
+/* ============================ 无障碍 ============================ */
+/* 系统开启「减弱动态效果」时，去掉位移类动画，只留透明度 */
+@media (prefers-reduced-motion: reduce) {
+  .mf-rise,
+  .mf-fade,
+  .mf-pop,
+  .mf-float,
+  .mf-drift,
+  .mf-breathe,
+  .mf-skeleton,
+  .mf-btn--shine::before {
+    animation: none !important;
+  }
+  * {
+    transition-duration: 1ms !important;
+  }
+}

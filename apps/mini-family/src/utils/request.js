@@ -29,6 +29,10 @@ export async function request(path, options = {}) {
 export const login = data =>
   request("/auth/password-login", { method: "POST", data, authenticated: false, header: { "Content-Type": "application/json" } });
 
+/** 开放注册：必须携带管理员发放的邀请码，成功后直接返回令牌。 */
+export const register = data =>
+  request("/auth/register", { method: "POST", data, authenticated: false, header: { "Content-Type": "application/json" } });
+
 /** 带鉴权头的文件上传（字段名 file，后端 FileUploadDTO 契约）。 */
 export function upload(path, filePath, formData = {}) {
   return new Promise((resolve, reject) => {

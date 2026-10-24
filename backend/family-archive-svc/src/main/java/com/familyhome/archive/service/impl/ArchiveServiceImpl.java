@@ -79,7 +79,15 @@ public class ArchiveServiceImpl implements ArchiveService {
     @Transactional
     public ArchiveDetailVO detail(SessionPrincipal p, String id) {
         var a = find(p, id);
-        String body = cipher.decrypt(a.getEncryptedBody(), p.householdId() + ":" + id);
+        // 解密失败通常是密钥轮换导致历史档案不可读。这里必须转成带中文说明的业务错误，
+        // 否则会冒泡成 500 且响应体没有 msg，前端只能显示「服务暂时不可用」这种无用文案。
+        String body;
+        try {
+            body = cipher.decrypt(a.getEncryptedBody(), p.householdId() + ":" + id);
+        } catch (RuntimeException ex) {
+            throw new ResponseStatusException(
+                    HttpStatus.GONE, "该档案内容无法解密，可能是密钥已更换，请重新录入");
+        }
         log(p, id, "READ");
         return ArchiveConverter.detail(a, body);
     }

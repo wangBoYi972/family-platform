@@ -22,7 +22,9 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             org.springframework.cloud.gateway.filter.GatewayFilterChain chain) {
         String path = exchange.getRequest().getURI().getPath();
         if ((exchange.getRequest().getMethod() == HttpMethod.POST
-                        && (path.equals("/api/auth/login") || path.equals("/api/auth/password-login")))
+                        && (path.equals("/api/auth/login")
+                                || path.equals("/api/auth/password-login")
+                                || path.equals("/api/auth/register")))
                 || path.equals("/actuator/health")) return chain.filter(exchange);
         String auth = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
         if (auth == null || !auth.startsWith("Bearer ")) return unauthorized(exchange);

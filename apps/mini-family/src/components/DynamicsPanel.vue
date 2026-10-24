@@ -1,17 +1,30 @@
 <script setup>
-import { ref, onMounted } from "vue";
-import { request, upload, loadImageUrl } from "../../utils/request";
+import { computed, ref, onMounted } from "vue";
+import EntryEditor from "./EntryEditor.vue";
+import { request, upload, loadImageUrl } from "../utils/request";
 
 const props = defineProps({ token: String });
 const entries = ref([]);
 const loading = ref(false);
 const publishing = ref(false);
+const composing = ref(false), keyword = ref(""), loadError = ref("");
+const liking = ref(new Set());
+const filteredEntries = computed(() => entries.value.filter(item => (item.title + ' ' + (item.body || '')).toLocaleLowerCase().includes(keyword.value.trim().toLocaleLowerCase())));
+async function like(item) {
+  if(liking.value.has(item.id)) return;
+  liking.value.add(item.id);
+  try { await request('/dynamics/'+item.id+'/like',{method:'POST'}); await load(); }
+  catch(e) { uni.showToast({title:e.message||'点赞失败',icon:'none'}); }
+  finally { liking.value.delete(item.id); }
+}
+function preview(item, index) { uni.previewImage({urls:item.images,current:item.images[index]}); }
 const form = ref({ title: "", body: "" });
 const images = ref([]); // { tempFilePath, name }
 
 async function load() {
   if (!props.token) return;
   loading.value = true;
+  loadError.value = "";
   try {
     entries.value = await request("/dynamics");
     await Promise.all(
@@ -29,6 +42,7 @@ async function load() {
       })
     );
   } catch (error) {
+    loadError.value = error.message || "动态加载失败";
     uni.showToast({ title: error.message || "加载失败", icon: "none" });
   } finally {
     loading.value = false;
@@ -36,18 +50,20 @@ async function load() {
 }
 
 function chooseImages() {
+  if(publishing.value) return;
   const remain = 9 - images.value.length;
   if (remain <= 0) return uni.showToast({ title: "最多 9 张图片", icon: "none" });
   uni.chooseImage({
     count: remain,
     sizeType: ["compressed"],
     success: res => {
-      images.value.push(...res.tempFilePaths.map(p => ({ tempFilePath: p })));
+      if(!publishing.value) images.value.push(...res.tempFilePaths.slice(0,9-images.value.length).map(p => ({ tempFilePath: p })));
     }
   });
 }
 
 function removeImage(index) {
+  if(publishing.value) return;
   images.value.splice(index, 1);
 }
 
@@ -60,8 +76,9 @@ async function publish() {
   try {
     const fileIds = [];
     for (const image of images.value) {
-      const file = await upload("/files", image.tempFilePath, { visibility: "FAMILY" });
-      fileIds.push(file.id);
+      // 发布失败后重试时复用成功上传的照片。
+      if(!image.id) image.id = (await upload("/files", image.tempFilePath, { visibility: "FAMILY" })).id;
+      fileIds.push(image.id);
     }
     await request("/dynamics", {
       method: "POST",
@@ -69,6 +86,7 @@ async function publish() {
     });
     form.value = { title: "", body: "" };
     images.value = [];
+    composing.value = false;
     uni.showToast({ title: "已发布", icon: "none" });
     await load();
   } catch (error) {
@@ -86,12 +104,12 @@ onMounted(load);
   <view class="panel">
     <view class="toolbar">
       <text class="section">家庭动态</text>
-      <text class="link" @click="publishing = !publishing">{{ publishing ? "收起" : "＋ 发布动态" }}</text>
+      <button size="mini" :disabled="publishing" @click="composing = !composing">{{ composing ? "收起" : "＋ 发布动态" }}</button>
     </view>
 
-    <view v-if="publishing" class="form card">
-      <input v-model="form.title" class="input" maxlength="120" placeholder="动态标题（必填）" />
-      <textarea v-model="form.body" class="textarea" maxlength="10000" placeholder="分享这一刻…（必填）" :auto-height="true" />
+    <view v-if="composing" class="form card">
+      <input v-model="form.title" :disabled="publishing" class="input" maxlength="120" placeholder="动态标题（必填）" />
+      <textarea v-model="form.body" :disabled="publishing" class="textarea" maxlength="10000" placeholder="分享这一刻…（必填）" :auto-height="true" />
       <view class="image-picker">
         <view v-for="(image, index) in images" :key="index" class="thumb-wrap">
           <image :src="image.tempFilePath" class="thumb" mode="aspectFill" />
@@ -102,16 +120,26 @@ onMounted(load);
       <button class="primary" :loading="publishing" :disabled="publishing" @click="publish">发布动态</button>
     </view>
 
-    <view v-if="loading" class="empty">加载中…</view>
-    <view v-else-if="!entries.length" class="empty">还没有动态，发布第一条吧</view>
+    <input v-model="keyword" class="input" placeholder="搜索动态标题或内容" />
+    <view v-if="loadError" class="empty"><text>{{loadError}}</text><button size="mini" @click="load">重新加载</button></view>
+    <view v-else-if="loading" class="empty">加载中…</view>
+    <view v-else-if="!filteredEntries.length" class="empty">{{entries.length ? '没有匹配的动态，试试其他关键词' : '还没有动态，发布第一条吧'}}</view>
     <view v-else class="list">
-      <view v-for="item in entries" :key="item.id" class="row card">
-        <text class="row-title">{{ item.title }}</text>
+      <view v-for="item in filteredEntries" :key="item.id" class="row card">
+        <view class="row-head">
+          <text class="row-title">{{ item.title }}</text>
+          <EntryEditor kind="dynamics" :entry="item" @changed="load" />
+        </view>
         <text v-if="item.body" class="row-body">{{ item.body }}</text>
         <view v-if="item.images && item.images.length" class="images">
-          <image v-for="(url, index) in item.images" :key="index" :src="url" class="img" mode="aspectFill" @click="uni.previewImage({ urls: item.images, current: index })" />
+          <image v-for="(url, index) in item.images" :key="index" :src="url" class="img" mode="aspectFill" @click="preview(item,index)" />
         </view>
-        <text class="row-meta">{{ item.likes ? item.likes + " 人喜欢" : "" }}</text>
+        <view class="row-foot">
+          <view class="like" @click="like(item)">
+            <text class="like-icon">♥</text>
+            <text class="like-text">{{ item.likes ? item.likes + " 人喜欢" : "喜欢" }}</text>
+          </view>
+        </view>
       </view>
     </view>
   </view>
@@ -122,21 +150,27 @@ onMounted(load);
 .toolbar{display:flex;justify-content:space-between;align-items:center}
 .section{font-size:36rpx;font-weight:600}
 .link{color:var(--family-primary);font-size:28rpx}
-.card{background:#fff;border-radius:16rpx;padding:26rpx;box-shadow:0 2rpx 12rpx rgba(29,42,38,.04)}
+.card{background:var(--c-surface);border-radius:16rpx;padding:26rpx;box-shadow:0 2rpx 12rpx rgba(29,42,38,.04)}
 .form{display:flex;flex-direction:column;gap:20rpx}
-.input{height:84rpx;padding:0 24rpx;background:#fbfcfb;border:1px solid var(--family-border);border-radius:12rpx;box-sizing:border-box}
-.textarea{width:100%;min-height:160rpx;padding:20rpx 24rpx;background:#fbfcfb;border:1px solid var(--family-border);border-radius:12rpx;box-sizing:border-box}
-.primary{margin-top:8rpx;background:var(--family-primary);color:#fff;border-radius:12rpx}
+.input{height:84rpx;padding:0 24rpx;background:var(--c-surface-2);border:1px solid var(--family-border);border-radius:12rpx;box-sizing:border-box}
+.textarea{width:100%;min-height:160rpx;padding:20rpx 24rpx;background:var(--c-surface-2);border:1px solid var(--family-border);border-radius:12rpx;box-sizing:border-box}
+.primary{margin-top:8rpx;background:var(--family-primary);color:var(--c-surface);border-radius:12rpx}
 .image-picker{display:flex;flex-wrap:wrap;gap:16rpx}
 .thumb-wrap{position:relative}
-.thumb{width:150rpx;height:150rpx;border-radius:12rpx;background:#eef2f0}
-.thumb-remove{position:absolute;top:-12rpx;right:-12rpx;width:40rpx;height:40rpx;line-height:36rpx;text-align:center;background:#d9534f;color:#fff;border-radius:50%;font-size:28rpx}
-.thumb-add{width:150rpx;height:150rpx;line-height:150rpx;text-align:center;background:#f0f3f1;color:var(--family-muted);border:1px dashed var(--family-border);border-radius:12rpx;font-size:56rpx}
-.row{display:flex;flex-direction:column;gap:14rpx}
-.row-title{font-size:31rpx;font-weight:600}
-.row-body{color:var(--family-text);font-size:27rpx;line-height:1.6;white-space:pre-wrap}
+.thumb{width:150rpx;height:150rpx;border-radius:12rpx;background:var(--c-surface-2)}
+.thumb-remove{position:absolute;top:-12rpx;right:-12rpx;width:40rpx;height:40rpx;line-height:36rpx;text-align:center;background:var(--c-danger);color:var(--c-surface);border-radius:50%;font-size:28rpx}
+.thumb-add{width:150rpx;height:150rpx;line-height:150rpx;text-align:center;background:var(--c-surface-2);color:var(--family-muted);border:1px dashed var(--family-border);border-radius:12rpx;font-size:56rpx}
+.row{display:flex;flex-direction:column;gap:16rpx;background:var(--c-surface);border:1px solid var(--c-line);border-radius:20rpx;padding:28rpx;box-shadow:0 2rpx 12rpx rgba(58,52,46,.05)}
+.row-head{display:flex;justify-content:space-between;align-items:center;gap:16rpx}
+.row-head :deep(.editor){margin-top:0}
+.row-title{font-size:32rpx;font-weight:650;flex:1;min-width:0}
+.row-body{color:var(--family-text);font-size:27rpx;line-height:1.7;white-space:pre-wrap}
 .images{display:flex;flex-wrap:wrap;gap:12rpx}
-.img{width:200rpx;height:200rpx;border-radius:12rpx;background:#eef2f0}
+.img{width:200rpx;height:200rpx;border-radius:14rpx;background:var(--c-surface-2)}
+.row-foot{display:flex;align-items:center;justify-content:space-between;gap:16rpx;border-top:1px solid var(--c-surface-2);padding-top:16rpx;margin-top:4rpx}
+.like{display:inline-flex;align-items:center;gap:8rpx;padding:10rpx 26rpx;border-radius:999rpx;background:var(--c-primary-soft);color:var(--c-primary);font-size:24rpx;transition:transform .12s var(--e-spring, ease)}
+.like:active{transform:scale(.92)}
+.like-icon{font-size:24rpx;line-height:1}
 .row-meta{color:var(--family-muted);font-size:24rpx}
 .empty{padding:80rpx 0;text-align:center;color:var(--family-muted)}
 </style>

@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from "vue";
+import BrandMark from "../components/BrandMark.vue";
 
 const activeMenu = ref("概览");
 const menus = ["概览", "成员", "任务", "档案", "通知"];
@@ -19,8 +20,8 @@ const members = [
   <div class="app-shell">
     <header class="topbar">
       <div class="brand">
-        <span class="brand-mark">家</span>
-        <strong>家庭综合平台</strong>
+        <BrandMark :size="24" class="brand-mark" />
+        <strong>把时间，留给家人</strong>
       </div>
       <div class="topbar-actions">
         <el-badge is-dot><el-button text>通知</el-button></el-badge>
@@ -105,7 +106,7 @@ const members = [
 .app-shell { min-height: 100vh; }
 .topbar { display: flex; align-items: center; justify-content: space-between; height: 64px; padding: 0 40px; border-bottom: 1px solid var(--family-border); }
 .brand { display: flex; align-items: center; gap: 10px; font-size: 15px; }
-.brand-mark { display: grid; width: 28px; height: 28px; place-items: center; color: #fff; background: var(--family-primary); border-radius: 6px; font-size: 14px; }
+.brand-mark { color: var(--c-primary-deep); }
 .topbar-actions { display: flex; align-items: center; gap: 16px; }
 .workspace { display: grid; grid-template-columns: 216px minmax(0, 1fr); max-width: 1440px; min-height: calc(100vh - 64px); margin: 0 auto; }
 .sidebar { display: flex; flex-direction: column; justify-content: space-between; padding: 32px 20px 24px; border-right: 1px solid var(--family-border); }

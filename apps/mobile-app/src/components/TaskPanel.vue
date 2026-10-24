@@ -1,12 +1,14 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { request } from "../utils/request";
-import { canManageTask, filterTasks, localDate, nextTaskStatus, taskStatusLabel } from "../../../shared/tasks.mjs";
+import { canManageTask, filterTasks, localDate, nextTaskStatus, prevTaskStatus, taskStatusLabel } from "../../../shared/tasks.mjs";
 
 const emit = defineEmits(["session-ended"]);
 const tasks = ref([]), members = ref([]), session = ref(null);
 const loading = ref(false), saving = ref(false), creating = ref(false), updating = ref(new Set());
 const errorMessage = ref(""), memberError = ref(""), keyword = ref(""), status = ref("ALL");
+const editingId = ref(null);
+const isEditing = computed(() => editingId.value !== null);
 const today = ref(localDate());
 const newForm = () => ({ title: "", deadline: "", assigneeId: null });
 const form = ref(newForm());
@@ -40,38 +42,59 @@ async function loadMembers() {
   try { members.value = await request("/users/members"); }
   catch (error) { memberError.value = "成员加载失败，可重试或暂不指派"; report(error); }
 }
+function closeForm() {
+  creating.value = false;
+  editingId.value = null;
+  form.value = newForm();
+}
 function openCreate() {
   if (saving.value) return;
-  creating.value = !creating.value;
-  if (creating.value) loadMembers();
+  if (creating.value && !isEditing.value) return closeForm();
+  editingId.value = null;
+  form.value = newForm();
+  creating.value = true;
+  loadMembers();
 }
-async function createTask() {
+function openEdit(task) {
+  if (saving.value) return;
+  editingId.value = task.id;
+  form.value = { title: task.title || "", deadline: task.deadline || "", assigneeId: task.assigneeId ?? null };
+  creating.value = true;
+  loadMembers();
+}
+async function submitTask() {
   if (saving.value) return;
   const title = form.value.title.trim();
   if (!title) return uni.showToast({ title: "请输入任务标题", icon: "none" });
+  const id = editingId.value;
+  const payload = { ...form.value, title, deadline: form.value.deadline || null };
   saving.value = true;
   try {
-    await request("/tasks", { method: "POST", data: { ...form.value, title, deadline: form.value.deadline || null } });
-    form.value = newForm();
-    creating.value = false;
-    uni.showToast({ title: "任务已创建", icon: "none" });
+    if (id) await request("/tasks/" + id, { method: "PUT", data: payload });
+    else await request("/tasks", { method: "POST", data: payload });
+    closeForm();
+    uni.showToast({ title: id ? "任务已更新" : "任务已创建", icon: "none" });
     await load();
-  } catch (error) { report(error); }
+  } catch (error) {
+    report(error);
+    if (error.status === 409 || error.status === 404) { closeForm(); await load(); }
+  }
   finally { saving.value = false; }
 }
-async function advance(task) {
-  const next = nextTaskStatus(task.status);
-  if (!next || !canManageTask(task, session.value) || updating.value.has(task.id)) return;
+async function changeStatus(task, target) {
+  if (!target || !canManageTask(task, session.value) || updating.value.has(task.id)) return;
   updating.value.add(task.id);
   try {
-    await request("/tasks/" + task.id + "/status", { method: "PATCH", data: { status: next } });
-    task.status = next;
+    await request("/tasks/" + task.id + "/status", { method: "PATCH", data: { status: target } });
+    task.status = target;
     uni.showToast({ title: "任务状态已更新", icon: "none" });
   } catch (error) {
     report(error);
     if (error.status === 409) await load();
   } finally { updating.value.delete(task.id); }
 }
+function advance(task) { changeStatus(task, nextTaskStatus(task.status)); }
+function revert(task) { changeStatus(task, prevTaskStatus(task.status)); }
 onMounted(load);
 onUnmounted(() => { sequence++; });
 defineExpose({ load });
@@ -79,14 +102,16 @@ defineExpose({ load });
 
 <template>
   <view class="task-panel">
-    <view class="toolbar"><text class="section-title">家庭任务</text><button size="mini" :disabled="saving" @click="openCreate">{{ creating ? "收起" : "新建任务" }}</button><button size="mini" :disabled="loading" @click="load">刷新</button></view>
+    <view class="toolbar"><text class="section-title">家庭任务</text><button size="mini" :disabled="saving" @click="openCreate">{{ creating && !isEditing ? "收起" : "新建任务" }}</button><button size="mini" :disabled="loading" @click="load">刷新</button></view>
     <view v-if="creating" class="task-card form">
+      <text class="form-title">{{ isEditing ? "编辑任务" : "新建任务" }}</text>
       <input v-model="form.title" class="input" maxlength="80" placeholder="任务标题（必填）" :disabled="saving" />
       <picker mode="selector" :range="memberOptions" range-key="displayName" :disabled="saving" @change="form.assigneeId = memberOptions[Number($event.detail.value)].id"><view class="picker">负责人：{{ selectedMember }}</view></picker>
       <view v-if="memberError" class="error"><text>{{ memberError }}</text><button size="mini" @click="loadMembers">重试成员加载</button></view>
       <picker mode="date" :value="form.deadline" :disabled="saving" @change="form.deadline = $event.detail.value"><view class="picker">{{ form.deadline ? '截止：' + form.deadline : '选择截止日期（可选）' }}</view></picker>
       <button v-if="form.deadline" size="mini" :disabled="saving" @click="form.deadline = ''">清除日期</button>
-      <button class="primary" :loading="saving" :disabled="saving" @click="createTask">创建任务</button>
+      <button class="primary" :loading="saving" :disabled="saving" @click="submitTask">{{ isEditing ? "保存修改" : "创建任务" }}</button>
+      <button v-if="isEditing" size="mini" :disabled="saving" @click="closeForm">取消编辑</button>
     </view>
     <input v-model="keyword" class="input" placeholder="搜索任务或负责人" />
     <view class="filters"><button v-for="item in filters" :key="item.value" size="mini" :class="{ selected: status === item.value }" @click="status = item.value">{{ item.label }}</button></view>
@@ -95,10 +120,14 @@ defineExpose({ load });
     <view v-else-if="!filteredTasks.length" class="empty">{{ tasks.length ? "没有符合条件的任务，试试其他筛选" : "还没有任务，点击新建安排家庭事项" }}</view>
     <view v-else class="task-list">
       <view v-for="task in filteredTasks" :key="task.id" class="task-card">
-        <view class="task-heading"><text class="task-title">{{ task.title }}</text><text class="badge">{{ taskStatusLabel[task.status] || task.status }}</text></view>
+        <view class="task-heading"><text class="task-title">{{ task.title }}</text><text :class="['badge', String(task.status).toLowerCase()]">{{ taskStatusLabel[task.status] || task.status }}</text></view>
         <text class="meta">负责人：{{ task.assigneeName || '未指派（由创建者跟进）' }}</text>
         <text :class="['meta', { overdue: task.status !== 'COMPLETED' && task.deadline && task.deadline < today }]">截止：{{ task.deadline || '未设置' }}{{ task.status !== 'COMPLETED' && task.deadline && task.deadline < today ? ' · 已逾期' : '' }}</text>
-        <button v-if="canManageTask(task, session) && nextTaskStatus(task.status)" class="primary" size="mini" :loading="updating.has(task.id)" :disabled="updating.has(task.id)" @click="advance(task)">{{ task.status === 'TODO' ? '开始处理' : '标记完成' }}</button>
+        <view v-if="canManageTask(task, session)" class="task-actions">
+          <button v-if="nextTaskStatus(task.status)" class="primary" size="mini" :loading="updating.has(task.id)" :disabled="updating.has(task.id)" @click="advance(task)">{{ task.status === 'TODO' ? '开始处理' : '标记完成' }}</button>
+          <button v-if="prevTaskStatus(task.status)" class="ghost" size="mini" :disabled="updating.has(task.id)" @click="revert(task)">{{ task.status === 'COMPLETED' ? '重新处理' : '撤销开始' }}</button>
+          <button class="ghost" size="mini" :disabled="saving" @click="openEdit(task)">编辑</button>
+        </view>
         <text v-else-if="task.status !== 'COMPLETED'" class="meta">由创建者、负责人或管理员处理</text>
       </view>
     </view>
@@ -107,5 +136,9 @@ defineExpose({ load });
 </template>
 
 <style scoped>
-.task-panel,.task-list,.form{display:flex;flex-direction:column;gap:24rpx}.toolbar{display:flex;align-items:center;gap:16rpx}.toolbar button{margin:0}.section-title{flex:1;font-size:32rpx;font-weight:600}.task-card{display:flex;flex-direction:column;gap:16rpx;padding:28rpx;background:#fff;border:1px solid var(--family-border);border-radius:12rpx}.input,.picker{padding:22rpx;border:1px solid var(--family-border);border-radius:10rpx;background:#fff;font-size:28rpx}.input{height:88rpx;box-sizing:border-box}.filters{display:flex;flex-wrap:wrap;gap:12rpx}.filters button{margin:0}.selected,.primary{background:var(--family-primary);color:#fff}.task-heading{display:flex;justify-content:space-between;gap:16rpx}.task-title{font-weight:600;overflow-wrap:anywhere}.badge{flex-shrink:0;color:var(--family-primary);font-size:24rpx}.meta{color:var(--family-muted);font-size:24rpx}.overdue,.error{color:#b54735}.empty,.error{padding:36rpx 0;text-align:center}.primary{align-self:flex-start;margin:0}.form .primary{align-self:stretch}
+.task-panel,.task-list,.form{display:flex;flex-direction:column;gap:24rpx}.toolbar{display:flex;align-items:center;gap:16rpx}.toolbar button{margin:0}.section-title{flex:1;font-size:32rpx;font-weight:600}.task-card{display:flex;flex-direction:column;gap:16rpx;padding:28rpx;background:var(--c-surface);border:1px solid var(--c-line);border-radius:20rpx;box-shadow:0 2rpx 12rpx rgba(58,52,46,.05)}.input,.picker{padding:22rpx;border:1px solid var(--family-border);border-radius:12rpx;background:var(--c-surface-2);font-size:28rpx}.input{height:88rpx;box-sizing:border-box}.filters{display:flex;flex-wrap:wrap;gap:12rpx}.filters button{margin:0;border-radius:999rpx;padding:0 26rpx;line-height:56rpx;height:56rpx;font-size:24rpx;background:var(--c-surface-2);color:var(--family-text)}.selected,.primary{background:linear-gradient(135deg,var(--c-primary),var(--c-primary-deep));color:var(--c-surface)}.task-heading{display:flex;justify-content:space-between;align-items:center;gap:16rpx}.task-title{font-weight:650;overflow-wrap:anywhere}.badge{flex-shrink:0;font-size:22rpx;padding:6rpx 18rpx;border-radius:999rpx;background:var(--c-sand-soft);color:var(--c-sand)}.badge.in_progress{background:var(--c-sky-soft);color:var(--c-sky)}.badge.completed{background:var(--c-sage-soft,#e6efe9);color:var(--c-sage,#8ca394)}.badge.overdue,.badge.todo.overdue{background:rgba(185,106,91,.14);color:var(--c-danger)}.meta{color:var(--family-muted);font-size:24rpx}.overdue,.error{color:var(--c-danger)}.empty,.error{padding:36rpx 0;text-align:center}.primary{align-self:flex-start;margin:0;padding:0 30rpx;height:60rpx;line-height:60rpx;border-radius:999rpx;font-size:24rpx}.form .primary{align-self:stretch;height:80rpx;line-height:80rpx;font-size:28rpx;border-radius:16rpx}
+.form-title{font-size:28rpx;font-weight:650}
+.task-actions{display:flex;flex-wrap:wrap;align-items:center;gap:12rpx}
+.task-actions button{margin:0}
+.ghost{align-self:auto;margin:0;padding:0 26rpx;height:60rpx;line-height:60rpx;border-radius:999rpx;font-size:24rpx;background:var(--c-surface-2);color:var(--family-text);border:1px solid var(--c-line)}
 </style>

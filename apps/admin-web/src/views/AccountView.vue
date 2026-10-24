@@ -7,8 +7,13 @@ import { changePassword } from "../api/auth";
 const emit = defineEmits(["navigate"]);
 const rows = ref([]), loading = ref(false), saving = ref(false), creating = ref(false), resetTarget = ref(null);
 const newAccount = ref({ phone: "", role: "MEMBER", password: "" });
-const resetPassword = ref("");
+const inviteRows = ref([]);
+const inviteIssuing = ref(false);
+const inviteCreating = ref(false);
+const issuedCode = ref("");
+const newInvite = ref({ role: "MEMBER", maxUses: 1, expiresInHours: 24 });
 const passwordForm = ref({ currentPassword: "", newPassword: "", confirmation: "" });
+const resetPassword = ref("");
 function validPassword(password) {
   return password.length >= 12 && password.length <= 64 && new TextEncoder().encode(password).length <= 72;
 }
@@ -28,6 +33,38 @@ async function createAccount() {
     ElMessage.success("账号已创建，请通过安全渠道将初始密码告知本人"); await load();
   } catch (error) { ElMessage.error(error.message); }
   finally { saving.value = false; }
+}
+async function loadInvites() {
+  try { inviteRows.value = await request("/users/invite-codes"); }
+  catch (error) { ElMessage.error(error.message); }
+}
+async function issueInvite() {
+  if (inviteIssuing.value) return;
+  inviteIssuing.value = true;
+  try {
+    const issued = await request("/users/invite-codes", { method: "POST", data: newInvite.value });
+    inviteCreating.value = false;
+    issuedCode.value = issued.code;
+    newInvite.value = { role: "MEMBER", maxUses: 1, expiresInHours: 24 };
+    await loadInvites();
+  } catch (error) { ElMessage.error(error.message); }
+  finally { inviteIssuing.value = false; }
+}
+async function copyIssued() {
+  try { await navigator.clipboard.writeText(issuedCode.value); ElMessage.success("邀请码已复制"); }
+  catch { ElMessage.warning("复制失败，请手动记下"); }
+}
+function inviteState(row) {
+  if (!row.enabled) return "已作废";
+  if (row.expired) return "已过期";
+  return row.usedCount >= row.maxUses ? "已用完" : "可用";
+}
+async function revokeInvite(row) {
+  try {
+    await ElMessageBox.confirm("作废后该邀请码立即失效，已注册账号不受影响。", "作废邀请码", { confirmButtonText: "确认作废", cancelButtonText: "取消", type: "warning" });
+    await request("/users/invite-codes/" + row.id, { method: "DELETE" });
+    await loadInvites();
+  } catch (error) { if (error instanceof Error) ElMessage.error(error.message); }
 }
 async function reset() {
   if (saving.value || !resetTarget.value) return;
@@ -59,7 +96,7 @@ async function change() {
   } catch (error) { ElMessage.error(error.message); }
   finally { saving.value = false; }
 }
-onMounted(load);
+onMounted(async () => { await load(); await loadInvites(); });
 </script>
 
 <template>
@@ -72,6 +109,19 @@ onMounted(load);
         <el-table-column label="角色" width="100"><template #default="{ row }">{{ row.role === 'ADMIN' ? '管理员' : '成员' }}</template></el-table-column>
         <el-table-column label="状态" width="100"><template #default="{ row }">{{ row.enabled ? '已启用' : '已停用' }}</template></el-table-column>
         <el-table-column label="操作" min-width="180"><template #default="{ row }"><el-button :disabled="!row.enabled" text @click="resetTarget = row; resetPassword = ''">设置密码</el-button><el-button :disabled="!row.enabled" text type="danger" @click="disable(row)">停用</el-button></template></el-table-column>
+      </el-table>
+    </section>
+    <section>
+      <div class="section-heading"><h2>注册邀请码</h2><el-button type="primary" @click="inviteCreating = true">发放邀请码</el-button></div>
+      <p>注册对所有人开放，但没有邀请码就无法创建账号。邀请码只显示这一次，请直接发给本人。</p>
+      <el-table :data="inviteRows" empty-text="暂未发放邀请码">
+        <el-table-column label="邀请码" min-width="130"><template #default="{ row }">FAM-****-{{ row.hint }}</template></el-table-column>
+        <el-table-column label="角色" width="90"><template #default="{ row }">{{ row.role === 'ADMIN' ? '管理员' : '成员' }}</template></el-table-column>
+        <el-table-column label="可用次数" width="100"><template #default="{ row }">{{ row.usedCount }} / {{ row.maxUses }}</template></el-table-column>
+        <el-table-column label="状态" width="90"><template #default="{ row }">{{ inviteState(row) }}</template></el-table-column>
+        <el-table-column prop="expiresAt" label="有效期至" min-width="140"><template #default="{ row }">{{ row.expiresAt || '长期有效' }}</template></el-table-column>
+        <el-table-column prop="usedPhone" label="使用者" min-width="130"><template #default="{ row }">{{ row.usedPhone || '—' }}</template></el-table-column>
+        <el-table-column label="操作" min-width="110"><template #default="{ row }"><el-button :disabled="!row.enabled" text type="danger" @click="revokeInvite(row)">作废</el-button></template></el-table-column>
       </el-table>
     </section>
     <section class="password-section">
@@ -87,6 +137,19 @@ onMounted(load);
       <el-form label-position="top"><el-form-item label="手机号"><el-input v-model="newAccount.phone" maxlength="11" /></el-form-item><el-form-item label="角色"><el-select v-model="newAccount.role"><el-option label="成员" value="MEMBER" /><el-option label="管理员" value="ADMIN" /></el-select></el-form-item><el-form-item label="初始密码（12 至 64 位）"><el-input v-model="newAccount.password" type="password" autocomplete="new-password" maxlength="64" show-password /></el-form-item></el-form>
       <template #footer><el-button @click="creating = false">取消</el-button><el-button type="primary" :loading="saving" @click="createAccount">创建账号</el-button></template>
     </el-dialog>
+    <el-dialog v-model="inviteCreating" title="发放注册邀请码" width="min(440px, 92vw)" @closed="newInvite = { role: 'MEMBER', maxUses: 1, expiresInHours: 24 }">
+      <el-form label-position="top">
+        <el-form-item label="注册后角色"><el-select v-model="newInvite.role"><el-option label="成员" value="MEMBER" /><el-option label="管理员" value="ADMIN" /></el-select></el-form-item>
+        <el-form-item label="可注册人数"><el-input-number v-model="newInvite.maxUses" :min="1" :max="10" /></el-form-item>
+        <el-form-item label="有效期（小时）"><el-input-number v-model="newInvite.expiresInHours" :min="1" :max="720" /></el-form-item>
+      </el-form>
+      <template #footer><el-button @click="inviteCreating = false">取消</el-button><el-button type="primary" :loading="inviteIssuing" @click="issueInvite">生成邀请码</el-button></template>
+    </el-dialog>
+    <el-dialog :model-value="Boolean(issuedCode)" title="邀请码已生成" width="min(440px, 92vw)" @update:model-value="value => { if (!value) issuedCode = ''; }">
+      <p>这串邀请码只显示这一次，关闭后无法再查看，请立即复制并发送给本人。</p>
+      <div class="issued-code"><code>{{ issuedCode }}</code><el-button text @click="copyIssued">复制</el-button></div>
+      <template #footer><el-button type="primary" @click="issuedCode = ''">我已记下</el-button></template>
+    </el-dialog>
     <el-dialog :model-value="Boolean(resetTarget)" title="设置成员密码" width="min(440px, 92vw)" @update:model-value="value => { if (!value) { resetTarget = null; resetPassword = ''; } }">
       <p>将撤销该成员所有设备上的原有登录。</p><el-input v-model="resetPassword" type="password" autocomplete="new-password" maxlength="64" show-password placeholder="12 至 64 位新密码" />
       <template #footer><el-button @click="resetTarget = null; resetPassword = ''">取消</el-button><el-button type="primary" :loading="saving" @click="reset">确认设置</el-button></template>
@@ -95,5 +158,7 @@ onMounted(load);
 </template>
 
 <style scoped>
-.account-page{max-width:1100px;margin:0 auto;padding:40px 24px}.account-page header,.section-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}.account-page h1{font-size:28px}.account-page h2{font-size:20px}.account-page p{color:var(--family-muted);line-height:1.7}.account-page section{margin-top:36px}.password-section{border-top:1px solid var(--family-border);padding-top:20px}.password-section form{max-width:420px}
+.account-page{max-width:1100px;margin:0 auto;padding:40px 24px;animation:mf-fade 320ms var(--e-out) both}.account-page header,.section-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}.account-page h1{font-size:28px;font-weight:700;letter-spacing:-.02em}.account-page h2{font-size:20px;font-weight:650}.account-page p{color:var(--c-muted);line-height:1.7}.account-page section{margin-top:34px;padding:24px 26px;border-radius:var(--r-lg);background:var(--c-glass);-webkit-backdrop-filter:blur(18px) saturate(1.5);backdrop-filter:blur(18px) saturate(1.5);border:1px solid var(--c-glass-line);box-shadow:var(--sh-2),var(--sh-edge);animation:mf-rise var(--t-slow) var(--e-out) both}.account-page section:nth-of-type(1){animation-delay:0ms}.account-page section:nth-of-type(2){animation-delay:90ms}.account-page section:nth-of-type(3){animation-delay:180ms}.password-section form{max-width:420px}
+.issued-code{display:flex;align-items:center;gap:10px;margin-top:6px;padding:12px 14px;border-radius:10px;background:var(--c-bg-2,rgba(58,52,46,.05));border:1px dashed var(--c-glass-line)}
+.issued-code code{font-size:18px;letter-spacing:.08em;font-weight:650}
 </style>

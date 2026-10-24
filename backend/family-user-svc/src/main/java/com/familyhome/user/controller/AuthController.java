@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
     @Autowired
     private AuthService authService;
+    @Autowired
+    private com.familyhome.user.service.RegistrationService registration;
 
     @PostMapping("/login")
     public ApiResponse<LoginVO> login(@Valid @RequestBody LoginDTO request) {
@@ -26,5 +28,12 @@ public class AuthController {
     public ApiResponse<LoginVO> passwordLogin(
             @Valid @RequestBody com.familyhome.user.dto.PasswordLoginDTO request) {
         return ApiResponse.success(authService.passwordLogin(request));
+    }
+
+    /** 开放注册：不要求登录态，但必须携带管理员发放的有效邀请码。 */
+    @PostMapping("/register")
+    public ApiResponse<LoginVO> register(
+            @Valid @RequestBody com.familyhome.user.dto.RegisterDTO request) {
+        return ApiResponse.success(registration.register(request));
     }
 }

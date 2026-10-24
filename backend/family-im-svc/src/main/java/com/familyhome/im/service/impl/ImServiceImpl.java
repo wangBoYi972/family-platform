@@ -60,7 +60,10 @@ public class ImServiceImpl implements ImService {
 
     @Transactional(readOnly = true)
     public List<ConversationVO> list(SessionPrincipal p) {
-        return conversations.selectList(visible(p).orderByDesc(Conversation::getCreatedAt)).stream()
+        return conversations
+                .selectList(
+                        visible(p).orderByDesc(Conversation::getCreatedAt).last("LIMIT 500"))
+                .stream()
                 .map(c -> ImConverter.toVO(c, receipts.unread(c.getId(), p.userId())))
                 .toList();
     }

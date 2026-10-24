@@ -47,9 +47,10 @@ public class ServiceSecurity implements WebMvcConfigurer {
                             public boolean preHandle(
                                     HttpServletRequest request, HttpServletResponse response, Object handler) {
                                 String path = request.getRequestURI();
+                                // 登录与开放注册是匿名入口；注册的安全边界由邀请码保证。
                                 if ("POST".equals(request.getMethod())
-                                        && Set.of("/api/auth/login", "/api/auth/password-login").contains(path))
-                                    return true;
+                                        && Set.of("/api/auth/login", "/api/auth/password-login", "/api/auth/register")
+                                                .contains(path)) return true;
                                 String bearer = request.getHeader("Authorization");
                                 SessionPrincipal principal;
                                 try {

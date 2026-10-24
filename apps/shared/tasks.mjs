@@ -9,6 +9,11 @@ export function nextTaskStatus(status) {
   return { TODO: "IN_PROGRESS", IN_PROGRESS: "COMPLETED" }[status] || null;
 }
 
+// 允许回退一步：进行中可撤销回待开始，已完成可重开。后端状态机与之保持一致。
+export function prevTaskStatus(status) {
+  return { IN_PROGRESS: "TODO", COMPLETED: "IN_PROGRESS" }[status] || null;
+}
+
 export function canManageTask(task, session) {
   if (!session?.userId) return false;
   return session.role === "ADMIN" || String(task.creatorId) === String(session.userId) || String(task.assigneeId) === String(session.userId);

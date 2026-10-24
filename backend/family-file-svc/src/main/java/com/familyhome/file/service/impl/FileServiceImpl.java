@@ -29,6 +29,8 @@ public class FileServiceImpl implements FileService {
     private FileStorage storage;
     @Autowired
     private OutboxEventStore outbox;
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(FileServiceImpl.class);
     private static final Map<String, String> MIME =
             Map.ofEntries(
                     Map.entry("jpg", "image/jpeg"),
@@ -151,6 +153,13 @@ public class FileServiceImpl implements FileService {
                         .eq(FamilyFile::getId, id)
                         .eq(FamilyFile::getHouseholdId, p.householdId())
                         .set(FamilyFile::getDeleted, true));
+        // 元数据软删后必须回收对象存储，否则 blob 会永久残留占用空间。
+        // 回收失败不能回滚软删（用户已看不到该文件），记录日志交由运维清理。
+        try {
+            storage.delete(id);
+        } catch (IOException ex) {
+            log.warn("对象存储清理失败，待手工回收 fileId={}", id, ex);
+        }
         outbox.append("file", id, "file.deleted", p.householdId(), Map.of("fileId", id));
     }
 }

@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import com.familyhome.common.api.ApiResponse;
 import com.familyhome.content.dto.TaskCreateDTO;
 import com.familyhome.content.dto.TaskStatusDTO;
+import com.familyhome.content.dto.TaskUpdateDTO;
 import com.familyhome.content.service.TaskService;
 import com.familyhome.content.vo.TaskVO;
 import com.familyhome.security.SessionPrincipal;
@@ -31,6 +32,15 @@ public class TaskController {
     public ApiResponse<TaskVO> create(HttpServletRequest r, @Valid @RequestBody TaskCreateDTO i) {
         return ApiResponse.success(
                 service.create(SessionPrincipal.from(r), r.getHeader("Authorization"), i));
+    }
+
+    @PutMapping("/{id}")
+    public ApiResponse<TaskVO> update(
+            HttpServletRequest r,
+            @PathVariable long id,
+            @Valid @RequestBody TaskUpdateDTO i) {
+        return ApiResponse.success(
+                service.update(SessionPrincipal.from(r), r.getHeader("Authorization"), id, i));
     }
 
     @PatchMapping("/{id}/status")

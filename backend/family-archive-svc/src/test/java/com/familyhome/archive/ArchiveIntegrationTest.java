@@ -49,4 +49,24 @@ class ArchiveIntegrationTest {
                 .extracting(a -> a.action())
                 .contains("CREATE", "READ");
     }
+
+    @Test
+    @DisplayName("密钥更换后旧档案读取返回明确业务错误，而不是 500")
+    void undecryptableArchiveIsNotServerError() {
+        var owner = new SessionPrincipal(10, 100, "MEMBER", "test", "family");
+        var saved = service.create(owner, new ArchiveSaveDTO("旧档案", "DOCUMENT", "旧密钥加密的正文", "PRIVATE"));
+        // 模拟密钥轮换：用另一把密钥重新加密同一段正文，写回库里
+        byte[] otherKey = new byte[32];
+        Arrays.fill(otherKey, (byte) 7);
+        var stale = new com.familyhome.archive.security.ArchiveCipher(
+                Base64.getEncoder().encodeToString(otherKey));
+        var row = mapper.selectById(saved.id());
+        row.setEncryptedBody(stale.encrypt("旧密钥加密的正文", "100:" + saved.id()));
+        mapper.updateById(row);
+
+        var thrown = catchThrowable(() -> service.detail(owner, saved.id()));
+        assertThat(thrown).isInstanceOf(ResponseStatusException.class);
+        // 必须是有明确语义的 410，冒泡成 500 会让前端只能显示「服务暂时不可用」
+        assertThat(((ResponseStatusException) thrown).getStatusCode().value()).isEqualTo(410);
+    }
 }

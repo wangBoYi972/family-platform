@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.familyhome.api.user.feign.UserFeignClient;
 import com.familyhome.content.converter.ContentConverter;
 import com.familyhome.content.dto.TaskCreateDTO;
+import com.familyhome.content.dto.TaskUpdateDTO;
 import com.familyhome.content.mapper.FamilyTaskMapper;
 import com.familyhome.content.model.FamilyTask;
 import com.familyhome.content.service.TaskService;
@@ -21,6 +22,13 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class TaskServiceImpl implements TaskService {
+    /** 相邻状态可双向流转（开始/撤销/完成/重做）；管理员额外可把任意状态重置回待开始。 */
+    private static final Map<String, Set<String>> ALLOWED_TRANSITIONS =
+            Map.of(
+                    "TODO", Set.of("IN_PROGRESS"),
+                    "IN_PROGRESS", Set.of("TODO", "COMPLETED"),
+                    "COMPLETED", Set.of("IN_PROGRESS"));
+
     @Autowired
     private FamilyTaskMapper tasks;
     @Autowired
@@ -66,6 +74,30 @@ public class TaskServiceImpl implements TaskService {
         return ContentConverter.toVO(t);
     }
 
+    @Transactional
+    public TaskVO update(SessionPrincipal p, String bearer, long id, TaskUpdateDTO i) {
+        var t = own(p, id);
+        String title = i.title().trim();
+        String name = null;
+        if (i.assigneeId() != null)
+            name =
+                    users.members(bearer).data().stream()
+                            .filter(m -> Objects.equals(m.id(), i.assigneeId()))
+                            .findFirst()
+                            .orElseThrow(
+                                    () -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "负责人必须是本家庭启用成员"))
+                            .displayName();
+        t.setTitle(title);
+        t.setAssigneeId(i.assigneeId());
+        t.setAssigneeName(name);
+        t.setDeadline(i.deadline());
+        if (tasks.updateById(t) != 1)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "任务已更新，请刷新");
+        outbox.append("task", String.valueOf(id), "task.updated", p.householdId(),
+                Map.of("taskId", id, "title", title));
+        return ContentConverter.toVO(t);
+    }
+
     private FamilyTask own(SessionPrincipal p, long id) {
         var t =
                 tasks.selectOne(
@@ -84,10 +116,10 @@ public class TaskServiceImpl implements TaskService {
     public void status(SessionPrincipal p, long id, String status) {
         String old = own(p, id).getStatus();
         if (old.equals(status)) return;
-        if (!((old.equals("TODO") && status.equals("IN_PROGRESS"))
-                || (old.equals("IN_PROGRESS") && status.equals("COMPLETED"))
-                || (p.admin() && status.equals("TODO"))))
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "不允许该任务状态变更");
+        boolean allowed =
+                ALLOWED_TRANSITIONS.getOrDefault(old, Set.of()).contains(status)
+                        || (p.admin() && status.equals("TODO"));
+        if (!allowed) throw new ResponseStatusException(HttpStatus.CONFLICT, "不允许该任务状态变更");
         if (tasks.update(
                         null,
                         new LambdaUpdateWrapper<FamilyTask>()
