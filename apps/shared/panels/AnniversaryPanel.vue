@@ -2,6 +2,8 @@
 import { computed, onMounted, ref } from "vue";
 import { request } from "@app/utils/request";
 import { localDate } from "@shared/tasks.mjs";
+// 折算逻辑与两个宿主的「当天提醒」共用一份实现，改口径不要只改这里
+import { buildAnniversary as build } from "@shared/anniversary-remind.mjs";
 
 const emit = defineEmits(["session-ended", "go"]);
 const rows = ref([]), members = ref([]);
@@ -13,7 +15,7 @@ const today = ref(localDate());
 const FILTERS = ["全部", "每年", "一次性"];
 
 /** 把每条日程折算成「下一次还有多少天」；已过去的一次性日程单独标记。 */
-const items = computed(() => rows.value.map(build).filter(Boolean).sort((a, b) => a.sort - b.sort));
+const items = computed(() => rows.value.map(row => build(row, today.value)).filter(Boolean).sort((a, b) => a.sort - b.sort));
 const yearly = computed(() => items.value.filter(item => item.yearly));
 const upcoming = computed(() => items.value.filter(item => item.days >= 0));
 const nearest = computed(() => upcoming.value[0] || null);
@@ -35,29 +37,6 @@ const buckets = computed(() => [
 ]
   .map(bucket => ({ ...bucket, items: visible.value.filter(bucket.pick) }))
   .filter(bucket => bucket.items.length));
-
-function build(row) {
-  const date = String(row.eventDate || "").slice(0, 10);
-  if (!date) return null;
-  const [year, month, day] = date.split("-").map(Number);
-  const base = new Date(today.value + "T00:00:00");
-  let target = new Date(row.yearly ? base.getFullYear() : year, month - 1, day);
-  if (row.yearly && target < base) target.setFullYear(base.getFullYear() + 1);
-  const days = Math.round((target - base) / 86400000);
-  const nth = row.yearly ? target.getFullYear() - year + 1 : 0;
-  return {
-    id: row.id,
-    title: row.title,
-    body: row.body,
-    yearly: !!row.yearly,
-    pinned: !!row.pinned,
-    date: localDate(target),
-    origin: date,
-    days,
-    nth,
-    sort: days < 0 ? 10000 - days : days
-  };
-}
 
 function ownerName(row) {
   const person = members.value.find(item => String(item.id) === String(row.creatorId));

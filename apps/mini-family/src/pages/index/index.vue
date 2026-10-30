@@ -2,6 +2,8 @@
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import CalendarPanel from "@shared/panels/CalendarPanel.vue";
 import { login, register, request } from "../../utils/request";
+import { localDate } from "@shared/tasks.mjs";
+import { anniversariesToday, remindDoneKey, remindText } from "@shared/anniversary-remind.mjs";
 import TaskPanel from "@shared/panels/TaskPanel.vue";
 import DynamicsPanel from "@shared/panels/DynamicsPanel.vue";
 import AlbumsPanel from "@shared/panels/AlbumsPanel.vue";
@@ -130,10 +132,24 @@ async function refreshUnread() {
   try { unread.value = sumUnread(await request("/im/conversations")); }
   catch { /* 角标失败不值得打扰用户，下次推送再试 */ }
 }
-onMounted(() => { if (token.value) { familySocket.connect(); refreshUnread(); bindWxSession(request).catch(() => {}); } });
+/**
+ * 当天纪念日提醒：登录进来当天有到期日程就弹一次窗，同一天不重复（storage 按日期去重）。
+ * 3 天内临近的不弹——面板里有红标，弹窗连着弹只会被关掉再也不看。
+ */
+async function checkAnniversary() {
+  try {
+    const today = localDate();
+    if (uni.getStorageSync(remindDoneKey(today))) return;
+    const todayItems = anniversariesToday(await request("/calendar"), today);
+    if (!todayItems.length) return;
+    uni.setStorageSync(remindDoneKey(today), 1);
+    uni.showModal({ title: "今天的纪念日", content: remindText(todayItems), showCancel: false, confirmText: "知道了" });
+  } catch { /* 提醒是锦上添花，失败静默 */ }
+}
+onMounted(() => { if (token.value) { familySocket.connect(); refreshUnread(); bindWxSession(request).catch(() => {}); checkAnniversary(); } });
 onUnmounted(() => familySocket.close());
 watch(token, value => {
-  if (value) { familySocket.connect(); refreshUnread(); bindWxSession(request).catch(() => {}); }
+  if (value) { familySocket.connect(); refreshUnread(); bindWxSession(request).catch(() => {}); checkAnniversary(); }
   else { familySocket.close(); unread.value = 0; }
 });
 
