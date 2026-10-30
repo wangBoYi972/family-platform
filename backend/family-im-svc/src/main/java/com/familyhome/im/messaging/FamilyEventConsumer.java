@@ -1,20 +1,26 @@
 package com.familyhome.im.messaging;
 
 import com.familyhome.im.websocket.ImSocket;
+
 import java.time.Duration;
 import java.util.Map;
+
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Autowired;
 
-/** 消费端用 Redis 记录事件编号，保证 Rabbit 重投不会重复广播。 */
+/**
+ * 消费端用 Redis 记录事件编号，保证 Rabbit 重投不会重复广播。
+ */
 @Component
 @ConditionalOnProperty(name = "family.messaging.enabled", havingValue = "true")
 public class FamilyEventConsumer {
-    @Autowired private StringRedisTemplate redis;
-    @Autowired private ImSocket socket;
+    @Autowired
+    private StringRedisTemplate redis;
+    @Autowired
+    private ImSocket socket;
 
     @RabbitListener(queues = "${family.messaging.queue:family-im-svc.events}")
     public void consume(Map<String, Object> event) {

@@ -12,15 +12,16 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 @OpenAPIDefinition(
-        info =
-                @Info(
-                        title = "家庭综合平台 API",
-                        version = "0.1.0",
-                        description =
-                                "Spring Cloud Alibaba 微服务。所有受保护接口需携带 Authorization: Bearer <JWT>。"))
+    info =
+    @Info(
+        title = "家庭综合平台 API",
+        version = "0.1.0",
+        description =
+            "Spring Cloud Alibaba 微服务。所有受保护接口需携带 Authorization: Bearer <JWT>。"))
 @SecurityScheme(
-        name = "bearerAuth",
-        type = SecuritySchemeType.HTTP,
-        scheme = "bearer",
-        bearerFormat = "JWT")
-public class OpenApiConfig {}
+    name = "bearerAuth",
+    type = SecuritySchemeType.HTTP,
+    scheme = "bearer",
+    bearerFormat = "JWT")
+public class OpenApiConfig {
+}

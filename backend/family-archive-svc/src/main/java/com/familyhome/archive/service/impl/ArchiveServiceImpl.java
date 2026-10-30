@@ -11,8 +11,10 @@ import com.familyhome.archive.security.ArchiveCipher;
 import com.familyhome.archive.service.ArchiveService;
 import com.familyhome.archive.vo.*;
 import com.familyhome.security.SessionPrincipal;
+
 import java.time.LocalDateTime;
 import java.util.*;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,30 +31,30 @@ public class ArchiveServiceImpl implements ArchiveService {
 
     private LambdaQueryWrapper<FamilyArchive> readable(SessionPrincipal p) {
         return new LambdaQueryWrapper<FamilyArchive>()
-                .eq(FamilyArchive::getHouseholdId, p.householdId())
-                .and(
-                        q ->
-                                q.eq(FamilyArchive::getOwnerId, p.userId())
-                                        .or()
-                                        .eq(FamilyArchive::getVisibility, "FAMILY"));
+            .eq(FamilyArchive::getHouseholdId, p.householdId())
+            .and(
+                q ->
+                    q.eq(FamilyArchive::getOwnerId, p.userId())
+                        .or()
+                        .eq(FamilyArchive::getVisibility, "FAMILY"));
     }
 
     public List<ArchiveVO> list(SessionPrincipal p) {
         return archives
-                .selectList(
-                        readable(p)
-                                .select(
-                                        FamilyArchive::getId,
-                                        FamilyArchive::getOwnerId,
-                                        FamilyArchive::getTitle,
-                                        FamilyArchive::getCategory,
-                                        FamilyArchive::getVisibility,
-                                        FamilyArchive::getCreatedAt)
-                                .orderByDesc(FamilyArchive::getCreatedAt)
-                                .last("LIMIT 500"))
-                .stream()
-                .map(ArchiveConverter::toVO)
-                .toList();
+            .selectList(
+                readable(p)
+                    .select(
+                        FamilyArchive::getId,
+                        FamilyArchive::getOwnerId,
+                        FamilyArchive::getTitle,
+                        FamilyArchive::getCategory,
+                        FamilyArchive::getVisibility,
+                        FamilyArchive::getCreatedAt)
+                    .orderByDesc(FamilyArchive::getCreatedAt)
+                    .last("LIMIT 500"))
+            .stream()
+            .map(ArchiveConverter::toVO)
+            .toList();
     }
 
     private FamilyArchive find(SessionPrincipal p, String id) {
@@ -86,7 +88,7 @@ public class ArchiveServiceImpl implements ArchiveService {
             body = cipher.decrypt(a.getEncryptedBody(), p.householdId() + ":" + id);
         } catch (RuntimeException ex) {
             throw new ResponseStatusException(
-                    HttpStatus.GONE, "该档案内容无法解密，可能是密钥已更换，请重新录入");
+                HttpStatus.GONE, "该档案内容无法解密，可能是密钥已更换，请重新录入");
         }
         log(p, id, "READ");
         return ArchiveConverter.detail(a, body);
@@ -112,17 +114,17 @@ public class ArchiveServiceImpl implements ArchiveService {
     public void update(SessionPrincipal p, String id, ArchiveSaveDTO i) {
         owner(p, find(p, id));
         archives.update(
-                null,
-                new LambdaUpdateWrapper<FamilyArchive>()
-                        .eq(FamilyArchive::getId, id)
-                        .eq(FamilyArchive::getHouseholdId, p.householdId())
-                        .eq(FamilyArchive::getOwnerId, p.userId())
-                        .set(FamilyArchive::getTitle, i.title())
-                        .set(FamilyArchive::getCategory, i.category())
-                        .set(FamilyArchive::getVisibility, i.visibility())
-                        .set(
-                                FamilyArchive::getEncryptedBody,
-                                cipher.encrypt(i.body(), p.householdId() + ":" + id)));
+            null,
+            new LambdaUpdateWrapper<FamilyArchive>()
+                .eq(FamilyArchive::getId, id)
+                .eq(FamilyArchive::getHouseholdId, p.householdId())
+                .eq(FamilyArchive::getOwnerId, p.userId())
+                .set(FamilyArchive::getTitle, i.title())
+                .set(FamilyArchive::getCategory, i.category())
+                .set(FamilyArchive::getVisibility, i.visibility())
+                .set(
+                    FamilyArchive::getEncryptedBody,
+                    cipher.encrypt(i.body(), p.householdId() + ":" + id)));
         log(p, id, "UPDATE");
     }
 
@@ -136,14 +138,14 @@ public class ArchiveServiceImpl implements ArchiveService {
     public List<ArchiveAuditVO> audit(SessionPrincipal p, String id) {
         owner(p, find(p, id));
         return logs
-                .selectList(
-                        new LambdaQueryWrapper<ArchiveAccessLog>()
-                                .eq(ArchiveAccessLog::getArchiveId, id)
-                                .eq(ArchiveAccessLog::getHouseholdId, p.householdId())
-                                .orderByDesc(ArchiveAccessLog::getId)
-                                .last("LIMIT 100"))
-                .stream()
-                .map(ArchiveConverter::toVO)
-                .toList();
+            .selectList(
+                new LambdaQueryWrapper<ArchiveAccessLog>()
+                    .eq(ArchiveAccessLog::getArchiveId, id)
+                    .eq(ArchiveAccessLog::getHouseholdId, p.householdId())
+                    .orderByDesc(ArchiveAccessLog::getId)
+                    .last("LIMIT 100"))
+            .stream()
+            .map(ArchiveConverter::toVO)
+            .toList();
     }
 }

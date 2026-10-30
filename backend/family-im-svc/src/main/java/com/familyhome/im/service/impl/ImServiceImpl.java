@@ -12,6 +12,7 @@ import com.familyhome.im.vo.*;
 import com.familyhome.im.websocket.ImSocket;
 import com.familyhome.security.SessionPrincipal;
 import com.familyhome.messaging.OutboxEventStore;
+
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -42,14 +43,14 @@ public class ImServiceImpl implements ImService {
 
     private LambdaQueryWrapper<Conversation> visible(SessionPrincipal p) {
         return new LambdaQueryWrapper<Conversation>()
-                .eq(Conversation::getHouseholdId, p.householdId())
-                .and(
-                        q ->
-                                q.eq(Conversation::getKind, "GROUP")
-                                        .or()
-                                        .eq(Conversation::getUserA, p.userId())
-                                        .or()
-                                        .eq(Conversation::getUserB, p.userId()));
+            .eq(Conversation::getHouseholdId, p.householdId())
+            .and(
+                q ->
+                    q.eq(Conversation::getKind, "GROUP")
+                        .or()
+                        .eq(Conversation::getUserA, p.userId())
+                        .or()
+                        .eq(Conversation::getUserB, p.userId()));
     }
 
     private Conversation find(SessionPrincipal p, String id) {
@@ -61,29 +62,29 @@ public class ImServiceImpl implements ImService {
     @Transactional(readOnly = true)
     public List<ConversationVO> list(SessionPrincipal p) {
         return conversations
-                .selectList(
-                        visible(p).orderByDesc(Conversation::getCreatedAt).last("LIMIT 500"))
-                .stream()
-                .map(c -> ImConverter.toVO(c, receipts.unread(c.getId(), p.userId())))
-                .toList();
+            .selectList(
+                visible(p).orderByDesc(Conversation::getCreatedAt).last("LIMIT 500"))
+            .stream()
+            .map(c -> ImConverter.toVO(c, receipts.unread(c.getId(), p.userId())))
+            .toList();
     }
 
     @Transactional
     public ConversationVO create(SessionPrincipal p, String bearer, ConversationCreateDTO i) {
         Long peer = i.peerId();
         if (peer != null
-                && (peer == p.userId()
-                        || users.members(bearer).data().stream().noneMatch(m -> Objects.equals(m.id(), peer))))
+            && (peer == p.userId()
+            || users.members(bearer).data().stream().noneMatch(m -> Objects.equals(m.id(), peer))))
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择本家庭的其他成员");
         String id =
-                peer == null
-                        ? "group-" + p.householdId()
-                        : "dm-"
-                                + p.householdId()
-                                + "-"
-                                + Math.min(peer, p.userId())
-                                + "-"
-                                + Math.max(peer, p.userId());
+            peer == null
+                ? "group-" + p.householdId()
+                : "dm-"
+                + p.householdId()
+                + "-"
+                + Math.min(peer, p.userId())
+                + "-"
+                + Math.max(peer, p.userId());
         var c = new Conversation();
         c.setId(id);
         c.setHouseholdId(p.householdId());
@@ -108,16 +109,16 @@ public class ImServiceImpl implements ImService {
     public List<MessageVO> messages(SessionPrincipal p, String id, long after) {
         find(p, id);
         return messages
-                .selectList(
-                        new LambdaQueryWrapper<ChatMessage>()
-                                .eq(ChatMessage::getConversationId, id)
-                                .eq(ChatMessage::getHouseholdId, p.householdId())
-                                .gt(ChatMessage::getId, Math.max(0, after))
-                                .orderByAsc(ChatMessage::getId)
-                                .last("LIMIT 100"))
-                .stream()
-                .map(ImConverter::toVO)
-                .toList();
+            .selectList(
+                new LambdaQueryWrapper<ChatMessage>()
+                    .eq(ChatMessage::getConversationId, id)
+                    .eq(ChatMessage::getHouseholdId, p.householdId())
+                    .gt(ChatMessage::getId, Math.max(0, after))
+                    .orderByAsc(ChatMessage::getId)
+                    .last("LIMIT 100"))
+            .stream()
+            .map(ImConverter::toVO)
+            .toList();
     }
 
     @Transactional
@@ -129,7 +130,7 @@ public class ImServiceImpl implements ImService {
             if (!"FAMILY".equals(f.visibility()))
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "聊天附件必须为家庭共享文件");
             if ((i.kind().equals("IMAGE") && !f.mime().startsWith("image/"))
-                    || (i.kind().equals("AUDIO") && !f.mime().startsWith("audio/")))
+                || (i.kind().equals("AUDIO") && !f.mime().startsWith("audio/")))
                 throw new IllegalArgumentException();
         }
         var m = new ChatMessage();
@@ -144,19 +145,19 @@ public class ImServiceImpl implements ImService {
             messages.insert(m);
         } catch (DuplicateKeyException ex) {
             m =
-                    messages.selectOne(
-                            new LambdaQueryWrapper<ChatMessage>()
-                                    .eq(ChatMessage::getSenderId, p.userId())
-                                    .eq(ChatMessage::getClientId, i.clientId()));
+                messages.selectOne(
+                    new LambdaQueryWrapper<ChatMessage>()
+                        .eq(ChatMessage::getSenderId, p.userId())
+                        .eq(ChatMessage::getClientId, i.clientId()));
             if (m == null
-                    || !id.equals(m.getConversationId())
-                    || !i.body().equals(m.getBody())
-                    || !i.kind().equals(m.getKind()))
+                || !id.equals(m.getConversationId())
+                || !i.body().equals(m.getBody())
+                || !i.kind().equals(m.getKind()))
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "重复请求编号对应了不同消息");
         }
         socket.notifyFamily(p.householdId());
         outbox.append("message", String.valueOf(m.getId()), "message.sent", p.householdId(),
-                Map.of("messageId", m.getId(), "conversationId", id, "senderId", p.userId()));
+            Map.of("messageId", m.getId(), "conversationId", id, "senderId", p.userId()));
         return ImConverter.toVO(m);
     }
 
@@ -164,10 +165,10 @@ public class ImServiceImpl implements ImService {
     public void read(SessionPrincipal p, String id, MessageReadDTO i) {
         find(p, id);
         if (messages.selectCount(
-                        new LambdaQueryWrapper<ChatMessage>()
-                                .eq(ChatMessage::getId, i.messageId())
-                                .eq(ChatMessage::getConversationId, id))
-                != 1) throw new IllegalArgumentException();
+            new LambdaQueryWrapper<ChatMessage>()
+                .eq(ChatMessage::getId, i.messageId())
+                .eq(ChatMessage::getConversationId, id))
+            != 1) throw new IllegalArgumentException();
         try {
             receipts.insert(id, p.userId());
         } catch (DuplicateKeyException ignored) {
