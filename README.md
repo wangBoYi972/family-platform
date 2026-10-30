@@ -277,6 +277,17 @@
   前端不做本地过滤——账号超过一屏后本地过滤会漏掉没加载的部分。
 - 测试 +1：全量/命中片段/完全不匹配三种形态。
 
+## 2026-11-02（续十三）时光轴导出纪念册
+
+- `AlbumTimeline` 新增「导出纪念册」：把当前加载的时光轴（最近 24 个时刻、每条 ≤6 图，
+  即界面所见）拼成**单文件 HTML**——图片 base64 内嵌，不依赖网络与登录态，双击即开、
+  浏览器打印可存 PDF。
+- `apps/shared/timeline-export.mjs`：`buildTimelineHtml` 纯函数（转义/统计/空态/失败占位，
+  5 项 node 单测）；`toDataUrl` 平台分叉（H5 blob→FileReader，小程序临时文件→
+  FileSystemManager base64）；`exportTimelineHtml` 落盘（H5 `<a download>`，
+  小程序写 USER_DATA_PATH 后 `shareFileMessage` 转发、不支持则弹窗给路径）。
+- 单张图片转换失败落「图片未能嵌入」占位，不阻塞整本；导出进度在按钮上实时显示。
+
 ## 生产上线前必须验收（发布阻断项）
 
 MySQL 与 Nacos 实例联调、真实短信/微信认证、对象存储、SFU/TURN 部署与压测、双小程序真机回归、监控告警及备份恢复演练。详见 `docs/企业级工程化交付记录.md`。

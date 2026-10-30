@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
 import { request, loadImageUrl } from "@app/utils/request";
+import { buildTimelineHtml, toDataUrl, exportTimelineHtml } from "@shared/timeline-export.mjs";
 
 const emit = defineEmits(["session-ended", "go"]);
 const events = ref([]);
@@ -95,6 +96,46 @@ function formatDay(date) {
 }
 function preview(item, index) { uni.previewImage({ urls: item.images, current: item.images[index] }); }
 
+// 导出纪念册：把当前已加载的时刻（界面看到的这份）拼成单文件 HTML，图片 base64 内嵌。
+// 不重新拉全量数据——导出的就是眼前这份时光轴，小而确定；全量导出等以后有真实需求再做。
+const exporting = ref({ busy: false, done: 0, total: 0 });
+async function exportAlbum() {
+  if (exporting.value.busy || !events.value.length) return;
+  exporting.value = { busy: true, done: 0, total: 0 };
+  try {
+    const exportGroups = groups.value.map(group => ({
+      label: group.label,
+      items: group.items.map(item => ({
+        dateLabel: formatDay(item.date),
+        source: item.sourceIcon + " " + item.source,
+        title: item.title || "未命名时刻",
+        note: item.body || "",
+        images: item.images
+      }))
+    }));
+    exporting.value.total = exportGroups.reduce(
+      (sum, g) => sum + g.items.reduce((n, item) => n + item.images.length, 0), 0);
+    for (const group of exportGroups) for (const item of group.items) {
+      item.images = await mapLimit(item.images, 3, async url => {
+        try { return await toDataUrl(url); }
+        catch { return null; }   // 单张失败占位，不阻塞整本
+        finally { exporting.value.done++; }
+      });
+    }
+    const stamp = new Date().toISOString().slice(0, 10).replaceAll("-", "");
+    const html = buildTimelineHtml({
+      title: "家庭时光轴",
+      exportedAt: new Date().toISOString().slice(0, 10),
+      groups: exportGroups
+    });
+    uni.showToast({ title: await exportTimelineHtml(html, "家庭时光轴-" + stamp + ".html"), icon: "none" });
+  } catch (e) {
+    uni.showToast({ title: e.message || "导出失败", icon: "none" });
+  } finally {
+    exporting.value = { busy: false, done: 0, total: 0 };
+  }
+}
+
 // 不分页的面板：sync 与 load 等价，统一方法名好让宿主一视同仁。
 defineExpose({ load, sync: load });
 onMounted(load);
@@ -112,6 +153,13 @@ onMounted(load);
       <text v-for="item in months" :key="item" class="month-chip" :class="{ active: month === item }" @click="month = item">
         {{ item === '全部' ? '全部' : formatMonth(item) }}
       </text>
+    </view>
+
+    <view v-if="events.length" class="export-row">
+      <button size="mini" class="export-btn" :disabled="exporting.busy" @click="exportAlbum">
+        {{ exporting.busy ? `导出中 ${exporting.done}/${exporting.total}` : '⬇ 导出纪念册' }}
+      </button>
+      <text class="export-hint">单文件网页，发给家人双击即开，可打印成 PDF</text>
     </view>
 
     <view v-if="error" class="state"><text>{{ error }}</text><button size="mini" @click="load">重新加载</button></view>
@@ -154,6 +202,10 @@ onMounted(load);
 .figure{display:block;font-size:22px;font-weight:700;color:var(--c-primary)}
 .caption{font-size:11px;color:var(--c-muted)}
 .months{display:flex;flex-wrap:wrap;gap:8px}
+.export-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.export-btn{font-size:12px;color:var(--c-primary);background:var(--c-primary-soft);border-radius:12px;padding:4px 12px;line-height:1.6}
+.export-btn[disabled]{opacity:.6}
+.export-hint{font-size:11px;color:var(--c-muted)}
 .month-chip{font-size:12px;color:var(--c-ink-2);background:var(--c-surface-2);border-radius:12px;padding:5px 11px}
 .month-chip.active{background:var(--c-primary);color:var(--c-surface)}
 .axis{border-left:2px solid var(--c-sky-soft);padding-left:22px;margin-left:8px;display:flex;flex-direction:column;gap:26px}
