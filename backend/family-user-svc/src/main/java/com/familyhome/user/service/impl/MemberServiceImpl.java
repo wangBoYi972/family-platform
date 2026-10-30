@@ -118,13 +118,16 @@ public class MemberServiceImpl implements MemberService {
         return result;
     }
 
-    public List<WhitelistVO> whitelist(SessionPrincipal p) {
+    public List<WhitelistVO> whitelist(SessionPrincipal p, String keyword) {
         p.requireAdmin();
+        String text = keyword == null ? "" : keyword.trim();
+        var query = new LambdaQueryWrapper<WhitelistEntry>()
+                .eq(WhitelistEntry::getHouseholdId, p.householdId());
+        // 手机号是主检索字段；角色（ADMIN/MEMBER）允许按关键字定位
+        if (!text.isEmpty())
+            query.and(w -> w.like(WhitelistEntry::getPhone, text).or().like(WhitelistEntry::getRole, text));
         return whitelist
-                .selectList(
-                        new LambdaQueryWrapper<WhitelistEntry>()
-                                .eq(WhitelistEntry::getHouseholdId, p.householdId())
-                                .orderByAsc(WhitelistEntry::getId))
+                .selectList(query.orderByAsc(WhitelistEntry::getId))
                 .stream()
                 .map(MemberConverter::toVO)
                 .toList();

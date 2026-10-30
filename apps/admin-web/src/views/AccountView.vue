@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from "vue";
+import { onBeforeUnmount, onMounted, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { request, clearSession } from "../api/request";
 import { changePassword } from "../api/auth";
@@ -7,6 +7,14 @@ import { changePassword } from "../api/auth";
 const emit = defineEmits(["navigate"]);
 const rows = ref([]), loading = ref(false), saving = ref(false), creating = ref(false), resetTarget = ref(null);
 const newAccount = ref({ phone: "", role: "MEMBER", password: "" });
+// 关键字搜索：下推服务端在 SQL 里匹配手机号/角色；300ms 防抖避免每敲一个字就发请求
+const keyword = ref("");
+let searchTimer = null;
+function onKeywordInput() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(load, 300);
+}
+onBeforeUnmount(() => clearTimeout(searchTimer));
 const inviteRows = ref([]);
 const inviteIssuing = ref(false);
 const inviteCreating = ref(false);
@@ -19,7 +27,7 @@ function validPassword(password) {
 }
 async function load() {
   loading.value = true;
-  try { rows.value = await request("/users/whitelist"); }
+  try { rows.value = await request("/users/whitelist" + (keyword.value.trim() ? "?keyword=" + encodeURIComponent(keyword.value.trim()) : "")); }
   catch (error) { ElMessage.error(error.message); }
   finally { loading.value = false; }
 }
@@ -103,7 +111,7 @@ onMounted(async () => { await load(); await loadInvites(); });
   <main class="account-page">
     <header><div><h1>账号与家庭成员</h1><p>管理真实账号、访问权限和登录密码。</p></div><el-button @click="emit('navigate', '任务')">返回工作台</el-button></header>
     <section v-loading="loading">
-      <div class="section-heading"><h2>成员账号</h2><el-button type="primary" @click="creating = true">新增账号</el-button></div>
+      <div class="section-heading"><h2>成员账号</h2><el-input v-model="keyword" class="member-search" placeholder="搜索手机号或角色" clearable maxlength="30" @input="onKeywordInput" @clear="load" @keyup.enter="load" /><el-button type="primary" @click="creating = true">新增账号</el-button></div>
       <el-table :data="rows" empty-text="暂无成员账号">
         <el-table-column prop="phone" label="手机号" min-width="150" />
         <el-table-column label="角色" width="100"><template #default="{ row }">{{ row.role === 'ADMIN' ? '管理员' : '成员' }}</template></el-table-column>
@@ -159,6 +167,7 @@ onMounted(async () => { await load(); await loadInvites(); });
 
 <style scoped>
 .account-page{max-width:1100px;margin:0 auto;padding:40px 24px;animation:mf-fade 320ms var(--e-out) both}.account-page header,.section-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}.account-page h1{font-size:28px;font-weight:700;letter-spacing:-.02em}.account-page h2{font-size:20px;font-weight:650}.account-page p{color:var(--c-muted);line-height:1.7}.account-page section{margin-top:34px;padding:24px 26px;border-radius:var(--r-lg);background:var(--c-glass);-webkit-backdrop-filter:blur(18px) saturate(1.5);backdrop-filter:blur(18px) saturate(1.5);border:1px solid var(--c-glass-line);box-shadow:var(--sh-2),var(--sh-edge);animation:mf-rise var(--t-slow) var(--e-out) both}.account-page section:nth-of-type(1){animation-delay:0ms}.account-page section:nth-of-type(2){animation-delay:90ms}.account-page section:nth-of-type(3){animation-delay:180ms}.password-section form{max-width:420px}
+.member-search{max-width:220px}
 .issued-code{display:flex;align-items:center;gap:10px;margin-top:6px;padding:12px 14px;border-radius:10px;background:var(--c-bg-2,rgba(58,52,46,.05));border:1px dashed var(--c-glass-line)}
 .issued-code code{font-size:18px;letter-spacing:.08em;font-weight:650}
 </style>

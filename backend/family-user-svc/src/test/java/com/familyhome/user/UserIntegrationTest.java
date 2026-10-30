@@ -92,6 +92,44 @@ class UserIntegrationTest {
     }
 
     @Test
+    @DisplayName("白名单列表支持 keyword 在 SQL 里过滤手机号与角色")
+    void whitelistKeywordFilter() throws Exception {
+        String token = token("19900000001");
+        Long household = households.selectList(null).stream()
+                .filter(h -> "本地测试家庭".equals(h.getName()))
+                .findFirst()
+                .orElseThrow()
+                .getId();
+        for (String phone : new String[] {"18800000055", "18800000066", "13900000055"}) {
+            var w = new WhitelistEntry();
+            w.setPhone(phone);
+            w.setHouseholdId(household);
+            w.setRole("MEMBER");
+            w.setEnabled(true);
+            whitelist.insert(w);
+        }
+        // 不带 keyword：全量返回
+        mvc.perform(get("/api/users/whitelist").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+        // 关键字命中两个手机号
+        mvc.perform(get("/api/users/whitelist?keyword=18800000055")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].phone").value("18800000055"));
+        // 关键字只匹配片段，而不是要求全等
+        mvc.perform(get("/api/users/whitelist?keyword=139000000")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].phone").value("13900000055"));
+        // 完全不匹配时返回空列表，而不是报错
+        mvc.perform(get("/api/users/whitelist?keyword=没有这个号")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0));
+    }
+
+    @Test
     @DisplayName("普通成员不能登录管理端或登记白名单")
     void memberCannotAdminister() throws Exception {
         var h = new Household();

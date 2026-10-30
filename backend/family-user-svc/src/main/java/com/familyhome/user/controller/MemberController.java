@@ -67,8 +67,9 @@ public class MemberController {
     }
 
     @GetMapping("/users/whitelist")
-    public ApiResponse<List<WhitelistVO>> whitelist(HttpServletRequest r) {
-        return ApiResponse.success(service.whitelist(SessionPrincipal.from(r)));
+    public ApiResponse<List<WhitelistVO>> whitelist(
+            HttpServletRequest r, @RequestParam(required = false) String keyword) {
+        return ApiResponse.success(service.whitelist(SessionPrincipal.from(r), keyword));
     }
 
     @PostMapping("/users/whitelist")
