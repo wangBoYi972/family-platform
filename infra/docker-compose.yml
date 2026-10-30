@@ -181,9 +181,41 @@ services:
       FAMILY_MEDIA_DB_USERNAME: family_app
       FAMILY_MEDIA_DB_PASSWORD: ${MYSQL_APP_PASSWORD:?}
       FAMILY_JWT_SECRET: ${FAMILY_JWT_SECRET:?}
+      # 多副本部署时信令与票据必须走 Redis，否则两个实例上的家人互相收不到呼叫。
+      FAMILY_MESSAGING_ENABLED: ${FAMILY_MESSAGING_ENABLED:true}
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?}
+      FAMILY_TURN_SECRET: ${FAMILY_TURN_SECRET:?请在 .env 中配置 TURN 静态密钥}
+      FAMILY_TURN_URLS: ${FAMILY_TURN_URLS:-turn:127.0.0.1:3478?transport=udp,turn:127.0.0.1:3478?transport=tcp}
+      FAMILY_STUN_URLS: ${FAMILY_STUN_URLS:-stun:127.0.0.1:3478}
     depends_on:
       - nacos
       - mysql
+      - redis
+      - rabbitmq
+      - coturn
+
+  # NAT 穿透兜底。P2P 直连失败（对称型 NAT、移动网络）时媒体经 TURN 中继。
+  # 使用 host 网络：UDP 中继端口段无法用 docker 端口映射高效覆盖，宿主即 coturn 所在机。
+  coturn:
+    image: coturn/coturn:4.6.2-alpine
+    network_mode: host
+    restart: unless-stopped
+    command:
+      - "-n"
+      - "--log-file=stdout"
+      - "--fingerprint"
+      - "--use-auth-secret"
+      - "--static-auth-secret=${FAMILY_TURN_SECRET:?请在 .env 中配置 TURN 静态密钥}"
+      - "--realm=${FAMILY_TURN_REALM:-family.home}"
+      - "--listening-port=3478"
+      - "--min-port=49160"
+      - "--max-port=49200"
+      - "--no-cli"
+      - "--no-multicast-peers"
+      # 公网部署必须显式声明外网地址，否则返回的 relay 候选不可达：--external-ip=<公网IP>
+
 
   prometheus:
     image: prom/prometheus:v2.53.0

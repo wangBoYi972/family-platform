@@ -33,6 +33,15 @@ spring:
           uri: lb://family-media-svc
           predicates:
             - Path=/api/media/**
+        # WebSocket 必须显式使用 ws 协议转发，否则网关会按 HTTP 处理导致握手失败。
+        - id: family-im-ws
+          uri: lb:ws://family-im-svc
+          predicates:
+            - Path=/ws/im
+        - id: family-media-ws
+          uri: lb:ws://family-media-svc
+          predicates:
+            - Path=/ws/call
   data:
     redis:
       host: ${REDIS_HOST:127.0.0.1}

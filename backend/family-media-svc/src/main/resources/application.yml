@@ -31,6 +31,13 @@ spring:
     multipart:
       max-file-size: 20MB
       max-request-size: 21MB
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+  jackson:
+    default-property-inclusion: non_null
 management:
   endpoints:
     web:
@@ -41,3 +48,19 @@ springdoc:
     enabled: ${FAMILY_DOCS_ENABLED:false}
   swagger-ui:
     enabled: ${FAMILY_DOCS_ENABLED:false}
+family:
+  # 开启后 WebSocket 票据与信令跨实例广播走 Redis；多副本部署必须开启。
+  messaging:
+    enabled: ${FAMILY_MESSAGING_ENABLED:false}
+  media:
+    max-participants: ${FAMILY_MEDIA_MAX_PARTICIPANTS:8}
+    ring-timeout-seconds: ${FAMILY_MEDIA_RING_TIMEOUT_SECONDS:45}
+    reconnect-grace-seconds: ${FAMILY_MEDIA_RECONNECT_GRACE_SECONDS:30}
+    verify-members: ${FAMILY_MEDIA_VERIFY_MEMBERS:true}
+    turn:
+      # coturn 的 static-auth-secret；留空则只下发 STUN。
+      secret: ${FAMILY_TURN_SECRET:}
+      ttl-seconds: ${FAMILY_TURN_TTL_SECONDS:3600}
+      urls: ${FAMILY_TURN_URLS:turn:127.0.0.1:3478?transport=udp,turn:127.0.0.1:3478?transport=tcp}
+      stun-urls: ${FAMILY_STUN_URLS:stun:127.0.0.1:3478}
+

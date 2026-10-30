@@ -13,6 +13,11 @@
   <dependency><groupId>com.h2database</groupId><artifactId>h2</artifactId><scope>runtime</scope></dependency>
   <dependency><groupId>com.alibaba.cloud</groupId><artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId></dependency>
   <dependency><groupId>com.familyhome</groupId><artifactId>family-security</artifactId><version>0.1.0-SNAPSHOT</version></dependency>
+  <!-- 通话信令 WebSocket + 跨实例广播所需的 Redis 能力。 -->
+  <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-websocket</artifactId></dependency>
+  <dependency><groupId>com.familyhome</groupId><artifactId>family-messaging</artifactId><version>0.1.0-SNAPSHOT</version></dependency>
+  <!-- 通话目标成员必须由用户服务校验，不能用客户端传入的家庭标识。 -->
+  <dependency><groupId>com.familyhome</groupId><artifactId>family-api</artifactId><version>0.1.0-SNAPSHOT</version></dependency>
   <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
  </dependencies>
  <build><plugins><plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId></plugin></plugins></build>

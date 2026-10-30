@@ -14,6 +14,7 @@ import GlobalSearch from "../../components/GlobalSearch.vue";
 import FilesPanel from "../../components/FilesPanel.vue";
 import AlbumTimeline from "../../components/AlbumTimeline.vue";
 import AnniversaryPanel from "../../components/AnniversaryPanel.vue";
+import CallPanel from "../../components/CallPanel.vue";
 
 const phone = ref(""), password = ref(""), token = ref(uni.getStorageSync("family_access_token"));
 const tab = ref("首页");
@@ -59,6 +60,10 @@ const paneKey = computed(() => [tab.value, calTab.value, circleTab.value, homeTa
 
 function openSearch() { searchBox.value?.open(); }
 function chatWith(member) { chatPeer.value = member.id; tab.value = "聊天"; }
+/** 通话：从顶部入口选人，或从聊天面板直接呼叫某位家人。 */
+const callPanel = ref(null);
+function openCall() { callPanel.value?.openDial(); }
+function openCallWith(id) { callPanel.value?.openDialWith(id); }
 
 function report(error) {
   if (error.status === 401) token.value = "";
@@ -210,6 +215,7 @@ async function changePassword() {
       <text class="wordmark">一起<text class="brand-caption">家庭空间</text></text>
       <view class="brand-right">
         <view class="date-pill"><text class="date-main">{{ dateText }}</text><text class="date-sub">{{ weekText }}</text></view>
+        <text class="call-entry" @click="openCall">☎ 通话</text>
         <text class="search-entry" @click="openSearch">⌕ 搜索</text>
       </view>
     </view>
@@ -245,7 +251,7 @@ async function changePassword() {
       <CalendarPanel v-if="calTab==='日程'" @session-ended="clearSession"/><AnniversaryPanel v-else @session-ended="clearSession" @go="open"/>
     </view>
     <TaskPanel v-else-if="tab === '任务'" @session-ended="clearSession"/>
-    <ChatPanel v-else-if="tab === '聊天'" :peer-id="chatPeer" @session-ended="clearSession" @unread-change="unread = $event"/>
+    <ChatPanel v-else-if="tab === '聊天'" :peer-id="chatPeer" @session-ended="clearSession" @unread-change="unread = $event" @call="openCallWith"/>
     <view v-else-if="tab === '家庭圈'">
       <view class="subnav"><button v-for="item in circleTabs" :key="item" :class="{active:circleTab===item}" @click="circleTab=item">{{ circleLabels[item] }}</button></view>
       <DynamicsPanel v-if="circleTab==='动态'" :token="token"/><AlbumsPanel v-else-if="circleTab==='相册'" :token="token"/><AlbumTimeline v-else @session-ended="clearSession"/>
@@ -274,6 +280,7 @@ async function changePassword() {
       </button>
     </view>
     <GlobalSearch ref="searchBox" @navigate="open" @session-ended="clearSession"/>
+    <CallPanel ref="callPanel" :active="!!token"/>
   </view>
 </view>
 </template>
@@ -282,16 +289,18 @@ async function changePassword() {
 .shell{position:relative;z-index:1;max-width:1060px;margin:auto;padding:0 30px 120px}
 
 /* ——— 顶栏 ——— */
-.brandbar{display:flex;align-items:center;justify-content:space-between;padding:26px 0 18px}
-.wordmark{font-size:24px;font-weight:750;color:var(--c-primary-deep);letter-spacing:1px}
-.brand-caption{font-size:11px;font-weight:400;color:var(--c-muted);margin-left:12px;letter-spacing:2px}
-.brand-right{display:flex;align-items:center;gap:12px}
-.date-pill{display:flex;flex-direction:column;align-items:flex-end;line-height:1.3;padding:6px 14px;border-radius:var(--r-pill);background:var(--c-glass);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid var(--c-glass-line);box-shadow:var(--sh-1)}
-.date-main{font-size:12px;font-weight:600;color:var(--c-ink)}
-.date-sub{font-size:10px;color:var(--c-muted)}
-.search-entry{font-size:12px;color:var(--c-primary-deep);background:var(--c-glass);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid var(--c-glass-line);border-radius:var(--r-pill);padding:8px 15px;box-shadow:var(--sh-1);transition:transform var(--t-fast) var(--e-spring),box-shadow var(--t) var(--e-out)}
+/* 头部：窄屏下品牌与右侧胶囊都必须单行，否则「家庭空间 / 10月30日 / 通话 / 搜索」会各自折行挤成一团 */
+.brandbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:nowrap;gap:12px;padding:26px 0 18px}
+.wordmark{flex:0 0 auto;font-size:24px;font-weight:750;color:var(--c-primary-deep);letter-spacing:1px;white-space:nowrap}
+.brand-caption{font-size:11px;font-weight:400;color:var(--c-muted);margin-left:12px;letter-spacing:2px;white-space:nowrap}
+.brand-right{display:flex;align-items:center;flex:0 0 auto;gap:12px}
+.date-pill{display:flex;flex:0 0 auto;flex-direction:column;align-items:flex-end;line-height:1.3;padding:6px 14px;border-radius:var(--r-pill);background:var(--c-glass);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid var(--c-glass-line);box-shadow:var(--sh-1);white-space:nowrap}
+.date-main{font-size:12px;font-weight:600;color:var(--c-ink);white-space:nowrap}
+.date-sub{font-size:10px;color:var(--c-muted);white-space:nowrap}
+.search-entry{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:12px;line-height:1;color:var(--c-primary-deep);background:var(--c-glass);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid var(--c-glass-line);border-radius:var(--r-pill);padding:9px 15px;box-shadow:var(--sh-1);white-space:nowrap;transition:transform var(--t-fast) var(--e-spring),box-shadow var(--t) var(--e-out)}
 .search-entry:active{transform:scale(.94)}
-
+.call-entry{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:12px;line-height:1;color:#fff;background:linear-gradient(135deg,var(--c-primary),var(--c-primary-deep));border-radius:var(--r-pill);padding:9px 15px;box-shadow:var(--sh-1);white-space:nowrap;transition:transform var(--t-fast) var(--e-spring)}
+.call-entry:active{transform:scale(.94)}
 /* ——— 页头 ——— */
 .page-heading{padding:18px 0 8px;position:relative}
 .page-title{display:block;font-size:28px;font-weight:750;margin-top:11px;letter-spacing:-.7px;color:var(--c-ink);line-height:1.35}
@@ -390,8 +399,10 @@ async function changePassword() {
 }
 @media(max-width:700px){
   .shell{padding:0 20px 118px}
-  .brandbar{padding:20px 0 14px}
+  .brandbar{padding:20px 0 14px;gap:10px}
   .wordmark{font-size:21px}
+  .brand-caption{margin-left:8px;letter-spacing:1px}
+  .brand-right{gap:8px}
   .page-title{font-size:24px}
   .hero{padding:28px 26px;min-height:160px}
   .hero-title{font-size:24px}
@@ -399,5 +410,15 @@ async function changePassword() {
   .shortcut{padding:20px 18px 18px}
   .subnav{width:100%;overflow-x:auto}
   .navigation{border-radius:0}
+}
+/* 手机竖屏：品牌副标题让位，按钮只保留单行文字，避免每个胶囊各自折行 */
+@media(max-width:520px){
+  .shell{padding:0 16px 112px}
+  .brand-caption{display:none}
+  .brand-right{gap:6px}
+  .date-pill{padding:5px 10px}
+  .date-main{font-size:11px}
+  .date-sub{font-size:9px}
+  .call-entry,.search-entry{padding:8px 11px;font-size:11px}
 }
 </style>

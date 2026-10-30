@@ -15,11 +15,18 @@ import java.time.Duration;
 import java.util.Objects;
 
 /**
- * 全局限流过滤器
- * 基于 IP 的简单限流策略
+ * 按 IP 的简单固定窗口限流（每秒 10 次）。
+ *
+ * <p>这是早期的兜底实现，和 {@code GatewayRateLimitConfiguration} 的 Redis 令牌桶是两个独立开关。
+ * 默认关闭：它不区分接口、也没有用户维度，开启后会和令牌桶重复限流；而且 WebSocket 升级请求
+ * 一旦被 429 掉，客户端只会看到「握手失败」，表现为整通电话打不通。需要时用
+ * {@code family.gateway.rate-limit.simple.enabled=true} 单独开启。
  */
 @Slf4j
 @Component
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+        name = "family.gateway.rate-limit.simple.enabled",
+        havingValue = "true")
 public class RateLimitFilter implements GlobalFilter, Ordered {
 
     // 默认限流: 每秒 10 次请求
@@ -33,6 +40,12 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         // 如果 Redis 不可用,跳过限流
         if (redis == null) {
+            return chain.filter(exchange);
+        }
+
+        // WebSocket 升级只发生一次，被限流后客户端不会重试，直接断掉整通通话，必须放行
+        String upgrade = exchange.getRequest().getHeaders().getUpgrade();
+        if (upgrade != null && "websocket".equalsIgnoreCase(upgrade)) {
             return chain.filter(exchange);
         }
 

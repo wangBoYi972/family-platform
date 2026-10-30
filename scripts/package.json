@@ -1,0 +1,9 @@
+{
+  "name": "family-platform-scripts",
+  "private": true,
+  "type": "module",
+  "description": "本地冒烟脚本：先用 npm i 安装 playwright，再运行 node call-smoke.mjs / call-browser-smoke.mjs",
+  "devDependencies": {
+    "playwright": "^1.64.0"
+  }
+}

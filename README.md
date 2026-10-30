@@ -10,7 +10,7 @@
 - `family-file-svc`：私有文件上传、下载授权和资源元数据。
 - `family-archive-svc`：家庭档案、健康记录、访问审计。
 - `family-im-svc`：会话、消息、已读和 WebSocket 信令。
-- `family-media-svc`：独立媒体服务，负责 SFU 与 TURN 对接。
+- `family-media-svc`：实时通话服务，负责 WebSocket 信令、TURN 时效凭据与通话记录（媒体走 WebRTC P2P）。
 
 ## 当前状态
 
@@ -21,7 +21,9 @@
 - 本地开发使用独立 H2 数据库；默认生产配置使用 MySQL、Nacos 与环境变量注入密钥和数据库密码。
 - 管理端已接入成员、任务、公告、日历、档案等服务接口。
 
-以下事项仍属于正式上线前的生产验收，而不是“已完成”的替代说法：MySQL 与 Nacos 实例联调、真实短信或微信认证、对象存储、SFU/TURN 部署与压测、双小程序真机回归、监控告警及备份恢复演练。
+- 实时通话已打通：1 对 1 与最多 8 人家庭通话、一次性票据鉴权、信令跨实例广播、coturn 中继与断线宽限，详见 `docs/实时通话设计.md`。
+
+以下事项仍属于正式上线前的生产验收，而不是“已完成”的替代说法：MySQL 与 Nacos 实例联调、真实短信或微信认证、对象存储、公网 TURN 实网穿透与压测、8 人以上所需的 SFU、双小程序真机回归、监控告警及备份恢复演练。
 
 ## 工程化能力（企业级）
 
@@ -38,6 +40,16 @@
 - 管理端已修正任务状态按钮，补齐日历日期展示、纪念日标记、编辑与删除确认。
 - 后端 30 个 Spring 类显式使用 @Autowired；38 项后端测试和 4 项前端规则测试通过，主要任务与日历流程已通过真实接口浏览器验证。
 - 范围、证据和剩余事项见 docs/产品完善与验收记录-20260929.md。
+
+## 2026-10-30 实时通话
+
+- 新增 `family-media-svc` 通话闭环：`call_session` / `call_participant` 两表、REST 状态机接口、`/ws/call` 信令端点。
+- 鉴权改用一次性票据（`POST /api/media/ws-ticket`，30 秒失效），JWT 不进 URL；网关 `/ws/call` 走 `lb:ws://`。
+- TURN 使用 coturn 时效凭据（HMAC-SHA1），`infra/docker-compose.yml` 内置 coturn（host 网络，3478 + 49160-49200）。
+- 客户端：`call-client.js` 负责重连/心跳，`webrtc-mesh.js` 负责网状 PeerConnection，`CallPanel.vue` 提供拨号、来电与多人宫格界面，家庭端与移动端均已接入。
+- 测试：`CallIntegrationTest`（业务与权限）、`CallSignalingTest`（真实 WebSocket 链路）通过；H5 两端构建通过。
+- 设计、协议与部署细节见 `docs/实时通话设计.md`。
+- 冒烟脚本：`scripts/call-smoke.mjs`（信令链路）、`scripts/call-browser-smoke.mjs`（真实浏览器双端出图）、`scripts/call-browser-group.mjs`（3 人网状），用法见设计文档第 10 节。
 
 ## 生产上线前必须验收（发布阻断项）
 

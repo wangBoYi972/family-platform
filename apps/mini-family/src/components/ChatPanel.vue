@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { request, upload, loadImageUrl } from "../utils/request";
 
 const props = defineProps({ peerId: { type: [Number, String], default: null } });
-const emit = defineEmits(["session-ended", "unread-change"]);
+const emit = defineEmits(["session-ended", "unread-change", "call"]);
 
 const conversations = ref([]), members = ref([]), session = ref(null);
 const active = ref(""), activeTitle = ref(""), messages = ref([]), draft = ref("");
@@ -23,7 +23,12 @@ const ownLastId = computed(() => {
   return own.length ? Number(own[own.length - 1].id) || 0 : 0;
 });
 const readMembers = computed(() => ownLastId.value ? receipts.value.filter(item => Number(item.lastMessageId) >= ownLastId.value).map(item => memberName(item.userId)) : []);
-
+/** 私聊会话里的对方 ID；群聊返回 null（群聊通话在顶部「通话」入口发起）。 */
+const activePeerId = computed(() => {
+  const item = conversations.value.find(entry => entry.id === active.value);
+  if (!item || item.kind === "GROUP") return null;
+  return String(item.userA) === selfId.value ? item.userB : item.userA;
+});
 watch(unreadTotal, value => emit("unread-change", value));
 
 function uuid() {
@@ -249,8 +254,11 @@ defineExpose({ load });
         </view>
         <view v-else class="room-body">
           <view class="room-head">
-            <text class="title">{{ activeTitle }}</text>
-            <text class="hint">{{ readMembers.length ? '已读：' + readMembers.join('、') : '每 4 秒自动获取新消息' }}</text>
+            <view>
+              <text class="title">{{ activeTitle }}</text>
+              <text class="hint">{{ readMembers.length ? '已读：' + readMembers.join('、') : '每 4 秒自动获取新消息' }}</text>
+            </view>
+            <button v-if="activePeerId" class="call-btn" size="mini" @click="emit('call', activePeerId)">☎ 通话</button>
           </view>
           <scroll-view class="messages" scroll-y :scroll-top="scrollTop">
             <view v-if="detailError" class="state"><text>{{ detailError }}</text><button size="mini" @click="loadMessages">重试</button></view>
@@ -289,6 +297,7 @@ defineExpose({ load });
 .title{font-size:16px;font-weight:650}
 .hint{display:block;font-size:11px;color:var(--c-muted);margin-top:6px;line-height:1.8}
 .sidebar-head button{margin:0;font-size:11px}
+.call-btn{margin:0;font-size:11px;background:linear-gradient(135deg,var(--c-primary),var(--c-primary-deep,#a6603f));color:#fff;border-radius:11px;box-shadow:0 2px 8px rgba(166,96,63,.22)}
 .conv-list{display:flex;flex-direction:column;gap:8px}
 .conv{display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;background:var(--c-surface-2)}
 .conv.active{background:var(--c-primary-soft);border:1px solid rgba(196,121,90,.35);box-shadow:0 2px 10px rgba(196,121,90,.12)}

@@ -1,1 +1,21 @@
-{ "name": "家庭综合平台", "appid": "__UNI__FAMILY_MOBILE_APP", "description": "家庭综合平台", "versionName": "0.1.0", "versionCode": "1", "h5": { "title": "家庭综合平台" } }
+{
+  "name": "家庭综合平台",
+  "appid": "__UNI__FAMILY_MOBILE_APP",
+  "description": "家庭综合平台",
+  "versionName": "0.1.0",
+  "versionCode": "1",
+  "h5": { "title": "家庭综合平台" },
+  "app-plus": {
+    "distribute": {
+      "android": {
+        "permissions": [
+          "<uses-permission android:name=\"android.permission.INTERNET\"/>",
+          "<uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\"/>",
+          "<uses-permission android:name=\"android.permission.CAMERA\"/>",
+          "<uses-permission android:name=\"android.permission.RECORD_AUDIO\"/>",
+          "<uses-permission android:name=\"android.permission.MODIFY_AUDIO_SETTINGS\"/>"
+        ]
+      }
+    }
+  }
+}

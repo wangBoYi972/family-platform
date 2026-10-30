@@ -6,6 +6,7 @@ COPY backend/pom.xml pom.xml
 COPY backend/family-common family-common
 COPY backend/family-api family-api
 COPY backend/family-security family-security
+COPY backend/family-messaging family-messaging
 COPY backend/family-media-svc family-media-svc
 RUN mvn -q -ntp -pl family-media-svc -am -DskipTests package
 

@@ -145,6 +145,11 @@ public class GatewayRateLimitConfiguration {
         public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
             String path = exchange.getRequest().getURI().getPath();
             if (path.startsWith("/actuator")) return chain.filter(exchange);
+            // WebSocket 升级是一次性握手，限流后客户端不会重试，放行以免整通通话建不起来
+            String upgrade = exchange.getRequest().getHeaders().getUpgrade();
+            if (upgrade != null && "websocket".equalsIgnoreCase(upgrade)) {
+                return chain.filter(exchange);
+            }
             return keyResolver
                     .resolve(exchange)
                     .flatMap(

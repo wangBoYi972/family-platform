@@ -3,7 +3,10 @@ import { ref, watch } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 import { login, request } from "../../utils/request";
 import TaskPanel from "../../components/TaskPanel.vue";
+import CallPanel from "../../components/CallPanel.vue";
 const taskPanel = ref(null);
+const callPanel = ref(null);
+function openCall() { callPanel.value?.openDial(); }
 const isArchive = false;
 const phone = ref(""), password = ref(""), token = ref(uni.getStorageSync("family_access_token"));
 const tasks = ref([]), entries = ref([]), tab = ref(isArchive ? "档案" : "任务"), loading = ref(false), submitting = ref(false);
@@ -67,6 +70,7 @@ onShow(load);
   <view v-else>
     <view class="header"><view><text class="kicker">{{ isArchive ? "私密资料" : "家庭空间" }}</text><text class="title">{{ isArchive ? "家庭档案" : "今日家庭安排" }}</text></view><text class="logout" @click="logout">退出</text></view>
     <button size="mini" @click="changingPassword = !changingPassword">修改密码</button>
+    <button size="mini" @click="openCall">☎ 通话</button>
     <view v-if="changingPassword" class="password-form">
       <input v-model="currentPassword" class="input" maxlength="64" password placeholder="当前密码" />
       <input v-model="newPassword" class="input" maxlength="64" password placeholder="新密码（12 至 64 位）" />
@@ -78,6 +82,7 @@ onShow(load);
     <view v-else-if="loading" class="empty">加载中…</view>
     <view v-else-if="tab==='任务'||isArchive" class="list"><view v-for="item in tasks" :key="item.id" class="row"><text class="row-title">{{ item.title }}</text><text class="row-meta">{{ item.status || item.category || item.visibility }}</text></view><view v-if="!tasks.length" class="empty">暂无记录</view></view>
     <view v-else class="list"><view v-for="item in entries" :key="item.id" class="row"><text class="row-title">{{ item.title }}</text><text class="row-meta">{{ item.body || "家庭成员可见" }}</text></view><view v-if="!entries.length" class="empty">暂无记录</view></view>
+    <CallPanel ref="callPanel" :active="!!token" />
   </view>
 </view>
 </template>
