@@ -1,17 +1,17 @@
 <script setup>
 import { computed, ref } from "vue";
-import CalendarPanel from "../../components/CalendarPanel.vue";
+import CalendarPanel from "@shared/panels/CalendarPanel.vue";
 import { login, register, request } from "../../utils/request";
 import TaskPanel from "@shared/panels/TaskPanel.vue";
 import DynamicsPanel from "@shared/panels/DynamicsPanel.vue";
-import AlbumsPanel from "../../components/AlbumsPanel.vue";
+import AlbumsPanel from "@shared/panels/AlbumsPanel.vue";
 import NoticesPanel from "@shared/panels/NoticesPanel.vue";
 import MembersPanel from "../../components/MembersPanel.vue";
 import ChatPanel from "../../components/ChatPanel.vue";
-import ArchivePanel from "../../components/ArchivePanel.vue";
+import ArchivePanel from "@shared/panels/ArchivePanel.vue";
 import TodayOverview from "../../components/TodayOverview.vue";
 import GlobalSearch from "../../components/GlobalSearch.vue";
-import FilesPanel from "../../components/FilesPanel.vue";
+import FilesPanel from "@shared/panels/FilesPanel.vue";
 import AlbumTimeline from "../../components/AlbumTimeline.vue";
 import AnniversaryPanel from "../../components/AnniversaryPanel.vue";
 import CallPanel from "@shared/call/CallPanel.vue";

@@ -5,10 +5,13 @@ import { login, request } from "../../utils/request";
 import TaskPanel from "@shared/panels/TaskPanel.vue";
 import DynamicsPanel from "@shared/panels/DynamicsPanel.vue";
 import NoticesPanel from "@shared/panels/NoticesPanel.vue";
+import AlbumsPanel from "@shared/panels/AlbumsPanel.vue";
+import FilesPanel from "@shared/panels/FilesPanel.vue";
+import ArchivePanel from "@shared/panels/ArchivePanel.vue";
 import CallPanel from "@shared/call/CallPanel.vue";
 
-const TABS = ["任务", "动态", "公告"];
-const taskPanel = ref(null), dynamicsPanel = ref(null), noticesPanel = ref(null), callPanel = ref(null);
+const TABS = ["任务", "动态", "公告", "相册", "文件", "档案"];
+const taskPanel = ref(null), dynamicsPanel = ref(null), noticesPanel = ref(null), albumsPanel = ref(null), callPanel = ref(null);
 function openCall() { callPanel.value?.openDial(); }
 const phone = ref(""), password = ref(""), token = ref(uni.getStorageSync("family_access_token"));
 const tab = ref("任务"), submitting = ref(false);
@@ -75,12 +78,15 @@ async function changePassword() {
     <view class="tabs"><text v-for="item in TABS" :key="item" :class="['tab', tab === item ? 'active' : '']" @click="tab = item">{{ item }}</text></view>
     <TaskPanel v-if="tab === '任务'" ref="taskPanel" @session-ended="clearSession" />
     <DynamicsPanel v-else-if="tab === '动态'" ref="dynamicsPanel" :token="token" />
-    <NoticesPanel v-else ref="noticesPanel" :token="token" />
+    <NoticesPanel v-else-if="tab === '公告'" ref="noticesPanel" :token="token" />
+    <AlbumsPanel v-else-if="tab === '相册'" ref="albumsPanel" :token="token" />
+    <FilesPanel v-else-if="tab === '文件'" @session-ended="clearSession" />
+    <ArchivePanel v-else @session-ended="clearSession" />
     <CallPanel ref="callPanel" :active="!!token" />
   </view>
 </view>
 </template>
 
 <style scoped>
-.page{min-height:100vh;padding:48rpx 40rpx;box-sizing:border-box}.login{padding-top:18vh}.kicker{display:block;color:var(--family-muted);font-size:22rpx;letter-spacing:4rpx}.title{display:block;margin-top:18rpx;font-size:54rpx;font-weight:600;line-height:1.2}.desc{display:block;margin:20rpx 0 68rpx;color:var(--family-muted);font-size:28rpx}.input{height:92rpx;padding:0 26rpx;margin-bottom:20rpx;background:#fff;border:1px solid var(--family-border);border-radius:12rpx;box-sizing:border-box}.primary{margin-top:20rpx;background:var(--family-primary);color:#fff;border-radius:12rpx}.header{display:flex;justify-content:space-between;align-items:flex-start}.logout{color:var(--family-muted);font-size:26rpx}.tabs{display:flex;gap:42rpx;margin:64rpx 0 26rpx;border-bottom:1px solid var(--family-border)}.tab{padding-bottom:20rpx;color:var(--family-muted)}.tab.active{color:var(--family-primary);border-bottom:4rpx solid var(--family-primary)}.empty{padding:80rpx 0;text-align:center;color:var(--family-muted)}
+.page{min-height:100vh;padding:48rpx 40rpx;box-sizing:border-box}.login{padding-top:18vh}.kicker{display:block;color:var(--family-muted);font-size:22rpx;letter-spacing:4rpx}.title{display:block;margin-top:18rpx;font-size:54rpx;font-weight:600;line-height:1.2}.desc{display:block;margin:20rpx 0 68rpx;color:var(--family-muted);font-size:28rpx}.input{height:92rpx;padding:0 26rpx;margin-bottom:20rpx;background:#fff;border:1px solid var(--family-border);border-radius:12rpx;box-sizing:border-box}.primary{margin-top:20rpx;background:var(--family-primary);color:#fff;border-radius:12rpx}.header{display:flex;justify-content:space-between;align-items:flex-start}.logout{color:var(--family-muted);font-size:26rpx}.tabs{display:flex;gap:32rpx;margin:64rpx 0 26rpx;border-bottom:1px solid var(--family-border);overflow-x:auto;white-space:nowrap}.tab{flex-shrink:0;padding-bottom:20rpx;color:var(--family-muted);font-size:28rpx}.tab.active{color:var(--family-primary);border-bottom:4rpx solid var(--family-primary)}.empty{padding:80rpx 0;text-align:center;color:var(--family-muted)}
 </style>

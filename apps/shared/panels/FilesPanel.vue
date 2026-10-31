@@ -1,27 +1,28 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
-import { request, upload, loadImageUrl } from "../utils/request";
-import { pageQuery } from "../../../shared/paged-list.mjs";
-import { usePagedList } from "../../../shared/use-paged-list.js";
-import ListMore from "../../../shared/ListMore.vue";
+import { request, upload, loadImageUrl } from "@app/utils/request";
+import { pageQuery } from "../paged-list.mjs";
+import { usePagedList } from "../use-paged-list.js";
+import ListMore from "../ListMore.vue";
 
 const emit = defineEmits(["session-ended"]);
+const keyword = ref("");
+// 关键字交给服务端：分页后本地过滤只覆盖已加载的文件，等于「搜不到旧文件」
+function filePath() {
+  const text = keyword.value.trim();
+  return text ? "/files?keyword=" + encodeURIComponent(text) : "/files";
+}
 const {
   items: files, loading, loadingMore, exhausted, error: listError,
   refresh, loadMore
-} = usePagedList((page, size) => request(pageQuery("/files", page, size)));
+} = usePagedList((page, size) => request(pageQuery(filePath(), page, size)));
 const error = computed(() => listError.value?.message || "");
 const uploading = ref(false);
-const keyword = ref(""), visibility = ref("FAMILY");
+const visibility = ref("FAMILY");
 const keywordInput = ref("");
 const busy = ref(new Set());
 const previews = ref({});
 
-const filtered = computed(() => {
-  const q = keyword.value.trim().toLocaleLowerCase();
-  if (!q) return files.value;
-  return files.value.filter(item => `${item.name} ${item.mime || ""}`.toLocaleLowerCase().includes(q));
-});
 const images = computed(() => files.value.filter(item => String(item.mime || "").startsWith("image/")));
 const totalSize = computed(() => files.value.reduce((sum, item) => sum + (Number(item.sizeBytes) || 0), 0));
 
@@ -45,7 +46,17 @@ function kindIcon(item) {
   const kind = kindLabel(item);
   return { 图片: "◫", 视频: "▷", 音频: "♪", PDF: "▤", 文档: "▤", 表格: "▦" }[kind] || "⌸";
 }
-function search() { keyword.value = keywordInput.value.trim(); }
+function search() {
+  const next = keywordInput.value.trim();
+  if (next === keyword.value) { load(); return; }
+  keyword.value = next;
+  load();
+}
+function clearSearch() {
+  keywordInput.value = "";
+  keyword.value = "";
+  load();
+}
 
 async function load() {
   if (await refresh()) return;
@@ -144,12 +155,14 @@ onMounted(load);
 
 <template>
   <view class="files">
-    <view class="metrics">
+    <!-- 搜索时列表只剩匹配项，这时再显示「全部文件 / 照片 / 占用空间」会误导，直接换成结果条数 -->
+    <view v-if="!keyword" class="metrics">
       <view class="metric"><text class="figure">{{ files.length }}</text><text class="caption">全部文件</text></view>
       <view class="metric"><text class="figure">{{ images.length }}</text><text class="caption">照片</text></view>
       <view class="metric"><text class="figure">{{ formatSize(totalSize) }}</text><text class="caption">占用空间</text></view>
     </view>
-    <text v-if="!exhausted && files.length" class="scope-note">统计基于已加载的 {{ files.length }} 个文件，加载更多后同步更新</text>
+    <text v-if="keyword" class="scope-note">搜索「{{ keyword }}」的结果，<text class="do" @click="clearSearch">清除</text></text>
+    <text v-else-if="!exhausted && files.length" class="scope-note">统计基于已加载的 {{ files.length }} 个文件，加载更多后同步更新</text>
 
     <view class="actions">
       <view class="field">
@@ -169,9 +182,9 @@ onMounted(load);
 
     <view v-if="error" class="state"><text>{{ error }}</text><button size="mini" @click="load">重新加载</button></view>
     <view v-else-if="loading" class="state">正在读取家里的文件…</view>
-    <view v-else-if="!filtered.length" class="state">{{ keyword ? '没有匹配的文件，换个名字试试' : '还没有文件，上传第一张照片吧' }}</view>
+    <view v-else-if="!files.length" class="state">{{ keyword ? '没有匹配的文件，换个名字试试' : '还没有文件，上传第一张照片吧' }}</view>
     <view v-else class="list">
-      <view v-for="item in filtered" :key="item.id" class="row">
+      <view v-for="item in files" :key="item.id" class="row">
         <text class="kind">{{ kindIcon(item) }}</text>
         <view class="body">
           <text class="name">{{ item.name }}</text>

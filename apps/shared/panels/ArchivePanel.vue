@@ -1,29 +1,33 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
-import { request } from "../utils/request";
-import { pageQuery } from "../../../shared/paged-list.mjs";
-import { usePagedList } from "../../../shared/use-paged-list.js";
-import ListMore from "../../../shared/ListMore.vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { request } from "@app/utils/request";
+import { pageQuery } from "../paged-list.mjs";
+import { usePagedList } from "../use-paged-list.js";
+import ListMore from "../ListMore.vue";
 
 const emit = defineEmits(["session-ended"]);
 const categories = [{ value: "ALL", label: "全部" }, { value: "IDENTITY", label: "证件" }, { value: "HEALTH", label: "健康" }, { value: "DOCUMENT", label: "文档" }];
 const categoryLabel = { IDENTITY: "证件", HEALTH: "健康", DOCUMENT: "文档" };
+const keyword = ref(""), filter = ref("ALL");
+// 关键字与分类都交给服务端：分页后本地过滤只能覆盖已加载的档案
+function archivePath() {
+  const params = [];
+  const text = keyword.value.trim();
+  if (text) params.push("keyword=" + encodeURIComponent(text));
+  if (filter.value !== "ALL") params.push("category=" + filter.value);
+  return params.length ? "/archives?" + params.join("&") : "/archives";
+}
 const {
   items: rows, loading, loadingMore, exhausted, error: listError,
   refresh, loadMore
-} = usePagedList((page, size) => request(pageQuery("/archives", page, size)));
+} = usePagedList((page, size) => request(pageQuery(archivePath(), page, size)));
 const members = ref([]), session = ref(null);
 const error = computed(() => listError.value?.message || "");
-const keyword = ref(""), filter = ref("ALL");
+const searching = computed(() => keyword.value.trim() !== "" || filter.value !== "ALL");
 const creating = ref(false), saving = ref(false), opened = ref(new Set());
 const details = ref({}), audits = ref({});
 const form = ref({ id: "", title: "", category: "HEALTH", visibility: "FAMILY", body: "" });
 
-const filtered = computed(() => rows.value.filter(item => {
-  const matchesCategory = filter.value === "ALL" || item.category === filter.value;
-  const query = keyword.value.trim().toLocaleLowerCase();
-  return matchesCategory && (!query || (item.title + " " + (item.body || "")).toLocaleLowerCase().includes(query));
-}));
 const memberMap = computed(() => Object.fromEntries(members.value.map(item => [String(item.id), item.displayName])));
 const stats = computed(() => ({
   total: rows.value.length,
@@ -52,6 +56,12 @@ async function load() {
   if (peopleResult.error) report(peopleResult.error);
   if (!ok) report(listError.value);
 }
+let keywordTimer = null;
+watch(keyword, () => {
+  clearTimeout(keywordTimer);
+  keywordTimer = setTimeout(load, 300);
+});
+watch(filter, () => { clearTimeout(keywordTimer); load(); });
 async function loadMoreArchives() {
   if (await loadMore()) return;
   report(listError.value);
@@ -111,6 +121,7 @@ async function toggle(item) {
   } catch (e) { report(e); }
 }
 onMounted(load);
+onUnmounted(() => clearTimeout(keywordTimer));
 defineExpose({ load });
 </script>
 
@@ -125,11 +136,13 @@ defineExpose({ load });
       <button size="mini" class="primary" :disabled="saving" @click="openCreate">{{ creating ? "收起" : "＋ 新建档案" }}</button>
     </view>
 
-    <view class="stats">
+    <!-- 筛选时列表只剩匹配项，此时再显示「档案总数 / 健康记录 / 全家可见」会误导，改为显示结果条数 -->
+    <view v-if="!searching" class="stats">
       <view class="stat"><text class="stat-value">{{ stats.total }}</text><text class="stat-label">档案总数</text></view>
       <view class="stat"><text class="stat-value">{{ stats.health }}</text><text class="stat-label">健康记录</text></view>
       <view class="stat"><text class="stat-value">{{ stats.shared }}</text><text class="stat-label">全家可见</text></view>
     </view>
+    <text v-else class="scope-note">筛选结果 {{ rows.length }} 条{{ exhausted ? '' : '（还有更多，继续加载可看到全部匹配）' }}</text>
     <text v-if="!exhausted && rows.length" class="hint">统计与筛选基于已加载的 {{ rows.length }} 条，继续加载可扩大范围</text>
 
     <view v-if="creating" class="form card">
@@ -151,9 +164,9 @@ defineExpose({ load });
 
     <view v-if="error" class="state"><text>{{ error }}</text><button size="mini" @click="load">重新加载</button></view>
     <view v-else-if="loading" class="state">正在加载档案…</view>
-    <view v-else-if="!filtered.length" class="state">{{ rows.length ? "没有匹配的档案，换个关键词试试" : "还没有档案，把体检单、疫苗记录或证件信息存进家庭保险箱。" }}</view>
+    <view v-else-if="!rows.length" class="state">{{ searching ? "没有匹配的档案，换个关键词试试" : "还没有档案，把体检单、疫苗记录或证件信息存进家庭保险箱。" }}</view>
     <view v-else class="list">
-      <view v-for="item in filtered" :key="item.id" class="card">
+      <view v-for="item in rows" :key="item.id" class="card">
         <view class="row-head" @click="toggle(item)">
           <view class="head-main">
             <text class="row-title">{{ item.title }}</text>
@@ -191,6 +204,7 @@ defineExpose({ load });
 .hint{display:block;font-size:11px;color:var(--c-muted);margin-top:5px;line-height:1.8}
 .toolbar button{margin:0;font-size:12px}
 .primary{background:var(--c-primary);color:white}
+.scope-note{font-size:12px;color:var(--c-muted)}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .stat{background:white;border:1px solid var(--c-line);border-radius:14px;padding:14px;text-align:center}
 .stat-value{display:block;font-size:22px;font-weight:700;color:var(--c-primary)}

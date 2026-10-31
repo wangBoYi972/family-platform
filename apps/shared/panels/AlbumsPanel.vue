@@ -1,19 +1,23 @@
 <script setup>
-import EntryEditor from "@shared/panels/EntryEditor.vue";
-import { computed, ref, onMounted } from "vue";
-import { request, loadImageUrl } from "../utils/request";
-import { pageQuery } from "../../../shared/paged-list.mjs";
-import { usePagedList } from "../../../shared/use-paged-list.js";
-import ListMore from "../../../shared/ListMore.vue";
+import EntryEditor from "./EntryEditor.vue";
+import { computed, ref, onMounted, onUnmounted, watch } from "vue";
+import { request, loadImageUrl } from "@app/utils/request";
+import { pageQuery } from "../paged-list.mjs";
+import { usePagedList } from "../use-paged-list.js";
+import ListMore from "../ListMore.vue";
 
 const props = defineProps({ token: String });
+const keyword = ref("");
+// 关键字交给服务端：分页之后本地过滤只覆盖已加载的几本相册
+function albumPath() {
+  const text = keyword.value.trim();
+  return text ? "/albums?keyword=" + encodeURIComponent(text) : "/albums";
+}
 const {
   items: albums, loading, loadingMore, exhausted, error: listError,
   refresh, loadMore
-} = usePagedList((page, size) => request(pageQuery("/albums", page, size)));
-const keyword = ref("");
+} = usePagedList((page, size) => request(pageQuery(albumPath(), page, size)));
 const loadError = computed(() => listError.value?.message || "");
-const filteredAlbums = computed(() => albums.value.filter(item => (item.title+' '+(item.body||'')).toLocaleLowerCase().includes(keyword.value.trim().toLocaleLowerCase())));
 function photoCount(item) { return String(item.fileIds||'').split(',').filter(Boolean).length; }
 
 /** 逐本把 fileIds 换成可显示地址；已取过的跳过，单张失败不阻塞相册。 */
@@ -50,7 +54,13 @@ function preview(images, current) {
 }
 
 defineExpose({ load });
+let keywordTimer = null;
+watch(keyword, () => {
+  clearTimeout(keywordTimer);
+  keywordTimer = setTimeout(load, 300);
+});
 onMounted(load);
+onUnmounted(() => clearTimeout(keywordTimer));
 </script>
 
 <template>
@@ -62,9 +72,9 @@ onMounted(load);
     <input v-model="keyword" class="search" placeholder="搜索相册名称或描述" />
     <view v-if="loadError" class="empty"><text>{{loadError}}</text><button size="mini" @click="load">重新加载</button></view>
     <view v-else-if="loading" class="empty">加载中…</view>
-    <view v-else-if="!filteredAlbums.length" class="empty">{{albums.length?'没有匹配的相册':'相册还是空的，创建一本家庭相册吧'}}</view>
+    <view v-else-if="!albums.length" class="empty">{{keyword.trim()?'没有匹配的相册':'相册还是空的，创建一本家庭相册吧'}}</view>
     <view v-else class="list">
-      <view v-for="item in filteredAlbums" :key="item.id" class="album card">
+      <view v-for="item in albums" :key="item.id" class="album card">
         <view class="album-head">
           <text class="album-title">{{ item.title }}</text>
           <EntryEditor kind="albums" :entry="item" @changed="load" />

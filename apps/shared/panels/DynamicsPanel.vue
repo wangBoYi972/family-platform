@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import EntryEditor from "./EntryEditor.vue";
 import { request, upload, loadImageUrl } from "@app/utils/request";
 import { pageQuery } from "../paged-list.mjs";
@@ -7,15 +7,20 @@ import { usePagedList } from "../use-paged-list.js";
 import ListMore from "../ListMore.vue";
 
 const props = defineProps({ token: String });
+const keyword = ref("");
+// 关键字进查询串：分页之后本地过滤只能搜到当前这一页，等于「搜不到」
+function entryPath() {
+  const text = keyword.value.trim();
+  return text ? "/dynamics?keyword=" + encodeURIComponent(text) : "/dynamics";
+}
 const {
   items: entries, loading, loadingMore, exhausted, error: listError,
   refresh, loadMore
-} = usePagedList((page, size) => request(pageQuery("/dynamics", page, size)));
+} = usePagedList((page, size) => request(pageQuery(entryPath(), page, size)));
 const publishing = ref(false);
-const composing = ref(false), keyword = ref("");
+const composing = ref(false);
 const loadError = computed(() => listError.value?.message || "");
 const liking = ref(new Set());
-const filteredEntries = computed(() => entries.value.filter(item => (item.title + ' ' + (item.body || '')).toLocaleLowerCase().includes(keyword.value.trim().toLocaleLowerCase())));
 async function like(item) {
   if(liking.value.has(item.id)) return;
   liking.value.add(item.id);
@@ -103,8 +108,15 @@ async function publish() {
   }
 }
 
+let keywordTimer = null;
+watch(keyword, () => {
+  // 停顿 300ms 再查，避免每个字符打一次接口
+  clearTimeout(keywordTimer);
+  keywordTimer = setTimeout(load, 300);
+});
 defineExpose({ load });
 onMounted(load);
+onUnmounted(() => clearTimeout(keywordTimer));
 </script>
 
 <template>
@@ -130,9 +142,9 @@ onMounted(load);
     <input v-model="keyword" class="input" placeholder="搜索动态标题或内容" />
     <view v-if="loadError" class="empty"><text>{{loadError}}</text><button size="mini" @click="load">重新加载</button></view>
     <view v-else-if="loading" class="empty">加载中…</view>
-    <view v-else-if="!filteredEntries.length" class="empty">{{entries.length ? '没有匹配的动态，试试其他关键词' : '还没有动态，发布第一条吧'}}</view>
+    <view v-else-if="!entries.length" class="empty">{{keyword.trim() ? '没有匹配的动态，试试其他关键词' : '还没有动态，发布第一条吧'}}</view>
     <view v-else class="list">
-      <view v-for="item in filteredEntries" :key="item.id" class="row card">
+      <view v-for="item in entries" :key="item.id" class="row card">
         <view class="row-head">
           <text class="row-title">{{ item.title }}</text>
           <EntryEditor kind="dynamics" :entry="item" @changed="load" />

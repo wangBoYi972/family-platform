@@ -1,8 +1,8 @@
 <script setup>
-import EntryEditor from "@shared/panels/EntryEditor.vue";
+import EntryEditor from "./EntryEditor.vue";
 import { computed, onMounted, ref } from "vue";
-import { request } from "../utils/request";
-import { localDate } from "../../../shared/tasks.mjs";
+import { request } from "@app/utils/request";
+import { localDate } from "../tasks.mjs";
 const emit = defineEmits(["session-ended"]);
 const selected = ref(localDate()), month = ref(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
 const rows = ref([]), loading = ref(false), error = ref(""), creating = ref(false), saving = ref(false);
