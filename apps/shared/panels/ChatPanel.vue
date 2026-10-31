@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
-import { request, upload, loadImageUrl } from "../utils/request";
+import { request, upload, loadImageUrl } from "@app/utils/request";
 
 const props = defineProps({ peerId: { type: [Number, String], default: null } });
 const emit = defineEmits(["session-ended", "unread-change", "call"]);

@@ -6,15 +6,16 @@ import TaskPanel from "@shared/panels/TaskPanel.vue";
 import DynamicsPanel from "@shared/panels/DynamicsPanel.vue";
 import AlbumsPanel from "@shared/panels/AlbumsPanel.vue";
 import NoticesPanel from "@shared/panels/NoticesPanel.vue";
-import MembersPanel from "../../components/MembersPanel.vue";
-import ChatPanel from "../../components/ChatPanel.vue";
+import MembersPanel from "@shared/panels/MembersPanel.vue";
+import ChatPanel from "@shared/panels/ChatPanel.vue";
 import ArchivePanel from "@shared/panels/ArchivePanel.vue";
 import TodayOverview from "../../components/TodayOverview.vue";
-import GlobalSearch from "../../components/GlobalSearch.vue";
+import GlobalSearch from "@shared/panels/GlobalSearch.vue";
 import FilesPanel from "@shared/panels/FilesPanel.vue";
 import AlbumTimeline from "../../components/AlbumTimeline.vue";
-import AnniversaryPanel from "../../components/AnniversaryPanel.vue";
+import AnniversaryPanel from "@shared/panels/AnniversaryPanel.vue";
 import CallPanel from "@shared/call/CallPanel.vue";
+import { FAMILY_NAV_TARGETS, resolveNavTarget } from "@shared/navigation.mjs";
 
 const phone = ref(""), password = ref(""), token = ref(uni.getStorageSync("family_access_token"));
 const tab = ref("首页");
@@ -44,9 +45,12 @@ const weekText = "周" + "日一二三四五六"[now.getDay()];
 const hour = now.getHours();
 const greeting = hour < 6 ? "夜深了" : hour < 11 ? "早上好" : hour < 14 ? "中午好" : hour < 18 ? "下午好" : "晚上好";
 
+/** 共享面板（全局搜索、纪念日倒计时）只上报稳定的数据源 key，映射表统一在 apps/shared/navigation.mjs。 */
+
 /** 快捷入口：传字符串只切主 tab；传对象可同时切子标签（如首页倒计时 → 日历/纪念日）。 */
 function open(target) {
   if (target && typeof target === "object") {
+    if (target.key) return open(resolveNavTarget(FAMILY_NAV_TARGETS, target, { tab: "首页" }));
     if (target.calTab) calTab.value = target.calTab;
     if (target.circleTab) circleTab.value = target.circleTab;
     if (target.homeTab) homeTab.value = target.homeTab;

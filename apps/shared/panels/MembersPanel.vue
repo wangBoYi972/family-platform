@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
-import { request, roleLabel } from "../utils/request";
+import { request, roleLabel } from "@app/utils/request";
 
 const props = defineProps({ token: String });
 const emit = defineEmits(["chat"]);

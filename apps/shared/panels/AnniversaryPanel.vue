@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
-import { request } from "../utils/request";
-import { localDate } from "../../../shared/tasks.mjs";
+import { request } from "@app/utils/request";
+import { localDate } from "@shared/tasks.mjs";
 
 const emit = defineEmits(["session-ended", "go"]);
 const rows = ref([]), members = ref([]);
@@ -69,7 +69,7 @@ function when(item) {
   if (item.days < 0) return "已过";
   return item.days + " 天";
 }
-function openCalendar() { emit("go", { tab: "日历", calTab: "日程" }); }
+function openCalendar() { emit("go", { key: "calendar" }); }
 
 async function load() {
   loading.value = true;

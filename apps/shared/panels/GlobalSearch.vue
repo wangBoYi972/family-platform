@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from "vue";
-import { request } from "../utils/request";
+import { request } from "@app/utils/request";
 
 const emit = defineEmits(["navigate", "session-ended"]);
 const open = ref(false), keyword = ref(""), loading = ref(false), error = ref(""), warning = ref("");
@@ -14,42 +14,42 @@ const HISTORY_KEY = "family_search_history";
 /** 每条数据源定义如何取数、如何拼接被检索的文本，以及命中后跳到哪里。 */
 const sources = [
   {
-    key: "tasks", path: "/tasks", label: "任务", icon: "✓", tab: "任务",
+    key: "tasks", path: "/tasks", label: "任务", icon: "✓",
     text: item => `${item.title} ${item.assigneeName || ""}`,
     to: item => ({ id: item.id, title: item.title, desc: `负责人：${item.assigneeName || "未指派"} · ${statusLabel(item.status)}`, meta: item.deadline || "" })
   },
   {
-    key: "calendar", path: "/calendar", label: "日程", icon: "▦", tab: "日历",
+    key: "calendar", path: "/calendar", label: "日程", icon: "▦",
     text: item => `${item.title} ${item.body || ""}`,
     to: item => ({ id: item.id, title: item.title, desc: item.body || "家庭日程", meta: item.yearly ? `每年 ${item.eventDate?.slice(5) || ""}` : item.eventDate || "" })
   },
   {
-    key: "dynamics", path: "/dynamics", label: "动态", icon: "▧", tab: "家庭圈", circleTab: "动态",
+    key: "dynamics", path: "/dynamics", label: "动态", icon: "▧",
     text: item => `${item.title} ${item.body || ""}`,
     to: item => ({ id: item.id, title: item.title, desc: item.body || "和家人一起记住这一刻。", meta: (item.likes || 0) + " 人喜欢" })
   },
   {
-    key: "albums", path: "/albums", label: "相册", icon: "◫", tab: "家庭圈", circleTab: "相册",
+    key: "albums", path: "/albums", label: "相册", icon: "◫",
     text: item => `${item.title} ${item.body || ""}`,
     to: item => ({ id: item.id, title: item.title, desc: item.body || "时光相册", meta: item.eventDate || "" })
   },
   {
-    key: "notices", path: "/notices", label: "公告", icon: "❢", tab: "我的家", homeTab: "公告",
+    key: "notices", path: "/notices", label: "公告", icon: "❢",
     text: item => `${item.title} ${item.body || ""}`,
     to: item => ({ id: item.id, title: item.title, desc: item.body || "家人的叮嘱", meta: item.pinned ? "置顶" : "" })
   },
   {
-    key: "archives", path: "/archives", label: "档案", icon: "▤", tab: "我的家", homeTab: "档案",
+    key: "archives", path: "/archives", label: "档案", icon: "▤",
     text: item => `${item.title} ${item.category || ""}`,
     to: item => ({ id: item.id, title: item.title, desc: `${categoryLabel(item.category)} · ${item.visibility === "FAMILY" ? "全家可见" : "仅自己"}`, meta: String(item.createdAt || "").slice(0, 10) })
   },
   {
-    key: "members", path: "/users/members", label: "家人", icon: "○", tab: "我的家", homeTab: "成员",
+    key: "members", path: "/users/members", label: "家人", icon: "○",
     text: item => `${item.displayName} ${item.role || ""}`,
     to: item => ({ id: item.id, title: item.displayName, desc: item.role === "ADMIN" ? "家庭管理员" : "家庭成员", meta: "" })
   },
   {
-    key: "files", path: "/files", label: "文件", icon: "⌸", tab: "我的家", homeTab: "文件",
+    key: "files", path: "/files", label: "文件", icon: "⌸",
     text: item => `${item.name} ${item.mime || ""}`,
     to: item => ({ id: item.id, title: item.name, desc: `${formatSize(item.sizeBytes)} · ${item.visibility === "FAMILY" ? "全家可见" : "仅自己"}`, meta: String(item.createdAt || "").slice(0, 10) })
   }
@@ -156,7 +156,9 @@ function useHistory(value) { keyword.value = value; }
 function jump(group, item) {
   record();
   close();
-  emit("navigate", { tab: group.tab, circleTab: group.circleTab, homeTab: group.homeTab });
+  // 只上报稳定的数据源 key（tasks/calendar/...），各端自己映射到本端的 tab 结构，
+  // 否则共享组件会把家庭端的 tab 名称硬编码进移动端。
+  emit("navigate", { key: group.key });
 }
 
 /** 把命中的关键字切成片段供模板着色，避免使用 v-html。 */
