@@ -58,14 +58,15 @@ public class EntryServiceImpl implements EntryService {
     }
 
     @Transactional(readOnly = true)
-    public List<EntryVO> list(SessionPrincipal p, String kind, PageQuery page) {
+    public List<EntryVO> list(SessionPrincipal p, String kind, PageQuery page, String keyword) {
+        QueryWrapper<ContentEntry> w = scope(p).eq(!p.admin(), "visibility", "FAMILY");
+        String text = keyword == null ? "" : keyword.trim();
+        if (!text.isEmpty())
+            // 括号不能省：不加 and() 会让关键字和可见性条件用 OR 拼起来，私有内容会被搜出来
+            w.and(x -> x.like("title", text).or().like("body", text));
         List<ContentEntry> rows =
                 mapper(kind)
-                        .selectList(
-                                scope(p)
-                                        .eq(!p.admin(), "visibility", "FAMILY")
-                                        .orderByDesc("pinned", "created_at", "id")
-                                        .last(page.limitClause()));
+                        .selectList(w.orderByDesc("pinned", "created_at", "id").last(page.limitClause()));
         // 关联关系以 content_file_mapping 为准，一次批量查出后回填到实体；
         // 映射表没有记录的历史行保留旧列 file_ids 的原值（回退读）。
         Map<Long, String> linked =

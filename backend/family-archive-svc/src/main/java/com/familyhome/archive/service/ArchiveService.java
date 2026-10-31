@@ -7,11 +7,19 @@ import com.familyhome.security.SessionPrincipal;
 import java.util.List;
 
 public interface ArchiveService {
-    /** 分页查询；不传分页参数时等价于改造前的「取前 500 条」。 */
-    List<ArchiveVO> list(SessionPrincipal p, PageQuery page);
+    /**
+     * 分页 + 筛选查询；不传分页参数时等价于改造前的「取前 500 条」。
+     *
+     * <p>keyword 匹配标题（正文是密文，不进列表也不参与检索）；category 为 ALL/空表示不筛。
+     */
+    List<ArchiveVO> list(SessionPrincipal p, PageQuery page, String keyword, String category);
+
+    default List<ArchiveVO> list(SessionPrincipal p, PageQuery page) {
+        return list(p, page, null, null);
+    }
 
     default List<ArchiveVO> list(SessionPrincipal p) {
-        return list(p, PageQuery.first());
+        return list(p, PageQuery.first(), null, null);
     }
 
     ArchiveDetailVO detail(SessionPrincipal p, String id);

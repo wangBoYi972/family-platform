@@ -40,11 +40,16 @@ public class ArchiveServiceImpl implements ArchiveService {
                         .eq(FamilyArchive::getVisibility, "FAMILY"));
     }
 
-    public List<ArchiveVO> list(SessionPrincipal p, PageQuery page) {
+    public List<ArchiveVO> list(SessionPrincipal p, PageQuery page, String keyword, String category) {
+        LambdaQueryWrapper<FamilyArchive> w = readable(p);
+        String text = keyword == null ? "" : keyword.trim();
+        // 正文是密文，列表也不返回，因此检索只覆盖标题
+        if (!text.isEmpty()) w.like(FamilyArchive::getTitle, text);
+        if (category != null && !category.isBlank() && !"ALL".equalsIgnoreCase(category))
+            w.eq(FamilyArchive::getCategory, category.trim().toUpperCase(java.util.Locale.ROOT));
         return archives
             .selectList(
-                readable(p)
-                    .select(
+                w.select(
                         FamilyArchive::getId,
                         FamilyArchive::getOwnerId,
                         FamilyArchive::getTitle,

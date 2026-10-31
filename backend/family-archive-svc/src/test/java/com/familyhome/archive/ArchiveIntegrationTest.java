@@ -3,6 +3,7 @@ package com.familyhome.archive;
 import static org.assertj.core.api.Assertions.*;
 
 import com.familyhome.archive.dto.ArchiveSaveDTO;
+import com.familyhome.common.api.PageQuery;
 import com.familyhome.archive.mapper.FamilyArchiveMapper;
 import com.familyhome.archive.service.ArchiveService;
 import com.familyhome.security.SessionPrincipal;
@@ -68,5 +69,32 @@ class ArchiveIntegrationTest {
         assertThat(thrown).isInstanceOf(ResponseStatusException.class);
         // 必须是有明确语义的 410，冒泡成 500 会让前端只能显示「服务暂时不可用」
         assertThat(((ResponseStatusException) thrown).getStatusCode().value()).isEqualTo(410);
+    }
+
+    @Test
+    @DisplayName("档案筛选下推：关键字只查标题，分类精确匹配，私有档案不越过可见性")
+    void listFilterIsPushedDown() {
+        var owner = new SessionPrincipal(20, 300, "MEMBER", "test", "family");
+        var mate = new SessionPrincipal(21, 300, "MEMBER", "test", "family");
+        String tag = "筛选-" + UUID.randomUUID().toString().substring(0, 6);
+        var health = service.create(owner, new ArchiveSaveDTO(tag + "-体检报告", "HEALTH", "正文A", "FAMILY"));
+        var doc = service.create(owner, new ArchiveSaveDTO(tag + "-房产证", "DOCUMENT", "正文B", "FAMILY"));
+        var secret = service.create(owner, new ArchiveSaveDTO(tag + "-私密记录", "HEALTH", "正文C", "PRIVATE"));
+
+        assertThat(service.list(owner, PageQuery.of(1, 50), tag, null))
+                .extracting(x -> x.id())
+                .containsExactlyInAnyOrder(health.id(), doc.id(), secret.id());
+        assertThat(service.list(owner, PageQuery.of(1, 50), tag, "DOCUMENT"))
+                .extracting(x -> x.id())
+                .containsExactly(doc.id());
+        assertThat(service.list(owner, PageQuery.of(1, 50), tag, "HEALTH"))
+                .extracting(x -> x.id())
+                .containsExactlyInAnyOrder(health.id(), secret.id());
+        // 关键字只匹配标题：正文里的字搜不到（正文是密文，列表也不返回）
+        assertThat(service.list(owner, PageQuery.of(1, 50), "正文A", null)).isEmpty();
+        // 同一家庭的其他人看不到私有档案，即使关键字命中
+        assertThat(service.list(mate, PageQuery.of(1, 50), tag, null))
+                .extracting(x -> x.id())
+                .containsExactlyInAnyOrder(health.id(), doc.id());
     }
 }

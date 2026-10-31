@@ -62,9 +62,14 @@ public class FileServiceImpl implements FileService {
     }
 
     @Transactional(readOnly = true)
-    public List<FileVO> list(SessionPrincipal p, PageQuery page) {
+    public List<FileVO> list(SessionPrincipal p, PageQuery page, String keyword) {
+        LambdaQueryWrapper<FamilyFile> w = readable(p);
+        String text = keyword == null ? "" : keyword.trim();
+        if (!text.isEmpty())
+            // 同上：关键字必须自成一组，否则会和「全家可见 / 自己上传」的 OR 组混在一起
+            w.and(x -> x.like(FamilyFile::getName, text).or().like(FamilyFile::getMime, text));
         return files
-                .selectList(readable(p).orderByDesc(FamilyFile::getCreatedAt).last(page.limitClause()))
+                .selectList(w.orderByDesc(FamilyFile::getCreatedAt).last(page.limitClause()))
                 .stream()
                 .map(FileConverter::toVO)
                 .toList();

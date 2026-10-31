@@ -2,6 +2,7 @@ package com.familyhome.file;
 
 import static org.assertj.core.api.Assertions.*;
 
+import com.familyhome.common.api.PageQuery;
 import com.familyhome.file.dto.FileUploadDTO;
 import com.familyhome.file.service.FileService;
 import com.familyhome.security.SessionPrincipal;
@@ -66,6 +67,43 @@ class FileIntegrationTest {
         service.delete(owner, file.id());
         assertThatThrownBy(() -> service.download(owner, file.id()))
                 .isInstanceOf(ResponseStatusException.class);
+    }
+
+    @Test
+    @DisplayName("文件列表关键字下推：按文件名或类型匹配，且不越过可见性条件")
+    void listKeywordFilter() throws Exception {
+        var owner = new SessionPrincipal(1, 10, "MEMBER", "test", "family");
+        var other = new SessionPrincipal(3, 10, "MEMBER", "test", "family");
+        String tag = "kw-" + UUID.randomUUID().toString().substring(0, 6);
+        var bill =
+                service.upload(
+                        owner,
+                        new FileUploadDTO(
+                                new MockMultipartFile(
+                                        "file", tag + "-账单.pdf", "application/pdf", "x".getBytes()),
+                                "FAMILY"));
+        var photo =
+                service.upload(
+                        owner,
+                        new FileUploadDTO(
+                                new MockMultipartFile("file", tag + "-照片.png", "image/png", "x".getBytes()),
+                                "FAMILY"));
+
+        assertThat(service.list(owner, PageQuery.of(1, 50), tag))
+                .extracting(x -> x.id())
+                .containsExactlyInAnyOrder(bill.id(), photo.id());
+        // 只命中文件名之一，另一条不能跟出来
+        assertThat(service.list(owner, PageQuery.of(1, 50), tag + "-账单"))
+                .extracting(x -> x.id())
+                .containsExactly(bill.id());
+        // MIME 也参与匹配
+        assertThat(service.list(owner, PageQuery.of(1, 50), "image/png"))
+                .extracting(x -> x.id())
+                .contains(photo.id());
+        // 同一家庭的其他成员可见全家文件
+        assertThat(service.list(other, PageQuery.of(1, 50), tag))
+                .extracting(x -> x.id())
+                .containsExactlyInAnyOrder(bill.id(), photo.id());
     }
 
     @AfterAll

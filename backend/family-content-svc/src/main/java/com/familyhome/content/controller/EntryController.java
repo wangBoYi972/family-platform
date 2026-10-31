@@ -24,9 +24,10 @@ public class EntryController {
             HttpServletRequest r,
             @PathVariable String kind,
             @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size) {
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String keyword) {
         return ApiResponse.success(
-                service.list(SessionPrincipal.from(r), kind, PageQuery.of(page, size)));
+                service.list(SessionPrincipal.from(r), kind, PageQuery.of(page, size), keyword));
     }
 
     @PostMapping

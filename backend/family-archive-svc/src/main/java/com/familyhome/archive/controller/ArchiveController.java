@@ -24,9 +24,11 @@ public class ArchiveController {
     public ApiResponse<List<ArchiveVO>> list(
             HttpServletRequest r,
             @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size) {
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String category) {
         return ApiResponse.success(
-                service.list(SessionPrincipal.from(r), PageQuery.of(page, size)));
+                service.list(SessionPrincipal.from(r), PageQuery.of(page, size), keyword, category));
     }
 
     @GetMapping("/{id}")

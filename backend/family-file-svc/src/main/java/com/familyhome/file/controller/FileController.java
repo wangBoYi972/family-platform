@@ -28,9 +28,10 @@ public class FileController {
     public ApiResponse<List<FileVO>> list(
             HttpServletRequest r,
             @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size) {
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String keyword) {
         return ApiResponse.success(
-                service.list(SessionPrincipal.from(r), PageQuery.of(page, size)));
+                service.list(SessionPrincipal.from(r), PageQuery.of(page, size), keyword));
     }
 
     @PostMapping

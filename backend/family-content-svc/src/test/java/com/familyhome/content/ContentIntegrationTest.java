@@ -216,6 +216,40 @@ class ContentIntegrationTest {
         assertThat(mappingRows("NOTICE", id)).hasSize(rowsAfter);
     }
 
+    @Test
+    @DisplayName("内容关键字下推：标题与正文都参与匹配，但不会越过可见性条件")
+    void entryKeywordFilterRespectsVisibility() {
+        String tag = "关键字-" + UUID.randomUUID().toString().substring(0, 8);
+        var family =
+                entries.create(
+                        owner,
+                        "unused",
+                        "dynamics",
+                        new EntrySaveDTO(tag + "-全家", "公开的正文", java.time.LocalDate.now(), false, false, "FAMILY", null));
+        var secret =
+                entries.create(
+                        owner,
+                        "unused",
+                        "dynamics",
+                        new EntrySaveDTO(tag + "-私密", "只有自己能看的正文", java.time.LocalDate.now(), false, false, "PRIVATE", null));
+
+        // 标题命中
+        assertThat(entries.list(owner, "dynamics", PageQuery.of(1, 50), tag))
+                .extracting(x -> x.id())
+                .containsExactlyInAnyOrder(family.id(), secret.id());
+        // 正文命中
+        assertThat(entries.list(owner, "dynamics", PageQuery.of(1, 50), "只有自己能看的正文"))
+                .extracting(x -> x.id())
+                .containsExactly(secret.id());
+        // 普通成员：即使关键字命中私有内容，也不能被搜出来（关键字条件必须自成一组）
+        var member = new SessionPrincipal(13, 101, "MEMBER", "test", "family");
+        assertThat(entries.list(member, "dynamics", PageQuery.of(1, 50), tag))
+                .extracting(x -> x.id())
+                .containsExactly(family.id());
+        assertThat(entries.list(member, "dynamics", PageQuery.of(1, 50), "只有自己能看的正文"))
+                .isEmpty();
+    }
+
     private List<String> mappingRows(String contentType, long contentId) {
         return jdbc.queryForList(
                 "SELECT file_id FROM content_file_mapping WHERE content_type = ? AND content_id = ? ORDER BY sort_order",
