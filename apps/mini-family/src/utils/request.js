@@ -1,3 +1,5 @@
+import { resolveErrorMessage } from "@shared/request-message.js";
+
 const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8080/api";
 
 function token() {
@@ -7,19 +9,25 @@ function token() {
 /** 通用 JSON 请求；payload.code !== 0 或非 2xx 视为失败。 */
 export async function request(path, options = {}) {
   const t = options.authenticated === false ? null : token();
-  const response = await uni.request({
-    url: baseUrl + path,
-    method: options.method || "GET",
-    data: options.data,
-    header: {
-      ...(options.header || {}),
-      ...(t ? { Authorization: "Bearer " + t } : {})
-    }
-  });
+  let response;
+  try {
+    response = await uni.request({
+      url: baseUrl + path,
+      method: options.method || "GET",
+      data: options.data,
+      header: {
+        ...(options.header || {}),
+        ...(t ? { Authorization: "Bearer " + t } : {})
+      }
+    });
+  } catch {
+    // 断网 / 超时时 uni.request 直接 reject，原来会把 errMsg 原样抛给页面
+    throw new Error(resolveErrorMessage(0));
+  }
   const payload = response.data;
   if (response.statusCode === 401 && options.authenticated !== false) uni.removeStorageSync("family_access_token");
   if (response.statusCode < 200 || response.statusCode >= 300 || payload?.code !== 0) {
-    const error = new Error(payload?.msg || (response.statusCode === 429 ? "操作过于频繁，请稍后重试" : "请求失败"));
+    const error = new Error(resolveErrorMessage(response.statusCode, payload?.msg));
     error.status = response.statusCode;
     throw error;
   }

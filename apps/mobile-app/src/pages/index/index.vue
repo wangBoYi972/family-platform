@@ -3,7 +3,7 @@ import { ref, watch } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 import { login, request } from "../../utils/request";
 import TaskPanel from "../../components/TaskPanel.vue";
-import CallPanel from "../../components/CallPanel.vue";
+import CallPanel from "@shared/call/CallPanel.vue";
 const taskPanel = ref(null);
 const callPanel = ref(null);
 function openCall() { callPanel.value?.openDial(); }

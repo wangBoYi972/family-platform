@@ -14,7 +14,7 @@ import GlobalSearch from "../../components/GlobalSearch.vue";
 import FilesPanel from "../../components/FilesPanel.vue";
 import AlbumTimeline from "../../components/AlbumTimeline.vue";
 import AnniversaryPanel from "../../components/AnniversaryPanel.vue";
-import CallPanel from "../../components/CallPanel.vue";
+import CallPanel from "@shared/call/CallPanel.vue";
 
 const phone = ref(""), password = ref(""), token = ref(uni.getStorageSync("family_access_token"));
 const tab = ref("首页");

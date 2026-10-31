@@ -1,9 +1,11 @@
 <script setup>
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
-import { request } from "../utils/request";
-import { CallClient } from "../utils/call-client";
-import { MeshRtc } from "../utils/webrtc-mesh";
+// 共享组件：鉴权请求由各宿主应用通过 @app 别名提供（apps/*/src/utils/request.js）。
+import { request } from "@app/utils/request";
+import { CallClient } from "./call-client.js";
+import { MeshRtc } from "./webrtc-mesh.js";
 import CallVideo from "./CallVideo.vue";
+import CallAudio from "./CallAudio.vue";
 
 const props = defineProps({
   active: { type: Boolean, default: false },
@@ -554,6 +556,8 @@ defineExpose({ openDial, openDialWith });
               <view class="avatar lg">{{ tile.initial }}</view>
               <text class="audio-name">{{ tile.name }}</text>
               <text v-if="!tile.cam && kind === 'VIDEO'" class="camera-off">摄像头已关闭</text>
+              <!-- 没有视频画面时（语音通话 / 对方关摄像头）由这里承载远端声音 -->
+              <CallAudio v-if="!tile.isSelf && tile.stream" :stream="tile.stream" />
             </view>
             <view class="tile-bar">
               <text class="who">{{ tile.isSelf ? '我' : tile.name }}</text>

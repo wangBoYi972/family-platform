@@ -4,7 +4,7 @@
  * 认证不把 JWT 放进 URL，而是先用 JWT 换一次性 ticket（30 秒、用后即焚）再握手。
  * 断线自动重连，重连期间信令进入队列，服务端有 30 秒宽限不会误挂断。
  */
-import { request } from "./request";
+import { request } from "@app/utils/request";
 
 const API_BASE = (import.meta.env?.VITE_API_BASE_URL || "http://127.0.0.1:8080/api").replace(/\/+$/, "");
 const ORIGIN = API_BASE.replace(/\/api$/, "");

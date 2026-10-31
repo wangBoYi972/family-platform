@@ -1,7 +1,23 @@
 import { defineConfig } from "vite";
 import uni from "@dcloudio/vite-plugin-uni";
+import { fileURLToPath, URL } from "node:url";
+
+// 与家庭端共用 apps/shared 下的通话组件；@app 指向本应用 src。
+const appSrc = fileURLToPath(new URL("./src", import.meta.url));
+const shared = fileURLToPath(new URL("../shared", import.meta.url));
+
 export default defineConfig({
   // 使用 uni-app 平台运行时提供的 Vue，确保页面和生命周期正常挂载。
-  plugins: [uni()]
+  plugins: [uni()],
+  resolve: {
+    alias: { "@app": appSrc, "@shared": shared }
+  },
+  server: {
+    // 默认 5173 会与管理端撞端口，这里固定 5175（网关 CORS 已放行）。
+    port: 5175,
+    fs: { allow: [fileURLToPath(new URL("..", import.meta.url))] },
+    proxy: {
+      "/api": { target: process.env.FAMILY_API_TARGET || "http://127.0.0.1:8080", changeOrigin: true }
+    }
+  }
 });
-
