@@ -86,6 +86,18 @@
   `family_white_list` 行锁串行化，负载高时超时后会话即关闭，表现为 `JDBC rollback failed: Connection is closed`。
   已把测试库 `LOCK_TIMEOUT` 调到 15s（用 1ms 可稳定复现同一异常，确认是测试环境而非业务缺陷）。
 
+## 2026-10-31 筛选下推服务端 / 补齐业务事件消费者
+
+- 任务筛选下推到 SQL：`/api/tasks` 新增可选 `keyword`（标题或负责人）与 `status`（`TODO`/`IN_PROGRESS`/`COMPLETED`/`OVERDUE`）。
+  分页接上之后，客户端本地过滤只能看到当前一页，「符合条件但还没加载」的任务会被彻底藏起来；改由数据库判断。
+  关键字条件强制包在 `and(...)` 内，否则会和家庭隔离条件拼成 OR 而串户；未知状态值返回 400 而不是静默返回全量。
+- 任务面板改为服务端筛选：输入停顿 300ms 后从第一页重拉，翻页继续带同一组筛选条件。
+- 新增 `content/messaging/FileEventConsumer`：消费 `file.deleted`，调用 `ContentFileMappingService#detachFile`
+  把该文件从映射表与旧列 `file_ids` 里一起摘掉。此前文件删除后内容仍留着文件 id，前端只能渲染破图；
+  这是没有业务消费者的直接后果——`task.*`、`file.*` 事件原来只有 im-svc 那个「广播到 WebSocket」的消费者。
+  消费按 `eventType` 判类型（本服务队列绑定 `#`，会收到全站事件），操作天然幂等，重投只白跑一次。
+- 后端 61 项测试通过（content 10 项，新增文件删除清理引用、任务筛选下推两组）。
+
 ## 生产上线前必须验收（发布阻断项）
 
 MySQL 与 Nacos 实例联调、真实短信/微信认证、对象存储、SFU/TURN 部署与压测、双小程序真机回归、监控告警及备份恢复演练。详见 `docs/企业级工程化交付记录.md`。

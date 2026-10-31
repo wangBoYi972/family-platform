@@ -1,13 +1,23 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 // 共享面板：鉴权请求由宿主应用通过 @app 别名注入（apps/*/src/utils/request.js）。
 import { request } from "@app/utils/request";
-import { canManageTask, filterTasks, localDate, nextTaskStatus, prevTaskStatus, taskStatusLabel } from "../tasks.mjs";
+import { canManageTask, localDate, nextTaskStatus, prevTaskStatus, taskStatusLabel } from "../tasks.mjs";
 import { pageQuery } from "../paged-list.mjs";
 import { usePagedList } from "../use-paged-list.js";
 import ListMore from "../ListMore.vue";
 
 const emit = defineEmits(["session-ended"]);
+const keyword = ref(""), status = ref("ALL");
+const hasFilter = computed(() => keyword.value.trim() !== "" || status.value !== "ALL");
+// 筛选条件进查询串：前端一次只拿得到一页，在本地过滤会把「符合条件但还没加载」的任务彻底藏起来。
+function taskPath() {
+  const params = [];
+  const text = keyword.value.trim();
+  if (text) params.push("keyword=" + encodeURIComponent(text));
+  if (status.value !== "ALL") params.push("status=" + status.value);
+  return params.length ? "/tasks?" + params.join("&") : "/tasks";
+}
 const {
   items: tasks,
   loading,
@@ -17,19 +27,17 @@ const {
   refresh: refreshTasks,
   loadMore,
   reset: resetTasks
-} = usePagedList((page, size) => request(pageQuery("/tasks", page, size)));
+} = usePagedList((page, size) => request(pageQuery(taskPath(), page, size)));
 
 const members = ref([]), session = ref(null);
 const saving = ref(false), creating = ref(false), updating = ref(new Set());
-const errorMessage = ref(""), memberError = ref(""), keyword = ref(""), status = ref("ALL");
+const errorMessage = ref(""), memberError = ref("");
 const editingId = ref(null);
 const isEditing = computed(() => editingId.value !== null);
 const today = ref(localDate());
 const newForm = () => ({ title: "", deadline: "", assigneeId: null });
 const form = ref(newForm());
 const filters = [{ value: "ALL", label: "全部" }, { value: "TODO", label: "待开始" }, { value: "IN_PROGRESS", label: "进行中" }, { value: "COMPLETED", label: "已完成" }, { value: "OVERDUE", label: "已逾期" }];
-const filteredTasks = computed(() => filterTasks(tasks.value, { keyword: keyword.value, status: status.value, today: today.value }));
-const hasFilter = computed(() => keyword.value.trim() !== "" || status.value !== "ALL");
 const memberOptions = computed(() => [{ id: null, displayName: "暂不指派（由创建者跟进）" }, ...members.value]);
 const selectedMember = computed(() => memberOptions.value.find(item => item.id === form.value.assigneeId)?.displayName || "暂不指派（由创建者跟进）");
 function report(error) {
@@ -37,19 +45,31 @@ function report(error) {
   if (error.status === 401) emit("session-ended");
   uni.showToast({ title: error.message || "请求失败，请重试", icon: "none" });
 }
+async function refreshList() {
+  const ok = await refreshTasks();
+  if (!ok) {
+    errorMessage.value = listError.value?.message || "任务加载失败，请重试";
+    report(listError.value);
+  }
+  return ok;
+}
 async function load() {
   today.value = localDate();
   errorMessage.value = "";
   // 身份与列表并行：身份失败只影响操作按钮的显隐，不阻塞列表展示。
   const identity = request("/auth/session").then(value => ({ value })).catch(error => ({ error }));
-  const [ok, identityResult] = await Promise.all([refreshTasks(), identity]);
+  const [ok, identityResult] = await Promise.all([refreshList(), identity]);
   if (identityResult.value) session.value = identityResult.value;
   if (identityResult.error) report(identityResult.error);
-  if (!ok) {
-    errorMessage.value = listError.value?.message || "任务加载失败，请重试";
-    report(listError.value);
-  }
+  if (!ok) return;
 }
+let keywordTimer = null;
+watch(keyword, () => {
+  // 输入停顿 300ms 再查，避免每个字符打一次接口
+  clearTimeout(keywordTimer);
+  keywordTimer = setTimeout(refreshList, 300);
+});
+watch(status, () => { clearTimeout(keywordTimer); refreshList(); });
 async function loadMoreTasks() {
   if (await loadMore()) return;
   report(listError.value);
@@ -113,7 +133,7 @@ async function changeStatus(task, target) {
 function advance(task) { changeStatus(task, nextTaskStatus(task.status)); }
 function revert(task) { changeStatus(task, prevTaskStatus(task.status)); }
 onMounted(load);
-onUnmounted(resetTasks);
+onUnmounted(() => { clearTimeout(keywordTimer); resetTasks(); });
 defineExpose({ load });
 </script>
 
@@ -130,14 +150,13 @@ defineExpose({ load });
       <button class="primary" :loading="saving" :disabled="saving" @click="submitTask">{{ isEditing ? "保存修改" : "创建任务" }}</button>
       <button v-if="isEditing" size="mini" :disabled="saving" @click="closeForm">取消编辑</button>
     </view>
-    <input v-model="keyword" class="input" placeholder="搜索任务或负责人" />
+    <input v-model="keyword" class="input" placeholder="搜索任务或负责人（服务端筛选）" />
     <view class="filters"><button v-for="item in filters" :key="item.value" size="mini" :class="{ selected: status === item.value }" @click="status = item.value">{{ item.label }}</button></view>
-    <text v-if="hasFilter && !exhausted && tasks.length" class="meta">筛选作用于已加载的 {{ tasks.length }} 条，继续加载可扩大范围</text>
     <view v-if="errorMessage" class="error"><text>{{ errorMessage }}</text><button size="mini" @click="load">重新加载</button></view>
     <view v-else-if="loading" class="empty">加载中…</view>
-    <view v-else-if="!filteredTasks.length" class="empty">{{ tasks.length ? "没有符合条件的任务，试试其他筛选" : "还没有任务，点击新建安排家庭事项" }}</view>
+    <view v-else-if="!tasks.length" class="empty">{{ hasFilter ? "没有符合条件的任务，试试其他筛选" : "还没有任务，点击新建安排家庭事项" }}</view>
     <view v-else class="task-list">
-      <view v-for="task in filteredTasks" :key="task.id" class="task-card">
+      <view v-for="task in tasks" :key="task.id" class="task-card">
         <view class="task-heading"><text class="task-title">{{ task.title }}</text><text :class="['badge', String(task.status).toLowerCase()]">{{ taskStatusLabel[task.status] || task.status }}</text></view>
         <text class="meta">负责人：{{ task.assigneeName || '未指派（由创建者跟进）' }}</text>
         <text :class="['meta', { overdue: task.status !== 'COMPLETED' && task.deadline && task.deadline < today }]">截止：{{ task.deadline || '未设置' }}{{ task.status !== 'COMPLETED' && task.deadline && task.deadline < today ? ' · 已逾期' : '' }}</text>
