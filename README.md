@@ -71,6 +71,21 @@
 - `OutboxPublisher` 增加已发布事件清理（默认保留 7 天，分批删除）与 PENDING 积压告警，Outbox 表不再只增不减。
 - 前后端共 59 项后端测试通过（content 8 项，含映射表写入/回填、分页、outbox 清理 SQL 方言验证）。
 
+## 2026-10-31 前端接分页 / 共享层收敛 / 并发测试修复
+
+- 列表接上分页：任务、公告、动态、相册、文件、档案六个面板都改为分页加载，底部统一 `ListMore` 组件
+  （四端共用「加载更多 / 没有更多了」交互）。此前后端已支持 `page`/`size`，但前端仍只取第一页。
+- 筛选与统计的作用域显式化：`keyword`/`status` 筛选与「文件占用、档案总数」这类统计天然只覆盖已加载数据，
+  未加载完时面板会写明「基于已加载的 N 条」，避免被误读成数据丢失。
+- 共享层新增 `paged-list.mjs`（纯逻辑，5 项 node 单测）、`use-paged-list.js`（状态机）、`ListMore.vue`、
+  `uni-client.js`；`TaskPanel` / `NoticesPanel` / `DynamicsPanel` / `EntryEditor` 迁入 `apps/shared/panels`。
+- 移动端不再自绘简化列表：动态与公告复用共享面板（原来只渲染纯文本行，没有图片也点不开编辑）。
+- 两个 H5 端的 `utils/request.js` 收敛为 `uni-client.js` 的薄转出口。此前一份有 `upload`/`loadImageUrl`、
+  一份没有，导致共享面板在移动端构建时报 `loadImageUrl is not exported`。
+- 修复 `PasswordAuthenticationIntegrationTest` 全量跑偶发失败：H2 默认锁等待 1s，8 线程并发登录靠
+  `family_white_list` 行锁串行化，负载高时超时后会话即关闭，表现为 `JDBC rollback failed: Connection is closed`。
+  已把测试库 `LOCK_TIMEOUT` 调到 15s（用 1ms 可稳定复现同一异常，确认是测试环境而非业务缺陷）。
+
 ## 生产上线前必须验收（发布阻断项）
 
 MySQL 与 Nacos 实例联调、真实短信/微信认证、对象存储、SFU/TURN 部署与压测、双小程序真机回归、监控告警及备份恢复演练。详见 `docs/企业级工程化交付记录.md`。
