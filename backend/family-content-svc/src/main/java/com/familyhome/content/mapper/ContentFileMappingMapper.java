@@ -39,4 +39,26 @@ public interface ContentFileMappingMapper {
             @Param("table") String table,
             @Param("contentType") String contentType,
             @Param("limit") int limit);
+
+    /**
+     * 删除某个文件在所有内容类型上的关联（文件服务删除文件后由事件触发）。
+     *
+     * <p>返回删掉的行数，仅为日志与统计用；重复消费同一事件的第二次调用返回 0，天然幂等。
+     */
+    int deleteByFileId(@Param("fileId") String fileId);
+
+    /**
+     * 按内容类型找出旧列里「疑似引用该文件」的行。
+     *
+     * <p>SQL 只能做 LIKE 粗筛（避免全表扫），调用方必须再按逗号切分做精确比对，
+     * 否则 f1 会误伤 f12。
+     */
+    List<Map<String, Object>> selectLegacyByFileId(
+            @Param("table") String table, @Param("fileId") String fileId);
+
+    /** 回写旧列（去掉被删文件后的剩余引用）。table 同样只接受白名单表名。 */
+    int updateLegacyFileIds(
+            @Param("table") String table,
+            @Param("id") long id,
+            @Param("fileIds") String fileIds);
 }

@@ -30,6 +30,10 @@ public class TaskServiceImpl implements TaskService {
                     "IN_PROGRESS", Set.of("TODO", "COMPLETED"),
                     "COMPLETED", Set.of("IN_PROGRESS"));
 
+    /** 列表筛选允许的状态；OVERDUE 为派生条件，不落库。 */
+    private static final Set<String> ALLOWED_FILTER_STATUS =
+            Set.of("TODO", "IN_PROGRESS", "COMPLETED", "OVERDUE");
+
     @Autowired
     private FamilyTaskMapper tasks;
     @Autowired
@@ -37,16 +41,43 @@ public class TaskServiceImpl implements TaskService {
     @Autowired
     private OutboxEventStore outbox;
 
-    public List<TaskVO> list(SessionPrincipal p, PageQuery page) {
+    public List<TaskVO> list(SessionPrincipal p, PageQuery page, String keyword, String status) {
+        LambdaQueryWrapper<FamilyTask> w =
+                new LambdaQueryWrapper<FamilyTask>().eq(FamilyTask::getHouseholdId, p.householdId());
+        String text = keyword == null ? "" : keyword.trim();
+        if (!text.isEmpty())
+            // 括号不能省：不加 and() 会让「家庭 + 标题」和「负责人」变成 OR，把别的家庭的任务带出来
+            w.and(
+                    x ->
+                            x.like(FamilyTask::getTitle, text)
+                                    .or()
+                                    .like(FamilyTask::getAssigneeName, text));
+        switch (normalizeStatus(status)) {
+            case "OVERDUE" ->
+                    w.ne(FamilyTask::getStatus, "COMPLETED")
+                            .isNotNull(FamilyTask::getDeadline)
+                            .lt(FamilyTask::getDeadline, java.time.LocalDate.now());
+            case "ALL" -> {}
+            default -> w.eq(FamilyTask::getStatus, normalizeStatus(status));
+        }
         return tasks
-                .selectList(
-                        new LambdaQueryWrapper<FamilyTask>()
-                                .eq(FamilyTask::getHouseholdId, p.householdId())
-                                .orderByDesc(FamilyTask::getCreatedAt, FamilyTask::getId)
-                                .last(page.limitClause()))
+                .selectList(w.orderByDesc(FamilyTask::getCreatedAt, FamilyTask::getId).last(page.limitClause()))
                 .stream()
                 .map(ContentConverter::toVO)
                 .toList();
+    }
+
+    /**
+     * 归一化筛选状态。
+     *
+     * <p>「已逾期」不是存储状态，而是「未完成且截止日已过」的派生条件，因此在 SQL 里展开。
+     * 未知取值直接拒绝，避免拼错参数时静默返回全量、让人以为筛选没生效。
+     */
+    static String normalizeStatus(String status) {
+        if (status == null || status.isBlank() || "ALL".equalsIgnoreCase(status)) return "ALL";
+        String upper = status.trim().toUpperCase(Locale.ROOT);
+        if (ALLOWED_FILTER_STATUS.contains(upper)) return upper;
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不支持的任务状态筛选: " + status);
     }
 
     @Transactional

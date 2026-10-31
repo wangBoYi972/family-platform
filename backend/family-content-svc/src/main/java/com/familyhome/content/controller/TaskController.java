@@ -27,9 +27,12 @@ public class TaskController {
     public ApiResponse<List<TaskVO>> list(
             HttpServletRequest r,
             @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size) {
-        // 不传分页参数时等价于原来的「取前 500 条」，老客户端行为不变
-        return ApiResponse.success(service.list(SessionPrincipal.from(r), PageQuery.of(page, size)));
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String status) {
+        // 不传分页/筛选参数时等价于原来的「取前 500 条」，老客户端行为不变
+        return ApiResponse.success(
+                service.list(SessionPrincipal.from(r), PageQuery.of(page, size), keyword, status));
     }
 
     @PostMapping

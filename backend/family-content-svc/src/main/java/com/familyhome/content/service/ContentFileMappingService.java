@@ -106,6 +106,38 @@ public class ContentFileMappingService {
         return total;
     }
 
+    /**
+     * 文件删除后清理内容里对它的引用。
+     *
+     * <p>由 {@code file.deleted} 事件驱动：文件元数据软删、对象存储已回收，如果内容里还留着
+     * 这个 id，前端会一直渲染破图，用户看到的是「相册里永远有几张打不开的照片」。
+     *
+     * <p>幂等：映射表按 file_id 删、旧列按精确比对重写，重复消费不会产生副作用，
+     * 因此不需要额外的去重表——重投只会白跑一次。
+     *
+     * @return 受影响的关联条数（映射表行数 + 改写的旧列行数）
+     */
+    @Transactional
+    public int detachFile(String fileId) {
+        if (fileId == null || fileId.isBlank()) return 0;
+        String target = fileId.trim();
+        int affected = mapping.deleteByFileId(target);
+        for (Kind k : KINDS.values()) {
+            for (Map<String, Object> row : mapping.selectLegacyByFileId(k.table(), target)) {
+                long id = ((Number) row.get("id")).longValue();
+                // LIKE 只是粗筛，这里按逗号精确比对，避免 f1 误伤 f12
+                List<String> current = csvIds(String.valueOf(row.get("file_ids")));
+                List<String> kept = new ArrayList<>();
+                for (String candidate : current) if (!candidate.equals(target)) kept.add(candidate);
+                if (kept.size() == current.size()) continue;
+                mapping.updateLegacyFileIds(k.table(), id, String.join(",", kept));
+                affected++;
+            }
+        }
+        if (affected > 0) log.info("文件已删除，清理内容引用 fileId={} affected={}", target, affected);
+        return affected;
+    }
+
     /** 逗号串 → 去重有序的文件 id，空白与超限都在这里收口。 */
     static List<String> split(String csv) {
         if (csv == null || csv.isBlank()) return List.of();
@@ -116,6 +148,17 @@ public class ContentFileMappingService {
         }
         List<String> ids = new ArrayList<>(unique);
         return ids.size() > MAX_FILES ? ids.subList(0, MAX_FILES) : ids;
+    }
+
+    /** 与 split 同规则但不裁剪上限：改写历史旧列时不能顺手把超出上限的部分丢掉。 */
+    private static List<String> csvIds(String csv) {
+        if (csv == null || csv.isBlank()) return List.of();
+        LinkedHashSet<String> unique = new LinkedHashSet<>();
+        for (String part : csv.split(",")) {
+            String id = part.trim();
+            if (!id.isEmpty()) unique.add(id);
+        }
+        return new ArrayList<>(unique);
     }
 
     private static Kind kind(String kind) {

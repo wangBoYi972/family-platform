@@ -39,4 +39,19 @@
         ORDER BY t.id
         LIMIT #{limit}
     </select>
+
+    <delete id="deleteByFileId">
+        DELETE FROM content_file_mapping WHERE file_id = #{fileId}
+    </delete>
+
+    <!-- 粗筛：SQL 只做子串匹配，精确比对交给调用方按逗号切分 -->
+    <select id="selectLegacyByFileId" resultType="java.util.Map">
+        SELECT t.id AS id, t.file_ids AS file_ids
+        FROM ${table} t
+        WHERE t.file_ids LIKE CONCAT('%', #{fileId}, '%')
+    </select>
+
+    <update id="updateLegacyFileIds">
+        UPDATE ${table} SET file_ids = #{fileIds} WHERE id = #{id}
+    </update>
 </mapper>

@@ -225,6 +225,70 @@ class ContentIntegrationTest {
     }
 
     @Test
+    @DisplayName("文件删除后清理内容引用：映射表与旧列都不再指向已删文件，且重复消费无副作用")
+    void fileDeletedDetachesReferences() {
+        String f1 = UUID.randomUUID().toString();
+        String f2 = UUID.randomUUID().toString();
+        when(files.metadata(anyString(), anyString()))
+                .thenReturn(ApiResponse.success(new FileApiVO(f1, 101L, 11L, "a.png", "image/png", 1L, "FAMILY")));
+        var album = entries.create(owner, "unused", "albums",
+                new EntrySaveDTO("全家福", "正文", java.time.LocalDate.now(), false, false, "FAMILY", f1 + "," + f2));
+        assertThat(mappingRows("ALBUM", album.id())).containsExactly(f1, f2);
+
+        // 另有一条只有旧列、尚未回填的历史公告
+        jdbc.update(
+                "INSERT INTO family_notice(household_id, creator_id, title, body, yearly, pinned, visibility, file_ids, likes, created_at)"
+                        + " VALUES(?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)",
+                101L, 11L, "历史公告带图", "正文", false, false, "FAMILY", f1 + "," + f2, 0);
+        Long legacyId = jdbc.queryForObject(
+                "SELECT id FROM family_notice WHERE title = ?", Long.class, "历史公告带图");
+
+        assertThat(links.detachFile(f1)).isGreaterThanOrEqualTo(2);
+        assertThat(mappingRows("ALBUM", album.id())).containsExactly(f2);
+        assertThat(jdbc.queryForObject(
+                        "SELECT file_ids FROM family_album WHERE id = ?", String.class, album.id()))
+                .isEqualTo(f2);
+        // 旧列里的引用同样被摘掉，剩下的是仍存在的那张
+        assertThat(jdbc.queryForObject(
+                        "SELECT file_ids FROM family_notice WHERE id = ?", String.class, legacyId))
+                .isEqualTo(f2);
+        // 幂等：同一事件重投只会白跑一次
+        assertThat(links.detachFile(f1)).isZero();
+        assertThat(links.detachFile("  ")).isZero();
+    }
+
+    @Test
+    @DisplayName("任务筛选下推数据库：关键字/状态/逾期各自生效，非法状态被拒绝")
+    void taskFilterIsPushedDown() {
+        String tag = "筛选-" + UUID.randomUUID().toString().substring(0, 8);
+        var overdue = tasks.create(owner, "unused",
+                new TaskCreateDTO(tag + "-逾期", java.time.LocalDate.now().minusDays(3), null));
+        var finished = tasks.create(owner, "unused", new TaskCreateDTO(tag + "-已完成", null, null));
+        tasks.status(owner, finished.id(), "IN_PROGRESS");
+        tasks.status(owner, finished.id(), "COMPLETED");
+        // 同样关键字但属于另一个家庭，不能被带出来
+        var stranger = tasks.create(other, "unused", new TaskCreateDTO(tag + "-别人家", null, null));
+
+        assertThat(tasks.list(owner, PageQuery.of(1, 50), tag, null))
+                .extracting(t -> t.id())
+                .containsExactlyInAnyOrder(overdue.id(), finished.id())
+                .doesNotContain(stranger.id());
+        assertThat(tasks.list(owner, PageQuery.of(1, 50), tag, "TODO"))
+                .extracting(t -> t.id())
+                .containsExactly(overdue.id());
+        assertThat(tasks.list(owner, PageQuery.of(1, 50), tag, "OVERDUE"))
+                .extracting(t -> t.id())
+                .containsExactly(overdue.id());
+        assertThat(tasks.list(owner, PageQuery.of(1, 50), tag, "COMPLETED"))
+                .extracting(t -> t.id())
+                .containsExactly(finished.id());
+        // 关键字不区分大小写、前后空格被忽略
+        assertThat(tasks.list(owner, PageQuery.of(1, 50), "  " + tag + "  ", "ALL")).hasSize(2);
+        assertThatThrownBy(() -> tasks.list(owner, PageQuery.of(1, 50), null, "NOT_A_STATUS"))
+                .isInstanceOf(ResponseStatusException.class);
+    }
+
+    @Test
     @DisplayName("列表支持分页：不传参数保持原行为，传 page/size 能翻到后面的数据")
     void listPagination() {
         String prefix = "分页任务-" + UUID.randomUUID().toString().substring(0, 8);
@@ -248,8 +312,7 @@ class ContentIntegrationTest {
     }
 
     @Test
-    @DisplayName("outbox 清理只删保留期外的已发布事件，并留下积压的 PENDING")
-    void outboxPurgeOnlyTouchesExpiredPublished() {
+    @DisplayName("outbox 清理只删保留期外的已发布事件，并留下积压的 PENDING")    void outboxPurgeOnlyTouchesExpiredPublished() {
         // 三条样本：过期已发布 / 新发布 / 过期仍未发布
         insertOutbox("old-published", "PUBLISHED", 10);
         insertOutbox("new-published", "PUBLISHED", 0);
