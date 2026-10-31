@@ -29,7 +29,11 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(
         properties = {
-            "spring.datasource.url=jdbc:h2:mem:password-test;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
+            // LOCK_TIMEOUT：并发用例里 8 个线程靠 family_white_list 行锁串行化，
+            // H2 默认锁等待只有 1s，机器负载高时会超时，而 H2 在锁超时后会话即不可用，
+            // 表现成 Spring 的 "JDBC rollback failed: Connection is closed"（偶发、非业务缺陷）。
+            // 生产走 MySQL，innodb_lock_wait_timeout 默认 50s，不会出现这种秒级超时。
+            "spring.datasource.url=jdbc:h2:mem:password-test;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=15000",
             "spring.datasource.username=sa",
             "spring.datasource.password=",
             "spring.cloud.nacos.discovery.enabled=false",
