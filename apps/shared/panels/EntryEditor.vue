@@ -1,6 +1,6 @@
 <script setup>
 import { onMounted, ref } from "vue";
-import { request, upload, loadImageUrl } from "../utils/request";
+import { request, upload, loadImageUrl } from "@app/utils/request";
 const props = defineProps({ kind: String, entry: Object });
 const emit = defineEmits(["changed"]);
 const session = ref(null), opened = ref(false), busy = ref(false), form = ref({});

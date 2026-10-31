@@ -1,20 +1,15 @@
-import { resolveErrorMessage } from "@shared/request-message.js";
+import { createUniClient } from "@shared/uni-client.js";
 
+// 与家庭端共用同一份实现（apps/shared/uni-client.js），不再各写一份导致能力漂移。
 const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8080/api";
-export async function request(path, options = {}) {
-  const token = options.authenticated === false ? null : uni.getStorageSync("family_access_token");
-  let response;
-  try {
-    response = await uni.request({ url: baseUrl + path, method: options.method || "GET", data: options.data, header: { ...(options.header || {}), ...(token ? { Authorization: "Bearer " + token } : {}) } });
-  } catch {
-    throw new Error(resolveErrorMessage(0));
-  }
-  const payload = response.data;
-  if (response.statusCode === 401 && options.authenticated !== false) uni.removeStorageSync("family_access_token");
-  if (response.statusCode < 200 || response.statusCode >= 300 || payload?.code !== 0) {
-    const error = new Error(resolveErrorMessage(response.statusCode, payload?.msg));
-    error.status = response.statusCode; throw error;
-  }
-  return payload.data;
-}
-export const login = data => request("/auth/password-login", { method: "POST", data, authenticated: false, header: { "Content-Type": "application/json" } });
+
+const client = createUniClient({ uni, baseUrl });
+
+export const request = client.request;
+export const upload = client.upload;
+export const loadImageUrl = client.loadImageUrl;
+export const login = client.login;
+export const register = client.register;
+
+export const taskStatusLabel = { TODO: "待办", IN_PROGRESS: "进行中", COMPLETED: "已完成" };
+export const roleLabel = { ADMIN: "管理员", MEMBER: "成员" };

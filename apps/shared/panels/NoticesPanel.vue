@@ -1,22 +1,25 @@
 <script setup>
 import EntryEditor from "./EntryEditor.vue";
-import { ref, onMounted } from "vue";
-import { request } from "../utils/request";
+import { onMounted } from "vue";
+import { request } from "@app/utils/request";
+import { pageQuery } from "../paged-list.mjs";
+import { usePagedList } from "../use-paged-list.js";
+import ListMore from "../ListMore.vue";
 
 const props = defineProps({ token: String });
-const notices = ref([]);
-const loading = ref(false);
+const {
+  items: notices, loading, loadingMore, exhausted, error: loadError,
+  refresh, loadMore
+} = usePagedList((page, size) => request(pageQuery("/notices", page, size)));
 
 async function load() {
   if (!props.token) return;
-  loading.value = true;
-  try {
-    notices.value = await request("/notices");
-  } catch (error) {
-    uni.showToast({ title: error.message || "加载失败", icon: "none" });
-  } finally {
-    loading.value = false;
-  }
+  if (await refresh()) return;
+  uni.showToast({ title: loadError.value?.message || "加载失败", icon: "none" });
+}
+async function loadMoreNotices() {
+  if (await loadMore()) return;
+  if (loadError.value) uni.showToast({ title: loadError.value.message || "加载失败", icon: "none" });
 }
 
 defineExpose({ load });
@@ -42,6 +45,7 @@ onMounted(load);
         </view>
       </view>
     </view>
+    <ListMore :count="notices.length" :loading="loadingMore" :exhausted="exhausted" :has-error="!!loadError" @more="loadMoreNotices" />
   </view>
 </template>
 

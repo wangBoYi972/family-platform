@@ -1,13 +1,19 @@
 <script setup>
-import { computed, ref, onMounted } from "vue";
+import { computed, onMounted, ref } from "vue";
 import EntryEditor from "./EntryEditor.vue";
-import { request, upload, loadImageUrl } from "../utils/request";
+import { request, upload, loadImageUrl } from "@app/utils/request";
+import { pageQuery } from "../paged-list.mjs";
+import { usePagedList } from "../use-paged-list.js";
+import ListMore from "../ListMore.vue";
 
 const props = defineProps({ token: String });
-const entries = ref([]);
-const loading = ref(false);
+const {
+  items: entries, loading, loadingMore, exhausted, error: listError,
+  refresh, loadMore
+} = usePagedList((page, size) => request(pageQuery("/dynamics", page, size)));
 const publishing = ref(false);
-const composing = ref(false), keyword = ref(""), loadError = ref("");
+const composing = ref(false), keyword = ref("");
+const loadError = computed(() => listError.value?.message || "");
 const liking = ref(new Set());
 const filteredEntries = computed(() => entries.value.filter(item => (item.title + ' ' + (item.body || '')).toLocaleLowerCase().includes(keyword.value.trim().toLocaleLowerCase())));
 async function like(item) {
@@ -21,32 +27,33 @@ function preview(item, index) { uni.previewImage({urls:item.images,current:item.
 const form = ref({ title: "", body: "" });
 const images = ref([]); // { tempFilePath, name }
 
+/** 逐条把 fileIds 换成可显示的图片地址；单张失败不阻塞列表。 */
+async function hydrate(rows) {
+  await Promise.all(
+    rows.map(async item => {
+      if (item.images) return;
+      item.images = [];
+      if (!item.fileIds) return;
+      const ids = String(item.fileIds).split(",").filter(Boolean);
+      for (const id of ids.slice(0, 9)) {
+        try {
+          item.images.push(await loadImageUrl(id));
+        } catch (error) {
+          // 单张图片失败不阻塞列表
+        }
+      }
+    })
+  );
+}
+
 async function load() {
   if (!props.token) return;
-  loading.value = true;
-  loadError.value = "";
-  try {
-    entries.value = await request("/dynamics");
-    await Promise.all(
-      entries.value.map(async item => {
-        item.images = [];
-        if (!item.fileIds) return;
-        const ids = String(item.fileIds).split(",").filter(Boolean);
-        for (const id of ids.slice(0, 9)) {
-          try {
-            item.images.push(await loadImageUrl(id));
-          } catch (error) {
-            // 单张图片失败不阻塞列表
-          }
-        }
-      })
-    );
-  } catch (error) {
-    loadError.value = error.message || "动态加载失败";
-    uni.showToast({ title: error.message || "加载失败", icon: "none" });
-  } finally {
-    loading.value = false;
-  }
+  if (await refresh()) return hydrate(entries.value);
+  uni.showToast({ title: loadError.value || "加载失败", icon: "none" });
+}
+async function loadMoreDynamics() {
+  if (await loadMore()) return hydrate(entries.value);
+  if (listError.value) uni.showToast({ title: loadError.value || "加载失败", icon: "none" });
 }
 
 function chooseImages() {
@@ -142,6 +149,7 @@ onMounted(load);
         </view>
       </view>
     </view>
+    <ListMore :count="entries.length" :loading="loadingMore" :exhausted="exhausted" :has-error="!!listError" @more="loadMoreDynamics" />
   </view>
 </template>
 

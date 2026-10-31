@@ -1,11 +1,26 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { request } from "../utils/request";
-import { canManageTask, filterTasks, localDate, nextTaskStatus, prevTaskStatus, taskStatusLabel } from "../../../shared/tasks.mjs";
+// 共享面板：鉴权请求由宿主应用通过 @app 别名注入（apps/*/src/utils/request.js）。
+import { request } from "@app/utils/request";
+import { canManageTask, filterTasks, localDate, nextTaskStatus, prevTaskStatus, taskStatusLabel } from "../tasks.mjs";
+import { pageQuery } from "../paged-list.mjs";
+import { usePagedList } from "../use-paged-list.js";
+import ListMore from "../ListMore.vue";
 
 const emit = defineEmits(["session-ended"]);
-const tasks = ref([]), members = ref([]), session = ref(null);
-const loading = ref(false), saving = ref(false), creating = ref(false), updating = ref(new Set());
+const {
+  items: tasks,
+  loading,
+  loadingMore,
+  exhausted,
+  error: listError,
+  refresh: refreshTasks,
+  loadMore,
+  reset: resetTasks
+} = usePagedList((page, size) => request(pageQuery("/tasks", page, size)));
+
+const members = ref([]), session = ref(null);
+const saving = ref(false), creating = ref(false), updating = ref(new Set());
 const errorMessage = ref(""), memberError = ref(""), keyword = ref(""), status = ref("ALL");
 const editingId = ref(null);
 const isEditing = computed(() => editingId.value !== null);
@@ -14,28 +29,30 @@ const newForm = () => ({ title: "", deadline: "", assigneeId: null });
 const form = ref(newForm());
 const filters = [{ value: "ALL", label: "全部" }, { value: "TODO", label: "待开始" }, { value: "IN_PROGRESS", label: "进行中" }, { value: "COMPLETED", label: "已完成" }, { value: "OVERDUE", label: "已逾期" }];
 const filteredTasks = computed(() => filterTasks(tasks.value, { keyword: keyword.value, status: status.value, today: today.value }));
+const hasFilter = computed(() => keyword.value.trim() !== "" || status.value !== "ALL");
 const memberOptions = computed(() => [{ id: null, displayName: "暂不指派（由创建者跟进）" }, ...members.value]);
 const selectedMember = computed(() => memberOptions.value.find(item => item.id === form.value.assigneeId)?.displayName || "暂不指派（由创建者跟进）");
-let sequence = 0;
 function report(error) {
+  if (!error) return;
   if (error.status === 401) emit("session-ended");
   uni.showToast({ title: error.message || "请求失败，请重试", icon: "none" });
 }
 async function load() {
-  const current = ++sequence;
   today.value = localDate();
-  loading.value = true;
   errorMessage.value = "";
-  try {
-    const [list, identity] = await Promise.all([request("/tasks"), request("/auth/session")]);
-    if (current !== sequence) return;
-    tasks.value = list;
-    session.value = identity;
-  } catch (error) {
-    if (current !== sequence) return;
-    errorMessage.value = error.message || "任务加载失败，请重试";
-    report(error);
-  } finally { if (current === sequence) loading.value = false; }
+  // 身份与列表并行：身份失败只影响操作按钮的显隐，不阻塞列表展示。
+  const identity = request("/auth/session").then(value => ({ value })).catch(error => ({ error }));
+  const [ok, identityResult] = await Promise.all([refreshTasks(), identity]);
+  if (identityResult.value) session.value = identityResult.value;
+  if (identityResult.error) report(identityResult.error);
+  if (!ok) {
+    errorMessage.value = listError.value?.message || "任务加载失败，请重试";
+    report(listError.value);
+  }
+}
+async function loadMoreTasks() {
+  if (await loadMore()) return;
+  report(listError.value);
 }
 async function loadMembers() {
   memberError.value = "";
@@ -96,7 +113,7 @@ async function changeStatus(task, target) {
 function advance(task) { changeStatus(task, nextTaskStatus(task.status)); }
 function revert(task) { changeStatus(task, prevTaskStatus(task.status)); }
 onMounted(load);
-onUnmounted(() => { sequence++; });
+onUnmounted(resetTasks);
 defineExpose({ load });
 </script>
 
@@ -115,6 +132,7 @@ defineExpose({ load });
     </view>
     <input v-model="keyword" class="input" placeholder="搜索任务或负责人" />
     <view class="filters"><button v-for="item in filters" :key="item.value" size="mini" :class="{ selected: status === item.value }" @click="status = item.value">{{ item.label }}</button></view>
+    <text v-if="hasFilter && !exhausted && tasks.length" class="meta">筛选作用于已加载的 {{ tasks.length }} 条，继续加载可扩大范围</text>
     <view v-if="errorMessage" class="error"><text>{{ errorMessage }}</text><button size="mini" @click="load">重新加载</button></view>
     <view v-else-if="loading" class="empty">加载中…</view>
     <view v-else-if="!filteredTasks.length" class="empty">{{ tasks.length ? "没有符合条件的任务，试试其他筛选" : "还没有任务，点击新建安排家庭事项" }}</view>
@@ -131,7 +149,7 @@ defineExpose({ load });
         <text v-else-if="task.status !== 'COMPLETED'" class="meta">由创建者、负责人或管理员处理</text>
       </view>
     </view>
-    <text class="meta">展示最近 500 条任务</text>
+    <ListMore :count="tasks.length" :loading="loadingMore" :exhausted="exhausted" :has-error="!!listError" @more="loadMoreTasks" />
   </view>
 </template>
 

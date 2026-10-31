@@ -1,5 +1,5 @@
 <script setup>
-import EntryEditor from "./EntryEditor.vue";
+import EntryEditor from "@shared/panels/EntryEditor.vue";
 import { computed, onMounted, ref } from "vue";
 import { request } from "../utils/request";
 import { localDate } from "../../../shared/tasks.mjs";

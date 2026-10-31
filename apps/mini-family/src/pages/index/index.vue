@@ -2,10 +2,10 @@
 import { computed, ref } from "vue";
 import CalendarPanel from "../../components/CalendarPanel.vue";
 import { login, register, request } from "../../utils/request";
-import TaskPanel from "../../components/TaskPanel.vue";
-import DynamicsPanel from "../../components/DynamicsPanel.vue";
+import TaskPanel from "@shared/panels/TaskPanel.vue";
+import DynamicsPanel from "@shared/panels/DynamicsPanel.vue";
 import AlbumsPanel from "../../components/AlbumsPanel.vue";
-import NoticesPanel from "../../components/NoticesPanel.vue";
+import NoticesPanel from "@shared/panels/NoticesPanel.vue";
 import MembersPanel from "../../components/MembersPanel.vue";
 import ChatPanel from "../../components/ChatPanel.vue";
 import ArchivePanel from "../../components/ArchivePanel.vue";

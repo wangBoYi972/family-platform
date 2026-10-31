@@ -1,12 +1,20 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
 import { request } from "../utils/request";
+import { pageQuery } from "../../../shared/paged-list.mjs";
+import { usePagedList } from "../../../shared/use-paged-list.js";
+import ListMore from "../../../shared/ListMore.vue";
 
 const emit = defineEmits(["session-ended"]);
 const categories = [{ value: "ALL", label: "全部" }, { value: "IDENTITY", label: "证件" }, { value: "HEALTH", label: "健康" }, { value: "DOCUMENT", label: "文档" }];
 const categoryLabel = { IDENTITY: "证件", HEALTH: "健康", DOCUMENT: "文档" };
-const rows = ref([]), members = ref([]), session = ref(null);
-const loading = ref(false), error = ref(""), keyword = ref(""), filter = ref("ALL");
+const {
+  items: rows, loading, loadingMore, exhausted, error: listError,
+  refresh, loadMore
+} = usePagedList((page, size) => request(pageQuery("/archives", page, size)));
+const members = ref([]), session = ref(null);
+const error = computed(() => listError.value?.message || "");
+const keyword = ref(""), filter = ref("ALL");
 const creating = ref(false), saving = ref(false), opened = ref(new Set());
 const details = ref({}), audits = ref({});
 const form = ref({ id: "", title: "", category: "HEALTH", visibility: "FAMILY", body: "" });
@@ -24,6 +32,7 @@ const stats = computed(() => ({
 }));
 
 function report(error) {
+  if (!error) return;
   if (error.status === 401) emit("session-ended");
   uni.showToast({ title: error.message || "请求失败", icon: "none" });
 }
@@ -33,17 +42,19 @@ function stamp(value) { return value ? String(value).slice(0, 10) : ""; }
 function stampFull(value) { return value ? String(value).slice(0, 16).replace("T", " ") : ""; }
 
 async function load() {
-  loading.value = true;
-  error.value = "";
-  try {
-    const [list, identity, people] = await Promise.all([request("/archives"), request("/auth/session"), request("/users/members")]);
-    rows.value = list;
-    session.value = identity;
-    members.value = people;
-  } catch (e) {
-    error.value = e.message || "档案加载失败";
-    report(e);
-  } finally { loading.value = false; }
+  // 列表分页 + 身份/成员并行；身份失败不影响列表展示。
+  const identity = request("/auth/session").then(value => ({ value })).catch(error => ({ error }));
+  const people = request("/users/members").then(value => ({ value })).catch(error => ({ error }));
+  const [ok, identityResult, peopleResult] = await Promise.all([refresh(), identity, people]);
+  if (identityResult.value) session.value = identityResult.value;
+  if (peopleResult.value) members.value = peopleResult.value;
+  if (identityResult.error) report(identityResult.error);
+  if (peopleResult.error) report(peopleResult.error);
+  if (!ok) report(listError.value);
+}
+async function loadMoreArchives() {
+  if (await loadMore()) return;
+  report(listError.value);
 }
 function openCreate() {
   if (saving.value) return;
@@ -119,6 +130,7 @@ defineExpose({ load });
       <view class="stat"><text class="stat-value">{{ stats.health }}</text><text class="stat-label">健康记录</text></view>
       <view class="stat"><text class="stat-value">{{ stats.shared }}</text><text class="stat-label">全家可见</text></view>
     </view>
+    <text v-if="!exhausted && rows.length" class="hint">统计与筛选基于已加载的 {{ rows.length }} 条，继续加载可扩大范围</text>
 
     <view v-if="creating" class="form card">
       <input v-model="form.title" class="input" maxlength="120" placeholder="档案标题（必填）" :disabled="saving" />
@@ -168,6 +180,7 @@ defineExpose({ load });
         </view>
       </view>
     </view>
+    <ListMore :count="rows.length" :loading="loadingMore" :exhausted="exhausted" :has-error="!!listError" @more="loadMoreArchives" />
   </view>
 </template>
 

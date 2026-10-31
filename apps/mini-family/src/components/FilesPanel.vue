@@ -1,10 +1,17 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
 import { request, upload, loadImageUrl } from "../utils/request";
+import { pageQuery } from "../../../shared/paged-list.mjs";
+import { usePagedList } from "../../../shared/use-paged-list.js";
+import ListMore from "../../../shared/ListMore.vue";
 
 const emit = defineEmits(["session-ended"]);
-const files = ref([]);
-const loading = ref(false), error = ref(""), uploading = ref(false);
+const {
+  items: files, loading, loadingMore, exhausted, error: listError,
+  refresh, loadMore
+} = usePagedList((page, size) => request(pageQuery("/files", page, size)));
+const error = computed(() => listError.value?.message || "");
+const uploading = ref(false);
 const keyword = ref(""), visibility = ref("FAMILY");
 const keywordInput = ref("");
 const busy = ref(new Set());
@@ -41,16 +48,12 @@ function kindIcon(item) {
 function search() { keyword.value = keywordInput.value.trim(); }
 
 async function load() {
-  loading.value = true;
-  error.value = "";
-  try {
-    files.value = await request("/files");
-  } catch (e) {
-    error.value = e.message || "文件加载失败";
-    if (e.status === 401) emit("session-ended");
-  } finally {
-    loading.value = false;
-  }
+  if (await refresh()) return;
+  if (listError.value?.status === 401) emit("session-ended");
+}
+async function loadMoreFiles() {
+  if (await loadMore()) return;
+  if (listError.value?.status === 401) emit("session-ended");
 }
 
 function chooseImage() {
@@ -146,6 +149,7 @@ onMounted(load);
       <view class="metric"><text class="figure">{{ images.length }}</text><text class="caption">照片</text></view>
       <view class="metric"><text class="figure">{{ formatSize(totalSize) }}</text><text class="caption">占用空间</text></view>
     </view>
+    <text v-if="!exhausted && files.length" class="scope-note">统计基于已加载的 {{ files.length }} 个文件，加载更多后同步更新</text>
 
     <view class="actions">
       <view class="field">
@@ -178,6 +182,7 @@ onMounted(load);
         <text class="op danger" @click="remove(item)">删除</text>
       </view>
     </view>
+    <ListMore :count="files.length" :loading="loadingMore" :exhausted="exhausted" :has-error="!!listError" @more="loadMoreFiles" />
   </view>
 </template>
 
@@ -187,6 +192,7 @@ onMounted(load);
 .metric{background:var(--c-surface);border:1px solid var(--c-line);border-radius:14px;padding:14px;text-align:center}
 .figure{display:block;font-size:22px;font-weight:700;color:var(--c-primary)}
 .caption{font-size:11px;color:var(--c-muted)}
+.scope-note{font-size:11px;color:var(--c-muted);line-height:1.6}
 .actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
 .field{display:flex;align-items:center;gap:10px;flex:1;min-width:220px}
 .input{flex:1;height:42px;padding:0 16px;background:var(--c-surface-2);border:1px solid var(--c-line);border-radius:12px;font-size:13px;color:var(--c-ink)}

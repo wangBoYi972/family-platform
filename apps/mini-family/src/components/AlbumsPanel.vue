@@ -1,41 +1,48 @@
 <script setup>
-import EntryEditor from "./EntryEditor.vue";
+import EntryEditor from "@shared/panels/EntryEditor.vue";
 import { computed, ref, onMounted } from "vue";
 import { request, loadImageUrl } from "../utils/request";
+import { pageQuery } from "../../../shared/paged-list.mjs";
+import { usePagedList } from "../../../shared/use-paged-list.js";
+import ListMore from "../../../shared/ListMore.vue";
 
 const props = defineProps({ token: String });
-const albums = ref([]);
-const loading = ref(false);
-const keyword = ref(""), loadError = ref("");
+const {
+  items: albums, loading, loadingMore, exhausted, error: listError,
+  refresh, loadMore
+} = usePagedList((page, size) => request(pageQuery("/albums", page, size)));
+const keyword = ref("");
+const loadError = computed(() => listError.value?.message || "");
 const filteredAlbums = computed(() => albums.value.filter(item => (item.title+' '+(item.body||'')).toLocaleLowerCase().includes(keyword.value.trim().toLocaleLowerCase())));
 function photoCount(item) { return String(item.fileIds||'').split(',').filter(Boolean).length; }
 
+/** 逐本把 fileIds 换成可显示地址；已取过的跳过，单张失败不阻塞相册。 */
+async function hydrate(rows) {
+  await Promise.all(
+    rows.map(async item => {
+      if (item.images) return;
+      item.images = [];
+      if (!item.fileIds) return;
+      const ids = String(item.fileIds).split(",").filter(Boolean);
+      for (const id of ids.slice(0, 30)) {
+        try {
+          item.images.push(await loadImageUrl(id));
+        } catch (error) {
+          // 单张图片失败不阻塞相册
+        }
+      }
+    })
+  );
+}
+
 async function load() {
   if (!props.token) return;
-  loading.value = true;
-  loadError.value = "";
-  try {
-    albums.value = await request("/albums");
-    await Promise.all(
-      albums.value.map(async item => {
-        item.images = [];
-        if (!item.fileIds) return;
-        const ids = String(item.fileIds).split(",").filter(Boolean);
-        for (const id of ids.slice(0, 30)) {
-          try {
-            item.images.push(await loadImageUrl(id));
-          } catch (error) {
-            // 单张图片失败不阻塞相册
-          }
-        }
-      })
-    );
-  } catch (error) {
-    loadError.value = error.message || "相册加载失败";
-    uni.showToast({ title: error.message || "加载失败", icon: "none" });
-  } finally {
-    loading.value = false;
-  }
+  if (await refresh()) return hydrate(albums.value);
+  uni.showToast({ title: loadError.value || "加载失败", icon: "none" });
+}
+async function loadMoreAlbums() {
+  if (await loadMore()) return hydrate(albums.value);
+  if (listError.value) uni.showToast({ title: loadError.value || "加载失败", icon: "none" });
 }
 
 function preview(images, current) {
@@ -70,6 +77,7 @@ onMounted(load);
         </view>
       </view>
     </view>
+    <ListMore :count="albums.length" :loading="loadingMore" :exhausted="exhausted" :has-error="!!listError" @more="loadMoreAlbums" />
   </view>
 </template>
 
