@@ -51,6 +51,26 @@
 - 设计、协议与部署细节见 `docs/实时通话设计.md`。
 - 冒烟脚本：`scripts/call-smoke.mjs`（信令链路）、`scripts/call-browser-smoke.mjs`（真实浏览器双端出图）、`scripts/call-browser-group.mjs`（3 人网状），用法见设计文档第 10 节。
 
+## 2026-10-31 前端去重与档案端修复
+
+- 通话链路（`CallPanel` / `CallVideo` / `CallAudio` / `call-client` / `webrtc-mesh`，约 1300 行）从两个客户端各一份收敛到 `apps/shared/call/`，
+  改一处两端同时生效；此前任何通话 bug 都要改两遍。
+- 四端请求错误文案统一到 `apps/shared/request-message.js`：网关 502/503/504 现在四端都提示「对应后端服务未启动」，
+  断网不再抛 `errMsg` / `Failed to fetch`。此前这条修复只落在管理端。
+- 修复档案端 H5 白屏：`package.json` 缺 `@dcloudio/uni-h5` 且 uni-app 为 alpha 版，构建「成功」但产物只有空壳，
+  页面 chunk（`pages-index-index.*.js`）根本没生成。
+- 端口规划：管理端 5173 / 家庭端 5174 / 移动端 5175 / 档案端 5176，网关 CORS 同步放行。
+
+## 2026-10-31 后端补齐（映射表 / 分页 / 事件清理）
+
+- `content_file_mapping` 从「建了没人用的死表」变成唯一真相：写入先删后插并回写旧列，读取批量查映射表、缺失时回退旧列，
+  启动时幂等回填历史数据，删除内容同步清理关联。此前重构只做了一半，库里存在两套真相。
+- 列表接口补齐分页：`page`/`size` 可选，不传时行为与改造前一致（`PageQuery` 统一归一化，上限 500）。
+  接入 `/api/tasks`、`/api/{kind}`、`/api/files`、`/api/im/conversations`、`/api/archives`、
+  `/api/archives/{id}/audit`、`/api/media/calls/history`，消除「超过 500 条静默丢数据」。
+- `OutboxPublisher` 增加已发布事件清理（默认保留 7 天，分批删除）与 PENDING 积压告警，Outbox 表不再只增不减。
+- 前后端共 59 项后端测试通过（content 8 项，含映射表写入/回填、分页、outbox 清理 SQL 方言验证）。
+
 ## 生产上线前必须验收（发布阻断项）
 
 MySQL 与 Nacos 实例联调、真实短信/微信认证、对象存储、SFU/TURN 部署与压测、双小程序真机回归、监控告警及备份恢复演练。详见 `docs/企业级工程化交付记录.md`。
