@@ -1,5 +1,6 @@
 package com.familyhome.media.service;
 
+import com.familyhome.common.api.PageQuery;
 import com.familyhome.media.dto.CallStartDTO;
 import com.familyhome.media.vo.CallVO;
 import com.familyhome.media.vo.IceServerVO;
@@ -27,7 +28,12 @@ public interface CallService {
     /** 当前进行中的通话，没有则返回 null。 */
     CallVO active(SessionPrincipal principal);
 
-    List<CallVO> history(SessionPrincipal principal);
+    /** 通话记录分页，默认与改造前一致（最近 30 通）。 */
+    List<CallVO> history(SessionPrincipal principal, PageQuery page);
+
+    default List<CallVO> history(SessionPrincipal principal) {
+        return history(principal, PageQuery.of(null, null, 30));
+    }
 
     /** 信令转发前的成员校验，带短期缓存，避免每帧 ICE 都查库。 */
     boolean canSignal(String callId, long userId);

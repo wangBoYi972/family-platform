@@ -5,6 +5,7 @@ import com.familyhome.archive.dto.ArchiveSaveDTO;
 import com.familyhome.archive.service.ArchiveService;
 import com.familyhome.archive.vo.*;
 import com.familyhome.common.api.ApiResponse;
+import com.familyhome.common.api.PageQuery;
 import com.familyhome.security.SessionPrincipal;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -20,8 +21,12 @@ public class ArchiveController {
     private ArchiveService service;
 
     @GetMapping
-    public ApiResponse<List<ArchiveVO>> list(HttpServletRequest r) {
-        return ApiResponse.success(service.list(SessionPrincipal.from(r)));
+    public ApiResponse<List<ArchiveVO>> list(
+            HttpServletRequest r,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return ApiResponse.success(
+                service.list(SessionPrincipal.from(r), PageQuery.of(page, size)));
     }
 
     @GetMapping("/{id}")
@@ -48,7 +53,12 @@ public class ArchiveController {
     }
 
     @GetMapping("/{id}/audit")
-    public ApiResponse<List<ArchiveAuditVO>> audit(HttpServletRequest r, @PathVariable String id) {
-        return ApiResponse.success(service.audit(SessionPrincipal.from(r), id));
+    public ApiResponse<List<ArchiveAuditVO>> audit(
+            HttpServletRequest r,
+            @PathVariable String id,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return ApiResponse.success(
+                service.audit(SessionPrincipal.from(r), id, PageQuery.of(page, size, 100)));
     }
 }

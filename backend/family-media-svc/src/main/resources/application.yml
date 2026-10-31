@@ -52,6 +52,8 @@ family:
   # 开启后 WebSocket 票据与信令跨实例广播走 Redis；多副本部署必须开启。
   messaging:
     enabled: ${FAMILY_MESSAGING_ENABLED:false}
+    # 已发布事件的保留天数，超期由 OutboxPublisher 定时清理
+    retention-days: ${FAMILY_MESSAGING_RETENTION_DAYS:7}
   media:
     max-participants: ${FAMILY_MEDIA_MAX_PARTICIPANTS:8}
     ring-timeout-seconds: ${FAMILY_MEDIA_RING_TIMEOUT_SECONDS:45}

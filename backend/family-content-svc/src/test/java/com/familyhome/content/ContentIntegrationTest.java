@@ -1,9 +1,14 @@
 package com.familyhome.content;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
 import com.familyhome.api.file.feign.FileFeignClient;
+import com.familyhome.api.file.vo.FileApiVO;
 import com.familyhome.api.user.feign.UserFeignClient;
+import com.familyhome.common.api.ApiResponse;
+import com.familyhome.common.api.PageQuery;
 import com.familyhome.content.dto.*;
 import com.familyhome.content.service.*;
 import com.familyhome.security.SessionPrincipal;
@@ -12,6 +17,7 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -33,6 +39,8 @@ class ContentIntegrationTest {
 
     @Autowired TaskService tasks;
     @Autowired EntryService entries;
+    @Autowired ContentFileMappingService links;
+    @Autowired JdbcTemplate jdbc;
     @MockBean UserFeignClient users;
     @MockBean FileFeignClient files;
     private final SessionPrincipal owner = new SessionPrincipal(11, 101, "ADMIN", "test", "family");
@@ -134,5 +142,149 @@ class ContentIntegrationTest {
                 .findFirst()
                 .orElseThrow()
                 .status();
+    }
+
+    @Test
+    @DisplayName("文件关联写入 content_file_mapping，更新覆盖、删除清理、旧列保留兼容")
+    void contentFileMappingIsSourceOfTruth() {
+        String f1 = UUID.randomUUID().toString();
+        String f2 = UUID.randomUUID().toString();
+        when(files.metadata(anyString(), anyString()))
+                .thenReturn(ApiResponse.success(new FileApiVO(f1, 101L, 11L, "a.png", "image/png", 1L, "FAMILY")));
+
+        var dto =
+                new EntrySaveDTO(
+                        "带图的动态",
+                        "正文",
+                        java.time.LocalDate.now(),
+                        false,
+                        false,
+                        "FAMILY",
+                        f1 + "," + f2);
+        var created = entries.create(owner, "unused", "dynamics", dto);
+
+        assertThat(mappingRows("DYNAMIC", created.id())).containsExactly(f1, f2);
+        // 旧列同名保留，供未升级的读者回退
+        assertThat(jdbc.queryForObject(
+                        "SELECT file_ids FROM family_dynamic WHERE id = ?", String.class, created.id()))
+                .isEqualTo(f1 + "," + f2);
+        // 列表读的是映射表
+        assertThat(entries.list(owner, "dynamics").stream()
+                        .filter(x -> x.id().equals(created.id()))
+                        .findFirst()
+                        .orElseThrow()
+                        .fileIds())
+                .isEqualTo(f1 + "," + f2);
+
+        entries.update(
+                owner,
+                "unused",
+                "dynamics",
+                created.id(),
+                new EntrySaveDTO("带图的动态", "正文", java.time.LocalDate.now(), false, false, "FAMILY", f2));
+        assertThat(mappingRows("DYNAMIC", created.id())).containsExactly(f2);
+
+        entries.delete(owner, "dynamics", created.id());
+        assertThat(mappingRows("DYNAMIC", created.id())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("历史数据只有旧列时由回填补齐，且读取可回退旧列")
+    void backfillLegacyFileIds() {
+        String legacyFile = UUID.randomUUID().toString();
+        jdbc.update(
+                "INSERT INTO family_notice(household_id, creator_id, title, body, yearly, pinned, visibility, file_ids, likes, created_at)"
+                        + " VALUES(?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)",
+                101L, 11L, "历史公告", "正文", false, false, "FAMILY", legacyFile, 0);
+
+        Long id = jdbc.queryForObject(
+                "SELECT id FROM family_notice WHERE title = ?", Long.class, "历史公告");
+        assertThat(mappingRows("NOTICE", id)).isEmpty();
+        // 回填前：读路径回退旧列，功能不中断
+        assertThat(entries.list(owner, "notices").stream()
+                        .filter(x -> x.id().equals(id))
+                        .findFirst()
+                        .orElseThrow()
+                        .fileIds())
+                .isEqualTo(legacyFile);
+
+        assertThat(links.backfillLegacy()).isGreaterThan(0);
+        assertThat(mappingRows("NOTICE", id)).containsExactly(legacyFile);
+        // 幂等：再跑一次不再产生新行
+        int rowsAfter = mappingRows("NOTICE", id).size();
+        links.backfillLegacy();
+        assertThat(mappingRows("NOTICE", id)).hasSize(rowsAfter);
+    }
+
+    private List<String> mappingRows(String contentType, long contentId) {
+        return jdbc.queryForList(
+                "SELECT file_id FROM content_file_mapping WHERE content_type = ? AND content_id = ? ORDER BY sort_order",
+                String.class,
+                contentType,
+                contentId);
+    }
+
+    @Test
+    @DisplayName("列表支持分页：不传参数保持原行为，传 page/size 能翻到后面的数据")
+    void listPagination() {
+        String prefix = "分页任务-" + UUID.randomUUID().toString().substring(0, 8);
+        for (int i = 0; i < 3; i++) tasks.create(owner, "unused", new TaskCreateDTO(prefix + "-" + i, null, null));
+
+        // 不传分页参数：等价于改造前，三条都在
+        assertThat(tasks.list(owner).stream().filter(t -> t.title().startsWith(prefix)).count())
+                .isEqualTo(3);
+        // 第一页取 2 条
+        var firstPage = tasks.list(owner, PageQuery.of(1, 2));
+        assertThat(firstPage).hasSize(2);
+        // 第二页接上剩下的 1 条，且与第一页不重叠
+        var secondPage = tasks.list(owner, PageQuery.of(2, 2));
+        assertThat(secondPage).hasSize(1);
+        assertThat(secondPage).extracting(t -> t.id())
+                .doesNotContainAnyElementsOf(firstPage.stream().map(t -> t.id()).toList());
+        // 非法参数回落：size<=0 用默认值，page<1 当第一页
+        assertThat(PageQuery.of(-3, 0).page()).isEqualTo(1);
+        assertThat(PageQuery.of(1, 9999).size()).isEqualTo(PageQuery.MAX_SIZE);
+        assertThat(PageQuery.of(3, 100).offset()).isEqualTo(200L);
+    }
+
+    @Test
+    @DisplayName("outbox 清理只删保留期外的已发布事件，并留下积压的 PENDING")
+    void outboxPurgeOnlyTouchesExpiredPublished() {
+        // 三条样本：过期已发布 / 新发布 / 过期仍未发布
+        insertOutbox("old-published", "PUBLISHED", 10);
+        insertOutbox("new-published", "PUBLISHED", 0);
+        insertOutbox("old-pending", "PENDING", 10);
+
+        java.sql.Timestamp before =
+                java.sql.Timestamp.from(java.time.Instant.now().minus(java.time.Duration.ofDays(7)));
+        // SQL 与 OutboxMapper.xml 的 purgePublished / countStalePending 保持一致
+        int removed =
+                jdbc.update(
+                        "DELETE FROM event_outbox WHERE id IN ("
+                                + "SELECT id FROM (SELECT id FROM event_outbox"
+                                + " WHERE status = 'PUBLISHED' AND published_at < ?"
+                                + " ORDER BY published_at LIMIT ?) t)",
+                        before,
+                        500);
+        assertThat(removed).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM event_outbox WHERE id = 'new-published'", Integer.class))
+                .isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM event_outbox WHERE status = 'PENDING' AND created_at < ?",
+                        Integer.class,
+                        before))
+                .isEqualTo(1);
+    }
+
+    private void insertOutbox(String id, String status, int createdDaysAgo) {        jdbc.update(
+                "INSERT INTO event_outbox(id, aggregate_type, aggregate_id, event_type, household_id,"
+                        + " payload, status, attempts, next_attempt_at, created_at, published_at)"
+                        + " VALUES(?, 'TASK', '1', 'task.created', 101, '{}', ?, 0, ?, ?, ?)",
+                id,
+                status,
+                java.sql.Timestamp.from(java.time.Instant.now().minus(java.time.Duration.ofDays(createdDaysAgo))),
+                java.sql.Timestamp.from(java.time.Instant.now().minus(java.time.Duration.ofDays(createdDaysAgo))),
+                java.sql.Timestamp.from(java.time.Instant.now().minus(java.time.Duration.ofDays(createdDaysAgo))));
     }
 }

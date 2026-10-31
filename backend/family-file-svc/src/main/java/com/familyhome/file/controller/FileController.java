@@ -2,6 +2,7 @@ package com.familyhome.file.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import com.familyhome.common.api.ApiResponse;
+import com.familyhome.common.api.PageQuery;
 import com.familyhome.file.dto.FileUploadDTO;
 import com.familyhome.file.service.FileService;
 import com.familyhome.file.vo.FileVO;
@@ -24,8 +25,12 @@ public class FileController {
     private FileService service;
 
     @GetMapping
-    public ApiResponse<List<FileVO>> list(HttpServletRequest r) {
-        return ApiResponse.success(service.list(SessionPrincipal.from(r)));
+    public ApiResponse<List<FileVO>> list(
+            HttpServletRequest r,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return ApiResponse.success(
+                service.list(SessionPrincipal.from(r), PageQuery.of(page, size)));
     }
 
     @PostMapping

@@ -1,6 +1,7 @@
 package com.familyhome.media.controller;
 
 import com.familyhome.common.api.ApiResponse;
+import com.familyhome.common.api.PageQuery;
 import com.familyhome.media.dto.CallStartDTO;
 import com.familyhome.media.dto.CallStateDTO;
 import com.familyhome.media.service.CallService;
@@ -46,8 +47,13 @@ public class CallController {
     }
 
     @GetMapping("/calls/history")
-    public ApiResponse<List<CallVO>> history(HttpServletRequest request) {
-        return ApiResponse.success(calls.history(SessionPrincipal.from(request)));
+    public ApiResponse<List<CallVO>> history(
+            HttpServletRequest request,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        // 默认仍返回最近 30 通，前端不传参数时行为不变
+        return ApiResponse.success(
+                calls.history(SessionPrincipal.from(request), PageQuery.of(page, size, 30)));
     }
 
     @GetMapping("/calls/{id}")

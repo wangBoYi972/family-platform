@@ -3,6 +3,7 @@ package com.familyhome.archive.service.impl;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.familyhome.common.api.PageQuery;
 import com.familyhome.archive.converter.ArchiveConverter;
 import com.familyhome.archive.dto.ArchiveSaveDTO;
 import com.familyhome.archive.mapper.*;
@@ -39,7 +40,7 @@ public class ArchiveServiceImpl implements ArchiveService {
                         .eq(FamilyArchive::getVisibility, "FAMILY"));
     }
 
-    public List<ArchiveVO> list(SessionPrincipal p) {
+    public List<ArchiveVO> list(SessionPrincipal p, PageQuery page) {
         return archives
             .selectList(
                 readable(p)
@@ -51,7 +52,7 @@ public class ArchiveServiceImpl implements ArchiveService {
                         FamilyArchive::getVisibility,
                         FamilyArchive::getCreatedAt)
                     .orderByDesc(FamilyArchive::getCreatedAt)
-                    .last("LIMIT 500"))
+                    .last(page.limitClause()))
             .stream()
             .map(ArchiveConverter::toVO)
             .toList();
@@ -135,7 +136,7 @@ public class ArchiveServiceImpl implements ArchiveService {
         log(p, id, "DELETE");
     }
 
-    public List<ArchiveAuditVO> audit(SessionPrincipal p, String id) {
+    public List<ArchiveAuditVO> audit(SessionPrincipal p, String id, PageQuery page) {
         owner(p, find(p, id));
         return logs
             .selectList(
@@ -143,7 +144,7 @@ public class ArchiveServiceImpl implements ArchiveService {
                     .eq(ArchiveAccessLog::getArchiveId, id)
                     .eq(ArchiveAccessLog::getHouseholdId, p.householdId())
                     .orderByDesc(ArchiveAccessLog::getId)
-                    .last("LIMIT 100"))
+                    .last(page.limitClause()))
             .stream()
             .map(ArchiveConverter::toVO)
             .toList();

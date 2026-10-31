@@ -2,6 +2,7 @@ package com.familyhome.im.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import com.familyhome.common.api.ApiResponse;
+import com.familyhome.common.api.PageQuery;
 import com.familyhome.im.dto.*;
 import com.familyhome.im.service.ImService;
 import com.familyhome.im.vo.*;
@@ -20,8 +21,12 @@ public class ImController {
     private ImService service;
 
     @GetMapping("/conversations")
-    public ApiResponse<List<ConversationVO>> list(HttpServletRequest r) {
-        return ApiResponse.success(service.list(SessionPrincipal.from(r)));
+    public ApiResponse<List<ConversationVO>> list(
+            HttpServletRequest r,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return ApiResponse.success(
+                service.list(SessionPrincipal.from(r), PageQuery.of(page, size)));
     }
 
     @PostMapping("/conversations")

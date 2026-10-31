@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.familyhome.api.user.service.MemberCacheService;
+import com.familyhome.common.api.PageQuery;
 import com.familyhome.content.converter.ContentConverter;
 import com.familyhome.content.dto.TaskCreateDTO;
 import com.familyhome.content.dto.TaskUpdateDTO;
@@ -36,13 +37,13 @@ public class TaskServiceImpl implements TaskService {
     @Autowired
     private OutboxEventStore outbox;
 
-    public List<TaskVO> list(SessionPrincipal p) {
+    public List<TaskVO> list(SessionPrincipal p, PageQuery page) {
         return tasks
                 .selectList(
                         new LambdaQueryWrapper<FamilyTask>()
                                 .eq(FamilyTask::getHouseholdId, p.householdId())
                                 .orderByDesc(FamilyTask::getCreatedAt, FamilyTask::getId)
-                                .last("LIMIT 500"))
+                                .last(page.limitClause()))
                 .stream()
                 .map(ContentConverter::toVO)
                 .toList();

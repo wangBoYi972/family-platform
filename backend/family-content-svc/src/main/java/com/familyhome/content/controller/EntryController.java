@@ -2,6 +2,7 @@ package com.familyhome.content.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import com.familyhome.common.api.ApiResponse;
+import com.familyhome.common.api.PageQuery;
 import com.familyhome.content.dto.EntrySaveDTO;
 import com.familyhome.content.service.EntryService;
 import com.familyhome.content.vo.EntryVO;
@@ -19,8 +20,13 @@ public class EntryController {
     private EntryService service;
 
     @GetMapping
-    public ApiResponse<List<EntryVO>> list(HttpServletRequest r, @PathVariable String kind) {
-        return ApiResponse.success(service.list(SessionPrincipal.from(r), kind));
+    public ApiResponse<List<EntryVO>> list(
+            HttpServletRequest r,
+            @PathVariable String kind,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return ApiResponse.success(
+                service.list(SessionPrincipal.from(r), kind, PageQuery.of(page, size)));
     }
 
     @PostMapping

@@ -24,6 +24,9 @@ import org.slf4j.LoggerFactory;
 @ConditionalOnProperty(name = "family.messaging.enabled", havingValue = "true")
 public class OutboxPublisher {
     private static final Logger log = LoggerFactory.getLogger(OutboxPublisher.class);
+    /** 每次清理批次大小，避免一条 DELETE 长时间持锁。 */
+    private static final int PURGE_BATCH = 500;
+
     @Autowired private OutboxMapper outboxMapper;
     @Autowired private RabbitTemplate rabbit;
     @Autowired private MessagingProperties properties;
@@ -33,6 +36,33 @@ public class OutboxPublisher {
     public void publishBatch() {
         List<Map<String, Object>> events = outboxMapper.pending();
         for (Map<String, Object> event : events) publish(event);
+    }
+
+    /**
+     * 清理已发布的历史事件。
+     *
+     * <p>Outbox 表原来只增不减——发布成功后行永远留着，几个月就是几十万行，
+     * 而 {@code pending()} 每次都要扫它。这里按保留期分批删除。
+     */
+    @Scheduled(fixedDelayString = "${family.messaging.purge-delay-ms:3600000}")
+    public void purgePublished() {
+        Timestamp before =
+                Timestamp.from(Instant.now().minus(Duration.ofDays(properties.retentionDays())));
+        int removed = 0;
+        while (true) {
+            int batch = outboxMapper.purgePublished(before, PURGE_BATCH);
+            removed += batch;
+            if (batch < PURGE_BATCH) break;
+        }
+        // 积压的 PENDING 说明发布链路或 broker 有问题，主动暴露出来
+        int stale = outboxMapper.countStalePending(before);
+        if (stale > 0)
+            log.warn(
+                    "outbox 存在 {} 条超过 {} 天仍未发布的事件，请检查 RabbitMQ 连接与发布日志",
+                    stale,
+                    properties.retentionDays());
+        if (removed > 0)
+            log.info("outbox 清理已发布事件 rows={} retentionDays={}", removed, properties.retentionDays());
     }
 
     private void publish(Map<String, Object> event) {

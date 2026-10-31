@@ -12,7 +12,8 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class ArchiveCipher {
-    @Value("${FAMILY_ARCHIVE_KEY:}") private String encoded;
+    // 优先读取 family.archive.key（各 profile 的 yml 配置），未配置时回退到 FAMILY_ARCHIVE_KEY 环境变量。
+    @Value("${family.archive.key:${FAMILY_ARCHIVE_KEY:}}") private String encoded;
     private SecretKeySpec key;
 
     public ArchiveCipher() {}

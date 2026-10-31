@@ -20,4 +20,19 @@
         UPDATE event_outbox SET attempts=attempts+1, next_attempt_at=#{nextAttemptAt},
             last_error=#{lastError} WHERE id=#{id} AND status='PENDING'
     </update>
+    <!-- 外层的派生表是必须的：MySQL 不允许在 DELETE 的子查询里直接引用被删表 -->
+    <delete id="purgePublished">
+        DELETE FROM event_outbox WHERE id IN (
+            SELECT id FROM (
+                SELECT id FROM event_outbox
+                WHERE status = 'PUBLISHED' AND published_at &lt; #{before}
+                ORDER BY published_at
+                LIMIT #{limit}
+            ) t
+        )
+    </delete>
+    <select id="countStalePending" resultType="int">
+        SELECT COUNT(*) FROM event_outbox
+        WHERE status = 'PENDING' AND created_at &lt; #{before}
+    </select>
 </mapper>

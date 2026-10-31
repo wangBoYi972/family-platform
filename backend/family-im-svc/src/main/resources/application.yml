@@ -58,5 +58,7 @@ springdoc:
 family:
   messaging:
     enabled: ${FAMILY_MESSAGING_ENABLED:false}
+    # 已发布事件的保留天数，超期由 OutboxPublisher 定时清理
+    retention-days: ${FAMILY_MESSAGING_RETENTION_DAYS:7}
     service-name: family-im-svc
     exchange: family.events

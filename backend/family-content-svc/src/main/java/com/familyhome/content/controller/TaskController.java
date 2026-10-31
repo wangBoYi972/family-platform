@@ -2,6 +2,7 @@ package com.familyhome.content.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import com.familyhome.common.api.ApiResponse;
+import com.familyhome.common.api.PageQuery;
 import com.familyhome.content.dto.TaskCreateDTO;
 import com.familyhome.content.dto.TaskStatusDTO;
 import com.familyhome.content.dto.TaskUpdateDTO;
@@ -23,8 +24,12 @@ public class TaskController {
     private TaskService service;
 
     @GetMapping
-    public ApiResponse<List<TaskVO>> list(HttpServletRequest r) {
-        return ApiResponse.success(service.list(SessionPrincipal.from(r)));
+    public ApiResponse<List<TaskVO>> list(
+            HttpServletRequest r,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        // 不传分页参数时等价于原来的「取前 500 条」，老客户端行为不变
+        return ApiResponse.success(service.list(SessionPrincipal.from(r), PageQuery.of(page, size)));
     }
 
     @PostMapping

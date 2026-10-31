@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.familyhome.content.mapper.ContentFileMappingMapper">
+
+    <insert id="insertBatch">
+        INSERT INTO content_file_mapping(content_type, content_id, file_id, sort_order)
+        VALUES
+        <foreach collection="fileIds" item="fileId" index="idx" separator=",">
+            (#{contentType}, #{contentId}, #{fileId}, #{idx})
+        </foreach>
+    </insert>
+
+    <delete id="deleteByContent">
+        DELETE FROM content_file_mapping
+        WHERE content_type = #{contentType} AND content_id = #{contentId}
+    </delete>
+
+    <select id="selectByContentIds" resultType="java.util.Map">
+        SELECT content_id AS content_id, file_id AS file_id
+        FROM content_file_mapping
+        WHERE content_type = #{contentType}
+          AND content_id IN
+        <foreach collection="contentIds" item="cid" open="(" separator="," close=")">
+            #{cid}
+        </foreach>
+        ORDER BY content_id, sort_order
+    </select>
+
+    <!-- table 由服务端枚举传入，不接受外部输入 -->
+    <select id="selectLegacyRows" resultType="java.util.Map">
+        SELECT t.id AS id, t.file_ids AS file_ids
+        FROM ${table} t
+        WHERE t.file_ids IS NOT NULL
+          AND t.file_ids &lt;&gt; ''
+          AND NOT EXISTS (
+              SELECT 1 FROM content_file_mapping m
+              WHERE m.content_type = #{contentType} AND m.content_id = t.id
+          )
+        ORDER BY t.id
+        LIMIT #{limit}
+    </select>
+</mapper>

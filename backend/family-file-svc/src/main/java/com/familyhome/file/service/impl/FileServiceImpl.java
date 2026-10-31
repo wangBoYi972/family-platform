@@ -3,6 +3,7 @@ package com.familyhome.file.service.impl;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.familyhome.common.api.PageQuery;
 import com.familyhome.file.converter.FileConverter;
 import com.familyhome.file.dto.FileUploadDTO;
 import com.familyhome.file.mapper.FamilyFileMapper;
@@ -61,9 +62,9 @@ public class FileServiceImpl implements FileService {
     }
 
     @Transactional(readOnly = true)
-    public List<FileVO> list(SessionPrincipal p) {
+    public List<FileVO> list(SessionPrincipal p, PageQuery page) {
         return files
-                .selectList(readable(p).orderByDesc(FamilyFile::getCreatedAt).last("LIMIT 500"))
+                .selectList(readable(p).orderByDesc(FamilyFile::getCreatedAt).last(page.limitClause()))
                 .stream()
                 .map(FileConverter::toVO)
                 .toList();

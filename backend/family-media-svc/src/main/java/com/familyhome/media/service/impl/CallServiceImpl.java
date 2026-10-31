@@ -2,6 +2,7 @@ package com.familyhome.media.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.familyhome.common.api.PageQuery;
 import com.familyhome.api.user.feign.UserFeignClient;
 import com.familyhome.api.user.vo.MemberApiVO;
 import com.familyhome.common.api.ApiResponse;
@@ -273,15 +274,15 @@ public class CallServiceImpl implements CallService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<CallVO> history(SessionPrincipal principal) {
+    public List<CallVO> history(SessionPrincipal principal, PageQuery page) {
         List<CallParticipant> mine =
             participants.selectList(
                 new LambdaQueryWrapper<CallParticipant>()
                     .eq(CallParticipant::getUserId, principal.userId())
                     .orderByDesc(CallParticipant::getId)
-                    .last("LIMIT 100"));
+                    .last(page.limitClause()));
         List<String> ids =
-            mine.stream().map(CallParticipant::getCallId).distinct().limit(30).toList();
+            mine.stream().map(CallParticipant::getCallId).distinct().limit(page.size()).toList();
         if (ids.isEmpty()) return List.of();
         return sessions.selectBatchIds(ids).stream()
             .filter(item -> Objects.equals(item.getHouseholdId(), principal.householdId()))

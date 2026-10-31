@@ -3,6 +3,7 @@ package com.familyhome.im.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.familyhome.api.file.feign.FileFeignClient;
 import com.familyhome.api.user.feign.UserFeignClient;
+import com.familyhome.common.api.PageQuery;
 import com.familyhome.im.converter.ImConverter;
 import com.familyhome.im.dto.*;
 import com.familyhome.im.mapper.*;
@@ -60,10 +61,10 @@ public class ImServiceImpl implements ImService {
     }
 
     @Transactional(readOnly = true)
-    public List<ConversationVO> list(SessionPrincipal p) {
+    public List<ConversationVO> list(SessionPrincipal p, PageQuery page) {
         return conversations
             .selectList(
-                visible(p).orderByDesc(Conversation::getCreatedAt).last("LIMIT 500"))
+                visible(p).orderByDesc(Conversation::getCreatedAt).last(page.limitClause()))
             .stream()
             .map(c -> ImConverter.toVO(c, receipts.unread(c.getId(), p.userId())))
             .toList();

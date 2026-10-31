@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.familyhome.api.file.feign.FileFeignClient;
+import com.familyhome.common.api.PageQuery;
 import com.familyhome.content.converter.ContentConverter;
 import com.familyhome.content.dto.EntrySaveDTO;
 import com.familyhome.content.mapper.AlbumMapper;
@@ -17,6 +18,7 @@ import com.familyhome.content.model.CalendarEntry;
 import com.familyhome.content.model.ContentEntry;
 import com.familyhome.content.model.DynamicEntry;
 import com.familyhome.content.model.Notice;
+import com.familyhome.content.service.ContentFileMappingService;
 import com.familyhome.content.service.EntryService;
 import com.familyhome.content.vo.EntryVO;
 import com.familyhome.security.SessionPrincipal;
@@ -36,6 +38,7 @@ public class EntryServiceImpl implements EntryService {
     @Autowired private AlbumMapper albums;
     @Autowired private DynamicLikeMapper likes;
     @Autowired private FileFeignClient files;
+    @Autowired private ContentFileMappingService links;
     private Map<String, BaseMapper<? extends ContentEntry>> mappers;
 
     @PostConstruct
@@ -55,16 +58,25 @@ public class EntryServiceImpl implements EntryService {
     }
 
     @Transactional(readOnly = true)
-    public List<EntryVO> list(SessionPrincipal p, String kind) {
-        return mapper(kind)
-                .selectList(
-                        scope(p)
-                                .eq(!p.admin(), "visibility", "FAMILY")
-                                .orderByDesc("pinned", "created_at", "id")
-                                .last("LIMIT 500"))
-                .stream()
-                .map(ContentConverter::toVO)
-                .toList();
+    public List<EntryVO> list(SessionPrincipal p, String kind, PageQuery page) {
+        List<ContentEntry> rows =
+                mapper(kind)
+                        .selectList(
+                                scope(p)
+                                        .eq(!p.admin(), "visibility", "FAMILY")
+                                        .orderByDesc("pinned", "created_at", "id")
+                                        .last(page.limitClause()));
+        // 关联关系以 content_file_mapping 为准，一次批量查出后回填到实体；
+        // 映射表没有记录的历史行保留旧列 file_ids 的原值（回退读）。
+        Map<Long, String> linked =
+                links.load(kind, rows.stream().map(ContentEntry::getId).toList());
+        if (!linked.isEmpty()) {
+            for (ContentEntry row : rows) {
+                String fromMapping = linked.get(row.getId());
+                if (fromMapping != null) row.setFileIds(fromMapping);
+            }
+        }
+        return rows.stream().map(ContentConverter::toVO).toList();
     }
 
     private void validate(SessionPrincipal p, String bearer, String kind, EntrySaveDTO i) {
@@ -108,6 +120,8 @@ public class EntryServiceImpl implements EntryService {
         e.setLikes(0);
         e.setCreatedAt(LocalDateTime.now());
         mapper(kind).insert(e);
+        // 自增 id 回填后才能写关联表；旧列同时保留，兼容未升级的读者。
+        links.replace(kind, e.getId(), i.fileIds());
         return ContentConverter.toVO(e);
     }
 
@@ -135,6 +149,7 @@ public class EntryServiceImpl implements EntryService {
                                 .set("pinned", i.pinned())
                                 .set("visibility", i.visibility() == null ? "FAMILY" : i.visibility())
                                 .set("file_ids", i.fileIds()));
+        links.replace(kind, id, i.fileIds());
     }
 
     @Transactional
@@ -145,6 +160,8 @@ public class EntryServiceImpl implements EntryService {
             likes.delete(id);
         }
         mapper(kind).delete(scope(p).eq("id", id));
+        // 删除内容时同步清掉关联，避免映射表留下指向已删内容的孤儿行
+        links.remove(kind, id);
     }
 
     @Transactional
