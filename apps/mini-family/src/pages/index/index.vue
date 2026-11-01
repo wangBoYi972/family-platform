@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import CalendarPanel from "@shared/panels/CalendarPanel.vue";
 import { login, register, request } from "../../utils/request";
 import TaskPanel from "@shared/panels/TaskPanel.vue";
@@ -12,10 +12,11 @@ import ArchivePanel from "@shared/panels/ArchivePanel.vue";
 import TodayOverview from "../../components/TodayOverview.vue";
 import GlobalSearch from "@shared/panels/GlobalSearch.vue";
 import FilesPanel from "@shared/panels/FilesPanel.vue";
-import AlbumTimeline from "../../components/AlbumTimeline.vue";
+import AlbumTimeline from "@shared/panels/AlbumTimeline.vue";
 import AnniversaryPanel from "@shared/panels/AnniversaryPanel.vue";
 import CallPanel from "@shared/call/CallPanel.vue";
 import { FAMILY_NAV_TARGETS, resolveNavTarget } from "@shared/navigation.mjs";
+import { FamilySocket } from "@shared/family-socket.js";
 
 const phone = ref(""), password = ref(""), token = ref(uni.getStorageSync("family_access_token"));
 const tab = ref("首页");
@@ -64,10 +65,30 @@ const paneKey = computed(() => [tab.value, calTab.value, circleTab.value, homeTa
 
 function openSearch() { searchBox.value?.open(); }
 function chatWith(member) { chatPeer.value = member.id; tab.value = "聊天"; }
+
 /** 通话：从顶部入口选人，或从聊天面板直接呼叫某位家人。 */
 const callPanel = ref(null);
 function openCall() { callPanel.value?.openDial(); }
 function openCallWith(id) { callPanel.value?.openDialWith(id); }
+
+/**
+ * 实时刷新：家里另一台设备改了任务、公告、相册或文件，后端会向同家庭广播一次 refresh，
+ * 这里只重拉当前挂载着的面板（面板本来按 v-if 渲染，没显示的那块不会白跑请求）。
+ * 聊天面板不在此列——它自己轮询，重拉会把正在输入的内容和滚动位置一起冲掉。
+ */
+const calendarPanel = ref(null), anniversaryPanel = ref(null), taskPanel = ref(null);
+const dynamicsPanel = ref(null), albumsPanel = ref(null), timelinePanel = ref(null);
+const membersPanel = ref(null), noticesPanel = ref(null), archivePanel = ref(null), filesPanel = ref(null);
+const livePanels = [
+  calendarPanel, anniversaryPanel, taskPanel, dynamicsPanel, albumsPanel,
+  timelinePanel, membersPanel, noticesPanel, archivePanel, filesPanel
+];
+const familySocket = new FamilySocket({
+  onRefresh: () => livePanels.forEach(panel => panel.value?.load?.())
+});
+onMounted(() => { if (token.value) familySocket.connect(); });
+onUnmounted(() => familySocket.close());
+watch(token, value => (value ? familySocket.connect() : familySocket.close()));
 
 function report(error) {
   if (error.status === 401) token.value = "";
@@ -252,17 +273,17 @@ async function changePassword() {
 
     <view v-else-if="tab === '日历'">
       <view class="subnav"><button v-for="item in calTabs" :key="item" :class="{active:calTab===item}" @click="calTab=item">{{ item === '日程' ? '家庭日历' : '纪念日清单' }}</button></view>
-      <CalendarPanel v-if="calTab==='日程'" @session-ended="clearSession"/><AnniversaryPanel v-else @session-ended="clearSession" @go="open"/>
+      <CalendarPanel v-if="calTab==='日程'" ref="calendarPanel" @session-ended="clearSession"/><AnniversaryPanel v-else ref="anniversaryPanel" @session-ended="clearSession" @go="open"/>
     </view>
-    <TaskPanel v-else-if="tab === '任务'" @session-ended="clearSession"/>
+    <TaskPanel v-else-if="tab === '任务'" ref="taskPanel" @session-ended="clearSession"/>
     <ChatPanel v-else-if="tab === '聊天'" :peer-id="chatPeer" @session-ended="clearSession" @unread-change="unread = $event" @call="openCallWith"/>
     <view v-else-if="tab === '家庭圈'">
       <view class="subnav"><button v-for="item in circleTabs" :key="item" :class="{active:circleTab===item}" @click="circleTab=item">{{ circleLabels[item] }}</button></view>
-      <DynamicsPanel v-if="circleTab==='动态'" :token="token"/><AlbumsPanel v-else-if="circleTab==='相册'" :token="token"/><AlbumTimeline v-else @session-ended="clearSession"/>
+      <DynamicsPanel v-if="circleTab==='动态'" ref="dynamicsPanel" :token="token"/><AlbumsPanel v-else-if="circleTab==='相册'" ref="albumsPanel" :token="token"/><AlbumTimeline v-else ref="timelinePanel" @session-ended="clearSession"/>
     </view>
     <view v-else>
       <view class="subnav"><button v-for="item in homeTabs" :key="item" :class="{active:homeTab===item}" @click="homeTab=item">{{ item }}</button></view>
-      <MembersPanel v-if="homeTab==='成员'" :token="token" @chat="chatWith"/><NoticesPanel v-else-if="homeTab==='公告'" :token="token"/><ArchivePanel v-else-if="homeTab==='档案'" @session-ended="clearSession"/><FilesPanel v-else-if="homeTab==='文件'" @session-ended="clearSession"/>
+      <MembersPanel v-if="homeTab==='成员'" ref="membersPanel" :token="token" @chat="chatWith"/><NoticesPanel v-else-if="homeTab==='公告'" ref="noticesPanel" :token="token"/><ArchivePanel v-else-if="homeTab==='档案'" ref="archivePanel" @session-ended="clearSession"/><FilesPanel v-else-if="homeTab==='文件'" ref="filesPanel" @session-ended="clearSession"/>
       <view v-else class="settings mf-card">
         <text class="settings-title">账号与安全</text>
         <text class="description">修改密码后，所有设备需要重新登录。</text>

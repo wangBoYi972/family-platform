@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
-import { request, loadImageUrl } from "../utils/request";
+import { request, loadImageUrl } from "@app/utils/request";
 
 const emit = defineEmits(["session-ended", "go"]);
 const events = ref([]);

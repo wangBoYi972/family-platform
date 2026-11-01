@@ -1,9 +1,9 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { ElMessage } from "element-plus";
-import { listTasks, createTask, updateTask, updateTaskStatus } from "../api/task";
+import { listTasks, taskStats, createTask, updateTask, updateTaskStatus } from "../api/task";
 import { listMembers } from "../api/member";
-import { filterTasks, localDate, prevTaskStatus } from "../../../shared/tasks.mjs";
+import { localDate, prevTaskStatus } from "../../../shared/tasks.mjs";
 import CountTo from "../components/CountTo.vue";
 import BrandMark from "../components/BrandMark.vue";
 
@@ -15,10 +15,9 @@ const isEditing = computed(() => editingId.value !== null);
 // 截止日按设备本地日期判断，避免北京时间清晨仍使用前一天的 UTC 日期。
 const today = ref(localDate());
 const keyword = ref(""), statusFilter = ref("ALL"), loadError = ref("");
-const filteredTasks = computed(() => filterTasks(tasks.value, { keyword: keyword.value, status: statusFilter.value, today: today.value }));
-const pendingTasks = computed(() => tasks.value.filter((item) => item.status !== "COMPLETED"));
-const completedTasks = computed(() => tasks.value.filter((item) => item.status === "COMPLETED"));
-const overdueCount = computed(() => pendingTasks.value.filter((item) => item.deadline && item.deadline < today.value).length);
+// 筛选和分页都交给了后端：这里只有「当前页」，不再是全量任务。
+const PAGE_SIZE = 12;
+const page = ref(1), hasNext = ref(false), stats = ref({ total: 0, pending: 0, completed: 0, overdue: 0 });
 const statusText = { TODO: "待开始", IN_PROGRESS: "进行中", COMPLETED: "已完成" };
 const statusType = { TODO: "info", IN_PROGRESS: "warning", COMPLETED: "success" };
 
@@ -26,14 +25,55 @@ const now = new Date();
 const dateText = `${now.getMonth() + 1} 月 ${now.getDate()} 日`;
 const weekText = "星期" + "日一二三四五六"[now.getDay()];
 
-async function load() {
-  if (loading.value) return;
-  today.value = localDate();
+/** 列表请求序号：快速改筛选时只认最后一次的响应，避免慢请求把新结果盖回去。 */
+let listTicket = 0;
+async function loadTasks() {
+  const mine = ++listTicket;
   loadError.value = "";
   loading.value = true;
-  try { [tasks.value, members.value] = await Promise.all([listTasks(), listMembers()]); }
-  catch (error) { loadError.value = error.message || "工作台加载失败"; ElMessage.error(loadError.value); }
-  finally { loading.value = false; }
+  try {
+    const rows = await listTasks({
+      page: page.value,
+      size: PAGE_SIZE,
+      keyword: keyword.value.trim(),
+      status: statusFilter.value === "ALL" ? "" : statusFilter.value
+    });
+    if (mine !== listTicket) return;
+    tasks.value = rows;
+    hasNext.value = rows.length === PAGE_SIZE;
+  } catch (error) {
+    if (mine !== listTicket) return;
+    loadError.value = error.message || "工作台加载失败";
+    ElMessage.error(loadError.value);
+  } finally {
+    if (mine === listTicket) loading.value = false;
+  }
+}
+
+/** 指标是家庭全局口径，单独取；失败不打断列表，保留上一次的数字。 */
+async function loadStats() {
+  try { stats.value = await taskStats(); }
+  catch (error) { if (!loadError.value) ElMessage.error(error.message || "指标加载失败"); }
+}
+
+async function load() {
+  today.value = localDate();
+  await Promise.all([loadTasks(), loadStats()]);
+}
+
+/** 关键字输入防抖：每敲一个字都打一次库没必要。 */
+let debounce = null;
+watch(keyword, () => {
+  clearTimeout(debounce);
+  debounce = setTimeout(() => { page.value = 1; loadTasks(); }, 300);
+});
+watch(statusFilter, () => { page.value = 1; loadTasks(); });
+onBeforeUnmount(() => clearTimeout(debounce));
+
+function goPage(next) {
+  if (next < 1 || (next > page.value && !hasNext.value)) return;
+  page.value = next;
+  loadTasks();
 }
 function resetForm() { form.value = { title: "", deadline: "", assigneeId: null }; }
 function openCreate() { editingId.value = null; resetForm(); dialogVisible.value = true; }
@@ -53,6 +93,8 @@ async function submitTask() {
     if (id) await updateTask(id, payload); else await createTask(payload);
     dialogVisible.value = false; resetForm();
     ElMessage.success(id ? "任务已更新" : "任务已创建");
+    // 新建的排在最新一页之外，回到第一页才看得见
+    if (!id) page.value = 1;
     await load();
   }
   catch (error) { ElMessage.error(error.message || (id ? "任务更新失败" : "任务创建失败")); }
@@ -62,12 +104,24 @@ const saving = ref(false), updating = ref(new Set());
 async function changeStatus(task, status) {
   if (updating.value.has(task.id)) return;
   updating.value.add(task.id);
-  try { await updateTaskStatus(task.id, status); task.status = status; ElMessage.success("任务状态已更新"); }
+  try {
+    await updateTaskStatus(task.id, status);
+    task.status = status;
+    ElMessage.success("任务状态已更新");
+    // 状态变了，「待处理 / 已完成 / 已逾期」的指标跟着变
+    loadStats();
+    // 当前筛选是「待开始」这类时，这条任务应该立刻从列表里消失
+    if (statusFilter.value !== "ALL") loadTasks();
+  }
   catch (error) { ElMessage.error(error.message || "状态更新失败"); }
   finally { updating.value.delete(task.id); }
 }
 function formatDeadline(value) { return !value ? "未设置" : value === today.value ? "今天" : value; }
-onMounted(load);
+async function loadMembers() {
+  try { members.value = await listMembers(); }
+  catch { /* 成员名单只影响指派人下拉，拿不到也不该让整页报错 */ }
+}
+onMounted(() => { load(); loadMembers(); });
 </script>
 
 <template>
@@ -117,19 +171,19 @@ onMounted(load);
         <section class="metrics">
           <div class="metric metric--clay mf-card mf-card--flat mf-lift mf-rise" style="--i: 0">
             <span class="metric-icon">◷</span>
-            <CountTo class="metric-value" :value="pendingTasks.length" />
+            <CountTo class="metric-value" :value="stats.pending" />
             <span class="metric-label">待处理任务</span>
             <small>需要继续跟进</small>
           </div>
           <div class="metric metric--sage mf-card mf-card--flat mf-lift mf-rise" style="--i: 1">
             <span class="metric-icon">✓</span>
-            <CountTo class="metric-value" :value="completedTasks.length" />
+            <CountTo class="metric-value" :value="stats.completed" />
             <span class="metric-label">已完成任务</span>
             <small>已完成事项</small>
           </div>
           <div class="metric metric--danger mf-card mf-card--flat mf-lift mf-rise" style="--i: 2">
             <span class="metric-icon">!</span>
-            <CountTo class="metric-value" :value="overdueCount" />
+            <CountTo class="metric-value" :value="stats.overdue" />
             <span class="metric-label">已逾期任务</span>
             <small>建议优先处理</small>
           </div>
@@ -144,15 +198,20 @@ onMounted(load);
             <el-input v-model="keyword" clearable placeholder="搜索任务或负责人" aria-label="搜索任务或负责人" />
             <el-select v-model="statusFilter" aria-label="任务状态"><el-option label="全部" value="ALL" /><el-option label="待开始" value="TODO" /><el-option label="进行中" value="IN_PROGRESS" /><el-option label="已完成" value="COMPLETED" /><el-option label="已逾期" value="OVERDUE" /></el-select>
           </div>
-          <p class="list-note">展示最近 500 条任务，可按状态和负责人查找。</p>
-          <el-empty v-if="!loading && !loadError && !filteredTasks.length" :description="tasks.length ? '没有符合条件的任务' : '还没有任务，请先创建家庭安排'" />
-          <el-table v-else :data="filteredTasks" class="task-table">
+          <p class="list-note">按状态与负责人在服务端筛选，共 {{ stats.total }} 条任务，每页 {{ PAGE_SIZE }} 条。</p>
+          <el-empty v-if="!loading && !loadError && !tasks.length" :description="stats.total ? '没有符合条件的任务' : '还没有任务，请先创建家庭安排'" />
+          <el-table v-else :data="tasks" class="task-table">
             <el-table-column prop="title" label="事项" min-width="260" />
             <el-table-column label="负责人" width="130"><template #default="scope">{{ scope.row.assigneeName || "未指派" }}</template></el-table-column>
             <el-table-column label="截止时间" width="130"><template #default="scope">{{ formatDeadline(scope.row.deadline) }}</template></el-table-column>
             <el-table-column label="状态" width="130"><template #default="scope"><el-tag :type="statusType[scope.row.status]" effect="plain">{{ statusText[scope.row.status] }}</el-tag></template></el-table-column>
             <el-table-column label="操作" width="240"><template #default="scope"><el-button v-if="scope.row.status === 'TODO'" :disabled="updating.has(scope.row.id)" text @click="changeStatus(scope.row, 'IN_PROGRESS')">开始</el-button><el-button v-if="scope.row.status === 'IN_PROGRESS'" :disabled="updating.has(scope.row.id)" text type="success" @click="changeStatus(scope.row, 'COMPLETED')">完成</el-button><el-button v-if="scope.row.status !== 'TODO'" :disabled="updating.has(scope.row.id)" text @click="changeStatus(scope.row, prevTaskStatus(scope.row.status))">{{ scope.row.status === 'COMPLETED' ? '重开' : '撤销' }}</el-button><el-button text :disabled="saving" @click="openEdit(scope.row)">编辑</el-button></template></el-table-column>
           </el-table>
+          <div v-if="!loading && (page > 1 || hasNext)" class="pager">
+            <el-button text :disabled="page <= 1" @click="goPage(page - 1)">上一页</el-button>
+            <span class="pager-text">第 {{ page }} 页</span>
+            <el-button text :disabled="!hasNext" @click="goPage(page + 1)">下一页</el-button>
+          </div>
         </section>
       </section>
     </main>
@@ -165,6 +224,8 @@ onMounted(load);
 .filters{display:flex;gap:12px;margin-bottom:12px}
 .filters .el-select{width:150px;flex-shrink:0}
 .list-note{font-size:12px;color:var(--c-muted)}
+.pager{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:14px}
+.pager-text{font-size:12px;color:var(--c-muted)}
 .mobile-nav{display:none}
 
 /* ——— 外壳 ——— */

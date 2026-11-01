@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from "vue";
+import { onMounted, onUnmounted, ref, watch } from "vue";
 import { login, request } from "../../utils/request";
 // 面板与家庭端共用同一份实现（apps/shared/panels），移动端不再维护自己的简化版列表。
 import TaskPanel from "@shared/panels/TaskPanel.vue";
@@ -7,6 +7,7 @@ import CalendarPanel from "@shared/panels/CalendarPanel.vue";
 import AnniversaryPanel from "@shared/panels/AnniversaryPanel.vue";
 import DynamicsPanel from "@shared/panels/DynamicsPanel.vue";
 import AlbumsPanel from "@shared/panels/AlbumsPanel.vue";
+import AlbumTimeline from "@shared/panels/AlbumTimeline.vue";
 import NoticesPanel from "@shared/panels/NoticesPanel.vue";
 import FilesPanel from "@shared/panels/FilesPanel.vue";
 import ArchivePanel from "@shared/panels/ArchivePanel.vue";
@@ -15,22 +16,38 @@ import ChatPanel from "@shared/panels/ChatPanel.vue";
 import GlobalSearch from "@shared/panels/GlobalSearch.vue";
 import CallPanel from "@shared/call/CallPanel.vue";
 import { MOBILE_NAV_TARGETS, resolveNavTarget } from "@shared/navigation.mjs";
+import { FamilySocket } from "@shared/family-socket.js";
 
 // 手机屏幕窄，主 tab 只放五个入口，其余按语义归到子标签里，避免九个 tab 横向滚动找不着。
 const TABS = ["任务", "日程", "家庭圈", "消息", "我的家"];
 const SUB_TABS = {
   日程: ["家庭日历", "纪念日"],
-  家庭圈: ["动态", "相册"],
+  家庭圈: ["动态", "相册", "时光轴"],
   我的家: ["公告", "文件", "档案", "成员"]
 };
 const subTab = ref({ 日程: "家庭日历", 家庭圈: "动态", 我的家: "公告" });
 
 const taskPanel = ref(null), dynamicsPanel = ref(null), noticesPanel = ref(null), callPanel = ref(null), searchBox = ref(null);
+const calendarPanel = ref(null), anniversaryPanel = ref(null), albumsPanel = ref(null), timelinePanel = ref(null);
+const filesPanel = ref(null), archivePanel = ref(null), membersPanel = ref(null);
+
 function openCall() { callPanel.value?.openDial(); }
 const phone = ref(""), password = ref(""), token = ref(uni.getStorageSync("family_access_token"));
 const tab = ref("任务"), submitting = ref(false);
 const unread = ref(0), chatPeer = ref(null);
 const changingPassword = ref(false), currentPassword = ref(""), newPassword = ref(""), confirmation = ref("");
+
+/**
+ * 实时刷新：后端把领域事件广播成 refresh，这里重拉当前显示的面板。
+ * 聊天面板由自己的轮询负责，不参与（重拉会清掉正在输入的草稿）。
+ */
+const livePanels = [calendarPanel, anniversaryPanel, taskPanel, dynamicsPanel, albumsPanel, timelinePanel, filesPanel, archivePanel, membersPanel, noticesPanel];
+const familySocket = new FamilySocket({
+  onRefresh: () => livePanels.forEach(panel => panel.value?.load?.())
+});
+onMounted(() => { if (token.value) familySocket.connect(); });
+onUnmounted(() => familySocket.close());
+watch(token, value => (value ? familySocket.connect() : familySocket.close()));
 
 function switchTab(name) { tab.value = name; }
 function switchSub(name) { subTab.value = { ...subTab.value, [tab.value]: name }; }
@@ -123,14 +140,15 @@ async function changePassword() {
 
     <view v-else-if="tab === '日程'">
       <view class="subnav"><text v-for="item in SUB_TABS.日程" :key="item" :class="['subtab', subTab.日程 === item ? 'active' : '']" @click="switchSub(item)">{{ item }}</text></view>
-      <CalendarPanel v-if="subTab.日程 === '家庭日历'" @session-ended="clearSession" />
-      <AnniversaryPanel v-else @session-ended="clearSession" @go="openTarget" />
+      <CalendarPanel v-if="subTab.日程 === '家庭日历'" ref="calendarPanel" @session-ended="clearSession" />
+      <AnniversaryPanel v-else ref="anniversaryPanel" @session-ended="clearSession" @go="openTarget" />
     </view>
 
     <view v-else-if="tab === '家庭圈'">
       <view class="subnav"><text v-for="item in SUB_TABS.家庭圈" :key="item" :class="['subtab', subTab.家庭圈 === item ? 'active' : '']" @click="switchSub(item)">{{ item }}</text></view>
       <DynamicsPanel v-if="subTab.家庭圈 === '动态'" ref="dynamicsPanel" :token="token" />
-      <AlbumsPanel v-else :token="token" />
+      <AlbumsPanel v-else-if="subTab.家庭圈 === '相册'" ref="albumsPanel" :token="token" />
+      <AlbumTimeline v-else ref="timelinePanel" @session-ended="clearSession" />
     </view>
 
     <ChatPanel v-else-if="tab === '消息'" :peer-id="chatPeer" @session-ended="clearSession" @unread-change="unread = $event" @call="openCallWith" />
@@ -138,9 +156,9 @@ async function changePassword() {
     <view v-else>
       <view class="subnav"><text v-for="item in SUB_TABS.我的家" :key="item" :class="['subtab', subTab.我的家 === item ? 'active' : '']" @click="switchSub(item)">{{ item }}</text></view>
       <NoticesPanel v-if="subTab.我的家 === '公告'" ref="noticesPanel" :token="token" />
-      <FilesPanel v-else-if="subTab.我的家 === '文件'" @session-ended="clearSession" />
-      <ArchivePanel v-else-if="subTab.我的家 === '档案'" @session-ended="clearSession" />
-      <MembersPanel v-else :token="token" @chat="chatWith" />
+      <FilesPanel v-else-if="subTab.我的家 === '文件'" ref="filesPanel" @session-ended="clearSession" />
+      <ArchivePanel v-else-if="subTab.我的家 === '档案'" ref="archivePanel" @session-ended="clearSession" />
+      <MembersPanel v-else ref="membersPanel" :token="token" @chat="chatWith" />
     </view>
 
     <GlobalSearch ref="searchBox" @navigate="openTarget" @session-ended="clearSession" />

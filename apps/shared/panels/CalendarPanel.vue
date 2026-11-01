@@ -32,6 +32,7 @@ async function save() {
   } catch (e) { uni.showToast({ title: e.message || "保存失败", icon: "none" }); if(e.status === 401) emit("session-ended"); }
   finally { saving.value = false; }
 }
+defineExpose({ load });
 onMounted(load);
 </script>
 <template><view class="calendar-panel">
