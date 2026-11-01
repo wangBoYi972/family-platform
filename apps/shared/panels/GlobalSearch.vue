@@ -1,56 +1,54 @@
 <script setup>
-import { computed, ref } from "vue";
+import { computed, onUnmounted, ref, watch } from "vue";
 import { request } from "@app/utils/request";
 
 const emit = defineEmits(["navigate", "session-ended"]);
 const open = ref(false), keyword = ref(""), loading = ref(false), error = ref(""), warning = ref("");
-const loaded = ref(false), loadedAt = ref(0);
-const raw = ref({ tasks: [], calendar: [], dynamics: [], albums: [], notices: [], archives: [], members: [], files: [] });
+const groups = ref([]);
 const history = ref(uni.getStorageSync("family_search_history") || []);
 const activeType = ref("全部");
 
 const HISTORY_KEY = "family_search_history";
+/** 每类最多展示几条。搜索在服务端做，这里只是展示上限，不是检索上限。 */
+const PER_SOURCE = 8;
+/** 输入停顿多久才发请求：一边打字一边给八个服务发查询，纯属浪费。 */
+const DEBOUNCE_MS = 220;
 
-/** 每条数据源定义如何取数、如何拼接被检索的文本，以及命中后跳到哪里。 */
+/** 每条数据源定义怎么查、命中后跳到哪里。 */
 const sources = [
   {
     key: "tasks", path: "/tasks", label: "任务", icon: "✓",
-    text: item => `${item.title} ${item.assigneeName || ""}`,
     to: item => ({ id: item.id, title: item.title, desc: `负责人：${item.assigneeName || "未指派"} · ${statusLabel(item.status)}`, meta: item.deadline || "" })
   },
   {
     key: "calendar", path: "/calendar", label: "日程", icon: "▦",
-    text: item => `${item.title} ${item.body || ""}`,
     to: item => ({ id: item.id, title: item.title, desc: item.body || "家庭日程", meta: item.yearly ? `每年 ${item.eventDate?.slice(5) || ""}` : item.eventDate || "" })
   },
   {
     key: "dynamics", path: "/dynamics", label: "动态", icon: "▧",
-    text: item => `${item.title} ${item.body || ""}`,
     to: item => ({ id: item.id, title: item.title, desc: item.body || "和家人一起记住这一刻。", meta: (item.likes || 0) + " 人喜欢" })
   },
   {
     key: "albums", path: "/albums", label: "相册", icon: "◫",
-    text: item => `${item.title} ${item.body || ""}`,
     to: item => ({ id: item.id, title: item.title, desc: item.body || "时光相册", meta: item.eventDate || "" })
   },
   {
     key: "notices", path: "/notices", label: "公告", icon: "❢",
-    text: item => `${item.title} ${item.body || ""}`,
     to: item => ({ id: item.id, title: item.title, desc: item.body || "家人的叮嘱", meta: item.pinned ? "置顶" : "" })
   },
   {
     key: "archives", path: "/archives", label: "档案", icon: "▤",
-    text: item => `${item.title} ${item.category || ""}`,
     to: item => ({ id: item.id, title: item.title, desc: `${categoryLabel(item.category)} · ${item.visibility === "FAMILY" ? "全家可见" : "仅自己"}`, meta: String(item.createdAt || "").slice(0, 10) })
   },
   {
     key: "members", path: "/users/members", label: "家人", icon: "○",
+    // 成员接口没有关键字/分页：一个家庭就几个人，整份取回来本地筛更省事
+    local: true,
     text: item => `${item.displayName} ${item.role || ""}`,
     to: item => ({ id: item.id, title: item.displayName, desc: item.role === "ADMIN" ? "家庭管理员" : "家庭成员", meta: "" })
   },
   {
     key: "files", path: "/files", label: "文件", icon: "⌸",
-    text: item => `${item.name} ${item.mime || ""}`,
     to: item => ({ id: item.id, title: item.name, desc: `${formatSize(item.sizeBytes)} · ${item.visibility === "FAMILY" ? "全家可见" : "仅自己"}`, meta: String(item.createdAt || "").slice(0, 10) })
   }
 ];
@@ -74,71 +72,85 @@ function formatSize(bytes) {
   return (size / 1024 / 1024).toFixed(1) + " MB";
 }
 
-const query = computed(() => keyword.value.trim().toLocaleLowerCase());
-
-/** 每个数据源独立命中，避免跨类型串味；未输入关键字时返回空。 */
-const groups = computed(() => {
-  const q = query.value;
-  if (!q) return [];
-  return sources
-    .map(source => ({
-      ...source,
-      items: (raw.value[source.key] || [])
-        .filter(item => String(source.text(item) || "").toLocaleLowerCase().includes(q))
-        .slice(0, 8)
-        .map(source.to)
-    }))
-    .filter(group => group.items.length);
-});
-
 const visibleGroups = computed(() =>
   activeType.value === "全部" ? groups.value : groups.value.filter(item => item.label === activeType.value)
 );
 const total = computed(() => groups.value.reduce((sum, group) => sum + group.items.length, 0));
 const typeFilters = computed(() => ["全部", ...new Set(groups.value.map(item => item.label))]);
 
-async function ensureLoaded(force = false) {
-  const fresh = Date.now() - loadedAt.value < 60_000;
-  if (!force && loaded.value && fresh) return;
+let seq = 0, timer = null;
+
+/**
+ * 关键字搜索。
+ *
+ * <p>检索放在服务端：原来是把八类数据整份拉回来本地 `includes`，看似简单，实际只搜得到
+ * 「第一页」。家里数据一多，明明存在的公告、档案就是搜不出来，而且每次打开搜索都要
+ * 打八个接口把全家内容下载一遍。
+ */
+async function runSearch() {
+  const q = keyword.value.trim();
+  const current = ++seq;
+  if (!q) {
+    groups.value = [];
+    error.value = "";
+    warning.value = "";
+    loading.value = false;
+    return;
+  }
   loading.value = true;
   error.value = "";
   warning.value = "";
-  try {
-    const results = await Promise.allSettled(sources.map(source => request(source.path)));
-    const next = {};
-    const failed = [];
-    let unauthorized = false;
-    results.forEach((result, index) => {
-      const source = sources[index];
-      if (result.status === "fulfilled") next[source.key] = Array.isArray(result.value) ? result.value : [];
-      else {
-        next[source.key] = [];
-        failed.push(source.label);
-        unauthorized ||= result.reason?.status === 401;
-      }
-    });
-    raw.value = next;
-    loaded.value = true;
-    loadedAt.value = Date.now();
-    if (unauthorized) {
-      error.value = "登录已失效，请重新登录";
-      emit("session-ended");
-    } else if (failed.length === sources.length) {
-      error.value = "家庭内容暂时无法加载，请稍后重试";
-    } else if (failed.length) {
-      warning.value = `部分内容暂时不可用：${failed.join("、")}`;
+  const lowered = q.toLocaleLowerCase();
+  const results = await Promise.allSettled(
+    sources.map(source => source.local
+      ? request(source.path)
+      : request(source.path, { data: { keyword: q, page: 1, size: PER_SOURCE } }))
+  );
+  // 打字快时后发的请求可能先回来：只认最后一次输入的结果
+  if (current !== seq) return;
+  const failed = [];
+  let unauthorized = false;
+  const next = [];
+  results.forEach((result, index) => {
+    const source = sources[index];
+    if (result.status === "rejected") {
+      failed.push(source.label);
+      unauthorized ||= result.reason?.status === 401;
+      return;
     }
-  } finally {
-    loading.value = false;
+    const rows = Array.isArray(result.value) ? result.value : [];
+    const items = (source.local
+      ? rows.filter(item => String(source.text(item) || "").toLocaleLowerCase().includes(lowered))
+      : rows)
+      .slice(0, PER_SOURCE)
+      .map(source.to);
+    if (items.length) next.push({ key: source.key, label: source.label, icon: source.icon, items });
+  });
+  groups.value = next;
+  loading.value = false;
+  if (unauthorized) {
+    error.value = "登录已失效，请重新登录";
+    emit("session-ended");
+  } else if (failed.length === sources.length) {
+    error.value = "家庭内容暂时无法加载，请稍后重试";
+  } else if (failed.length) {
+    warning.value = `部分内容暂时不可用：${failed.join("、")}`;
   }
 }
+
+watch(keyword, () => {
+  if (timer) clearTimeout(timer);
+  timer = setTimeout(runSearch, DEBOUNCE_MS);
+});
+onUnmounted(() => { if (timer) clearTimeout(timer); });
 
 function openPanel() {
   open.value = true;
   activeType.value = "全部";
-  ensureLoaded();
+  if (keyword.value.trim()) runSearch();
 }
 function close() { open.value = false; keyword.value = ""; }
+function reload() { runSearch(); }
 
 function record() {
   const value = keyword.value.trim();
@@ -207,10 +219,10 @@ defineExpose({ open: openPanel });
       </view>
 
       <view v-else>
-        <view v-if="error" class="state"><text>{{ error }}</text><text class="retry" @click="ensureLoaded(true)">重新加载</text></view>
+        <view v-if="error" class="state"><text>{{ error }}</text><text class="retry" @click="reload()">重新加载</text></view>
         <view v-else-if="loading" class="state">正在整理家里的内容…</view>
         <view v-else>
-          <view v-if="warning" class="partial-warning"><text>{{ warning }}</text><text class="retry" @click="ensureLoaded(true)">重试</text></view>
+          <view v-if="warning" class="partial-warning"><text>{{ warning }}</text><text class="retry" @click="reload()">重试</text></view>
           <view v-if="!total" class="state">没有找到和「{{ keyword.trim() }}」相关的内容</view>
           <view v-else class="result">
             <view class="filters">
@@ -221,7 +233,7 @@ defineExpose({ open: openPanel });
                 <view class="group-head">
                   <text class="group-icon">{{ group.icon }}</text>
                   <text class="group-label">{{ group.label }}</text>
-                  <text class="group-count">{{ group.items.length }}</text>
+                  <text class="group-count">{{ group.items.length >= PER_SOURCE ? group.items.length + '+' : group.items.length }}</text>
                 </view>
                 <view v-for="item in group.items" :key="group.key + '-' + item.id" class="hit" @click="jump(group, item)">
                   <view class="hit-main">
