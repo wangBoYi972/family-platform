@@ -10,6 +10,9 @@ const active = ref(""), activeTitle = ref(""), messages = ref([]), draft = ref("
 const loading = ref(false), listError = ref(""), detailError = ref("");
 const sending = ref(false), starting = ref(false), ensuringGroup = ref(false);
 const expanded = ref(false), receipts = ref([]), scrollTop = ref(0);
+// 与后端 ImService.MESSAGE_PAGE 对齐：返回条数达到这个值就认为还有更早的消息。
+const MESSAGE_PAGE = 100;
+const hasEarlier = ref(false), loadingEarlier = ref(false), anchor = ref("");
 const previews = ref({});
 let timer = null, generation = 0;
 
@@ -84,9 +87,12 @@ async function loadMessages() {
   const current = generation;
   detailError.value = "";
   try {
+    // 不传 before 时后端给的是「最近 100 条」：早先是正序取前 100 条，会话一长新消息就永远不出现
     const list = await request("/im/conversations/" + active.value + "/messages", { data: { after: 0 } });
     if (current !== generation) return;
     messages.value = list;
+    hasEarlier.value = list.length >= MESSAGE_PAGE;
+    anchor.value = "";
     messages.value.filter(item => item.kind === "IMAGE").forEach(item => cachePreview(item.body));
     await toBottom();
   } catch (error) {
@@ -105,6 +111,31 @@ async function markRead() {
     await request("/im/conversations/" + active.value + "/read", { method: "POST", data: { messageId: id } });
     if (active.value) await loadReceipts();
   } catch { /* 已读回执失败不影响聊天 */ }
+}
+/** 加载更早的消息：拿当前最老一条的 id 当游标，前插并保持视口停在原来那条上。 */
+async function loadEarlier() {
+  if (loadingEarlier.value || !messages.value.length) return;
+  const oldest = Number(messages.value[0].id) || 0;
+  if (!oldest) return;
+  const current = generation;
+  loadingEarlier.value = true;
+  try {
+    const list = await request("/im/conversations/" + active.value + "/messages", { data: { after: 0, before: oldest } });
+    if (current !== generation) return;
+    hasEarlier.value = list.length >= MESSAGE_PAGE;
+    const known = new Set(messages.value.map(item => String(item.id)));
+    const older = list.filter(item => !known.has(String(item.id)));
+    if (!older.length) return;
+    messages.value = [...older, ...messages.value];
+    older.filter(item => item.kind === "IMAGE").forEach(item => cachePreview(item.body));
+    // 前插会把视口顶走，用 scroll-into-view 把原来最老的那条钉住
+    await nextTick();
+    anchor.value = "msg-" + oldest;
+  } catch (error) {
+    report(error);
+  } finally {
+    if (current === generation) loadingEarlier.value = false;
+  }
 }
 async function poll() {
   if (!active.value) return;
@@ -136,6 +167,8 @@ async function select(item) {
   messages.value = [];
   previews.value = {};
   receipts.value = [];
+  hasEarlier.value = false;
+  anchor.value = "";
   loading.value = true;
   startPolling();
   try { await loadMessages(); await markRead(); await loadReceipts(); }
@@ -260,11 +293,14 @@ defineExpose({ load });
             </view>
             <button v-if="activePeerId" class="call-btn" size="mini" @click="emit('call', activePeerId)">☎ 通话</button>
           </view>
-          <scroll-view class="messages" scroll-y :scroll-top="scrollTop">
+          <scroll-view class="messages" scroll-y :scroll-top="scrollTop" :scroll-into-view="anchor">
+            <view v-if="hasEarlier" class="earlier">
+              <button size="mini" :loading="loadingEarlier" :disabled="loadingEarlier" @click="loadEarlier">查看更早的消息</button>
+            </view>
             <view v-if="detailError" class="state"><text>{{ detailError }}</text><button size="mini" @click="loadMessages">重试</button></view>
             <view v-else-if="loading && !messages.length" class="state">正在加载消息…</view>
             <view v-else-if="!messages.length" class="state">还没有消息<text class="hint">打个招呼吧，让家人知道你在。</text></view>
-            <view v-for="item in messages" :key="item.id" :class="['row', { own: isOwn(item) }]">
+            <view v-for="item in messages" :id="'msg-' + item.id" :key="item.id" :class="['row', { own: isOwn(item) }]">
               <view class="bubble">
                 <text v-if="!isOwn(item)" class="sender">{{ memberName(item.senderId) }}</text>
                 <image v-if="item.kind === 'IMAGE'" v-show="previews[item.body]" class="photo" :src="previews[item.body]" mode="widthFix" @click="previewImages(previews[item.body])" />
@@ -296,6 +332,7 @@ defineExpose({ load });
 .sidebar-head{padding-bottom:12px;border-bottom:1px solid var(--c-surface-2)}
 .title{font-size:16px;font-weight:650}
 .hint{display:block;font-size:11px;color:var(--c-muted);margin-top:6px;line-height:1.8}
+.earlier{display:flex;justify-content:center;padding:10px 0}
 .sidebar-head button{margin:0;font-size:11px}
 .call-btn{margin:0;font-size:11px;background:linear-gradient(135deg,var(--c-primary),var(--c-primary-deep,#a6603f));color:#fff;border-radius:11px;box-shadow:0 2px 8px rgba(166,96,63,.22)}
 .conv-list{display:flex;flex-direction:column;gap:8px}
