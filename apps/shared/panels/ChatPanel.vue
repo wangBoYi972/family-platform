@@ -1,8 +1,16 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { request, upload, loadImageUrl } from "@app/utils/request";
+import { sumUnread } from "@shared/unread.mjs";
 
-const props = defineProps({ peerId: { type: [Number, String], default: null } });
+const props = defineProps({
+  peerId: { type: [Number, String], default: null },
+  /**
+   * 兜底轮询间隔。实时通道连上时宿主传大值（推送负责及时性，轮询只防漏），
+   * 没连上时回落到 4000——断线期间聊天不能变成「要手动刷新才能看到新消息」。
+   */
+  pollMs: { type: Number, default: 4000 }
+});
 const emit = defineEmits(["session-ended", "unread-change", "call"]);
 
 const conversations = ref([]), members = ref([]), session = ref(null);
@@ -18,7 +26,7 @@ let timer = null, generation = 0;
 
 const memberMap = computed(() => Object.fromEntries(members.value.map(item => [String(item.id), item.displayName])));
 const selfId = computed(() => String(session.value?.userId ?? ""));
-const unreadTotal = computed(() => conversations.value.reduce((sum, item) => sum + (Number(item.unread) || 0), 0));
+const unreadTotal = computed(() => sumUnread(conversations.value));
 const lastMessageId = computed(() => messages.value.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0));
 const hasGroup = computed(() => conversations.value.some(item => item.kind === "GROUP"));
 const ownLastId = computed(() => {
@@ -153,11 +161,40 @@ async function poll() {
 }
 function startPolling() {
   stopPolling();
-  timer = setInterval(poll, 4000);
+  timer = setInterval(poll, props.pollMs);
 }
 function stopPolling() {
   if (timer) clearInterval(timer);
   timer = null;
+}
+// 实时通道连上/断开时切轮询节奏；正在聊的会话不用重新选，换个间隔就行
+watch(() => props.pollMs, () => { if (active.value) startPolling(); });
+
+/**
+ * 收到后端推送的新消息（type=message）。
+ *
+ * 帧里带齐了渲染字段，直接上屏；同一会话的轮询兜底返回同一条时由 append 按 id 去重。
+ */
+function receive(frame) {
+  if (!frame || !frame.messageId) return;
+  const incoming = {
+    id: frame.messageId,
+    conversationId: frame.conversationId,
+    senderId: frame.senderId,
+    clientId: frame.clientId,
+    kind: frame.kind,
+    body: frame.body,
+    createdAt: frame.createdAt
+  };
+  if (String(frame.conversationId) !== active.value) {
+    // 不是当前会话：只更新列表拿未读角标，别把用户从正在看的那一屏切走
+    loadConversations().catch(() => {});
+    return;
+  }
+  append([incoming]);
+  toBottom();
+  markRead();
+  loadConversations().catch(() => {});
 }
 async function select(item) {
   if (item.id === active.value) return;
@@ -250,7 +287,7 @@ onMounted(async () => {
   else if (conversations.value.length) select(conversations.value[0]);
 });
 onUnmounted(() => { generation++; stopPolling(); });
-defineExpose({ load });
+defineExpose({ load, receive });
 </script>
 
 <template>
@@ -289,7 +326,7 @@ defineExpose({ load });
           <view class="room-head">
             <view>
               <text class="title">{{ activeTitle }}</text>
-              <text class="hint">{{ readMembers.length ? '已读：' + readMembers.join('、') : '每 4 秒自动获取新消息' }}</text>
+              <text class="hint">{{ readMembers.length ? '已读：' + readMembers.join('、') : (pollMs > 5000 ? '实时推送中 · 断线自动重连' : '每 4 秒自动获取新消息') }}</text>
             </view>
             <button v-if="activePeerId" class="call-btn" size="mini" @click="emit('call', activePeerId)">☎ 通话</button>
           </view>

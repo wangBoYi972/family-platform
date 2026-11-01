@@ -17,6 +17,7 @@ import GlobalSearch from "@shared/panels/GlobalSearch.vue";
 import CallPanel from "@shared/call/CallPanel.vue";
 import { MOBILE_NAV_TARGETS, resolveNavTarget } from "@shared/navigation.mjs";
 import { FamilySocket } from "@shared/family-socket.js";
+import { sumUnread } from "@shared/unread.mjs";
 
 // 手机屏幕窄，主 tab 只放五个入口，其余按语义归到子标签里，避免九个 tab 横向滚动找不着。
 const TABS = ["任务", "日程", "家庭圈", "消息", "我的家"];
@@ -29,7 +30,7 @@ const subTab = ref({ 日程: "家庭日历", 家庭圈: "动态", 我的家: "�
 
 const taskPanel = ref(null), dynamicsPanel = ref(null), noticesPanel = ref(null), callPanel = ref(null), searchBox = ref(null);
 const calendarPanel = ref(null), anniversaryPanel = ref(null), albumsPanel = ref(null), timelinePanel = ref(null);
-const filesPanel = ref(null), archivePanel = ref(null), membersPanel = ref(null);
+const filesPanel = ref(null), archivePanel = ref(null), membersPanel = ref(null), chatPanel = ref(null);
 
 function openCall() { callPanel.value?.openDial(); }
 const phone = ref(""), password = ref(""), token = ref(uni.getStorageSync("family_access_token"));
@@ -42,17 +43,35 @@ const changingPassword = ref(false), currentPassword = ref(""), newPassword = re
  * 聊天面板由自己的轮询负责，不参与（重拉会清掉正在输入的草稿）。
  */
 const livePanels = [calendarPanel, anniversaryPanel, taskPanel, dynamicsPanel, albumsPanel, timelinePanel, filesPanel, archivePanel, membersPanel, noticesPanel];
+const socketOpen = ref(false);
 const familySocket = new FamilySocket({
   // 优先 sync：分页面板会就地重拉已翻过的页，不会把用户拽回第一页。
   // 没实现的（如首页概览）回落到 load。
   onRefresh: () => livePanels.forEach(panel => {
     const instance = panel.value;
     if (instance) (instance.sync || instance.load)?.();
-  })
+  }),
+  onStatus: status => { socketOpen.value = status === "open"; },
+  // 新消息带内容直接下发，交给聊天面板上屏；消息页没打开时它不挂载，只能自己更新角标
+  onMessage: frame => {
+    if (chatPanel.value) chatPanel.value.receive(frame);
+    else refreshUnread();
+  }
 });
-onMounted(() => { if (token.value) familySocket.connect(); });
+/**
+ * 未读角标。聊天面板挂载时由它的 unread-change 维护；
+ * 没挂载时面板收不到推送，这里拿会话列表补一遍。
+ */
+async function refreshUnread() {
+  try { unread.value = sumUnread(await request("/im/conversations")); }
+  catch { /* 角标失败不值得打扰用户，下次推送再试 */ }
+}
+onMounted(() => { if (token.value) { familySocket.connect(); refreshUnread(); } });
 onUnmounted(() => familySocket.close());
-watch(token, value => (value ? familySocket.connect() : familySocket.close()));
+watch(token, value => {
+  if (value) { familySocket.connect(); refreshUnread(); }
+  else { familySocket.close(); unread.value = 0; }
+});
 
 function switchTab(name) { tab.value = name; }
 function switchSub(name) { subTab.value = { ...subTab.value, [tab.value]: name }; }
@@ -156,7 +175,7 @@ async function changePassword() {
       <AlbumTimeline v-else ref="timelinePanel" @session-ended="clearSession" />
     </view>
 
-    <ChatPanel v-else-if="tab === '消息'" :peer-id="chatPeer" @session-ended="clearSession" @unread-change="unread = $event" @call="openCallWith" />
+    <ChatPanel v-else-if="tab === '消息'" ref="chatPanel" :peer-id="chatPeer" :poll-ms="socketOpen ? 20000 : 4000" @session-ended="clearSession" @unread-change="unread = $event" @call="openCallWith" />
 
     <view v-else>
       <view class="subnav"><text v-for="item in SUB_TABS.我的家" :key="item" :class="['subtab', subTab.我的家 === item ? 'active' : '']" @click="switchSub(item)">{{ item }}</text></view>

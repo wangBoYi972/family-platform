@@ -4,8 +4,11 @@
  * 后端 im-svc 已经订阅了全部领域事件（任务、公告、动态、相册、文件、档案），
  * 收到后向同家庭的在线连接广播 {"type":"refresh"}；这里只负责把浏览器挂上去。
  *
+ * 新消息例外：后端把整条消息塞进 {"type":"message",...} 帧直接下发，
+ * 聊天面板收到即可上屏，不必等下一次轮询（回调 onMessage）。
+ *
  * 和其它推送分开的原因：通话要用 `/ws/call`（媒体服务，带信令语义、30 秒宽限），
- * 这里用 `/ws/im`，只承载「家里有变化，拉一下最新数据」。
+ * 这里用 `/ws/im`，只承载「家里有变化，拉一下最新数据」和消息帧。
  *
  * 认证同通话：JWT 不放进 URL，先用 JWT 换一次性 ticket 再握手。
  */
@@ -22,8 +25,9 @@ function socketUrl(ticket) {
 }
 
 export class FamilySocket {
-  constructor({ onRefresh, onStatus, gate } = {}) {
+  constructor({ onRefresh, onMessage, onStatus, gate } = {}) {
     this.onRefresh = onRefresh || (() => {});
+    this.onMessage = onMessage || (() => {});
     this.onStatus = onStatus || (() => {});
     this.gate = gate || createRefreshGate({ delay: 400, onFlush: () => this.onRefresh() });
     this.task = null;
@@ -71,7 +75,9 @@ export class FamilySocket {
       } catch {
         return;
       }
-      if (payload?.type === "refresh") this.gate.push();
+      // 消息帧不合并：晚 400ms 上屏没有意义，而且多条消息合并会丢内容
+      if (payload?.type === "message") this.onMessage(payload);
+      else if (payload?.type === "refresh") this.gate.push();
     });
     task.onClose(() => this.handleClose());
     task.onError(() => this.handleClose());

@@ -17,6 +17,7 @@ import AnniversaryPanel from "@shared/panels/AnniversaryPanel.vue";
 import CallPanel from "@shared/call/CallPanel.vue";
 import { FAMILY_NAV_TARGETS, resolveNavTarget } from "@shared/navigation.mjs";
 import { FamilySocket } from "@shared/family-socket.js";
+import { sumUnread } from "@shared/unread.mjs";
 
 const phone = ref(""), password = ref(""), token = ref(uni.getStorageSync("family_access_token"));
 const tab = ref("首页");
@@ -80,21 +81,40 @@ const calendarPanel = ref(null), anniversaryPanel = ref(null), taskPanel = ref(n
 const dynamicsPanel = ref(null), albumsPanel = ref(null), timelinePanel = ref(null);
 const membersPanel = ref(null), noticesPanel = ref(null), archivePanel = ref(null), filesPanel = ref(null);
 const todayOverview = ref(null);
+const chatPanel = ref(null);
 const livePanels = [
   calendarPanel, anniversaryPanel, taskPanel, dynamicsPanel, albumsPanel,
   timelinePanel, membersPanel, noticesPanel, archivePanel, filesPanel, todayOverview
 ];
+const socketOpen = ref(false);
 const familySocket = new FamilySocket({
   // 优先 sync：分页面板会就地重拉已翻过的页，不会把用户拽回第一页。
   // 没实现的（如首页概览）回落到 load。
   onRefresh: () => livePanels.forEach(panel => {
     const instance = panel.value;
     if (instance) (instance.sync || instance.load)?.();
-  })
+  }),
+  onStatus: status => { socketOpen.value = status === "open"; },
+  // 新消息带内容直接下发，交给聊天面板上屏；聊天页没打开时它不挂载，只能自己更新角标
+  onMessage: frame => {
+    if (chatPanel.value) chatPanel.value.receive(frame);
+    else refreshUnread();
+  }
 });
-onMounted(() => { if (token.value) familySocket.connect(); });
+/**
+ * 未读角标。聊天面板挂载时由它的 unread-change 维护；
+ * 没挂载（用户在看任务、家庭圈）时面板收不到推送，这里拿会话列表补一遍。
+ */
+async function refreshUnread() {
+  try { unread.value = sumUnread(await request("/im/conversations")); }
+  catch { /* 角标失败不值得打扰用户，下次推送再试 */ }
+}
+onMounted(() => { if (token.value) { familySocket.connect(); refreshUnread(); } });
 onUnmounted(() => familySocket.close());
-watch(token, value => (value ? familySocket.connect() : familySocket.close()));
+watch(token, value => {
+  if (value) { familySocket.connect(); refreshUnread(); }
+  else { familySocket.close(); unread.value = 0; }
+});
 
 function report(error) {
   if (error.status === 401) token.value = "";
@@ -282,7 +302,7 @@ async function changePassword() {
       <CalendarPanel v-if="calTab==='日程'" ref="calendarPanel" @session-ended="clearSession"/><AnniversaryPanel v-else ref="anniversaryPanel" @session-ended="clearSession" @go="open"/>
     </view>
     <TaskPanel v-else-if="tab === '任务'" ref="taskPanel" @session-ended="clearSession"/>
-    <ChatPanel v-else-if="tab === '聊天'" :peer-id="chatPeer" @session-ended="clearSession" @unread-change="unread = $event" @call="openCallWith"/>
+    <ChatPanel v-else-if="tab === '聊天'" ref="chatPanel" :peer-id="chatPeer" :poll-ms="socketOpen ? 20000 : 4000" @session-ended="clearSession" @unread-change="unread = $event" @call="openCallWith"/>
     <view v-else-if="tab === '家庭圈'">
       <view class="subnav"><button v-for="item in circleTabs" :key="item" :class="{active:circleTab===item}" @click="circleTab=item">{{ circleLabels[item] }}</button></view>
       <DynamicsPanel v-if="circleTab==='动态'" ref="dynamicsPanel" :token="token"/><AlbumsPanel v-else-if="circleTab==='相册'" ref="albumsPanel" :token="token"/><AlbumTimeline v-else ref="timelinePanel" @session-ended="clearSession"/>
