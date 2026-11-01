@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { request, upload, loadImageUrl } from "@app/utils/request";
 import { sumUnread } from "@shared/unread.mjs";
+import { mergeReceipt, readMemberIds } from "@shared/receipts.mjs";
 
 const props = defineProps({
   peerId: { type: [Number, String], default: null },
@@ -9,7 +10,9 @@ const props = defineProps({
    * 兜底轮询间隔。实时通道连上时宿主传大值（推送负责及时性，轮询只防漏），
    * 没连上时回落到 4000——断线期间聊天不能变成「要手动刷新才能看到新消息」。
    */
-  pollMs: { type: Number, default: 4000 }
+  pollMs: { type: Number, default: 4000 },
+  /** 实时通道是否连着。连着就不必为「谁已读」额外轮询，后端会推。 */
+  live: { type: Boolean, default: false }
 });
 const emit = defineEmits(["session-ended", "unread-change", "call"]);
 
@@ -33,7 +36,7 @@ const ownLastId = computed(() => {
   const own = messages.value.filter(item => String(item.senderId) === selfId.value);
   return own.length ? Number(own[own.length - 1].id) || 0 : 0;
 });
-const readMembers = computed(() => ownLastId.value ? receipts.value.filter(item => Number(item.lastMessageId) >= ownLastId.value).map(item => memberName(item.userId)) : []);
+const readMembers = computed(() => readMemberIds(receipts.value, selfId.value, ownLastId.value).map(memberName));
 /** 私聊会话里的对方 ID；群聊返回 null（群聊通话在顶部「通话」入口发起）。 */
 const activePeerId = computed(() => {
   const item = conversations.value.find(entry => entry.id === active.value);
@@ -117,7 +120,8 @@ async function markRead() {
   if (!id || !active.value) return;
   try {
     await request("/im/conversations/" + active.value + "/read", { method: "POST", data: { messageId: id } });
-    if (active.value) await loadReceipts();
+    // 连着实时通道时回执由后端推回来，不用再拉一遍；断线才需要自己补
+    if (active.value && !props.live) await loadReceipts();
   } catch { /* 已读回执失败不影响聊天 */ }
 }
 /** 加载更早的消息：拿当前最老一条的 id 当游标，前插并保持视口停在原来那条上。 */
@@ -154,7 +158,8 @@ async function poll() {
       await toBottom();
       markRead();
       loadConversations().catch(() => {});
-    } else {
+    } else if (!props.live) {
+      // 只有断线时才为「谁已读」轮询：连着的时候后端会推 type=read
       loadReceipts();
     }
   } catch { /* 轮询失败静默，等待下一次 */ }
@@ -171,12 +176,18 @@ function stopPolling() {
 watch(() => props.pollMs, () => { if (active.value) startPolling(); });
 
 /**
- * 收到后端推送的新消息（type=message）。
+ * 收到后端推送的帧。
  *
- * 帧里带齐了渲染字段，直接上屏；同一会话的轮询兜底返回同一条时由 append 按 id 去重。
+ * - `type=message`：帧里带齐了渲染字段，直接上屏；同一会话的轮询兜底返回同一条时由 append 按 id 去重。
+ * - `type=read`：谁读到了哪条，并进本地回执列表。
  */
 function receive(frame) {
-  if (!frame || !frame.messageId) return;
+  if (!frame) return;
+  if (frame.type === "read") {
+    if (String(frame.conversationId) === active.value) receipts.value = mergeReceipt(receipts.value, frame);
+    return;
+  }
+  if (!frame.messageId) return;
   const incoming = {
     id: frame.messageId,
     conversationId: frame.conversationId,
@@ -326,7 +337,7 @@ defineExpose({ load, receive });
           <view class="room-head">
             <view>
               <text class="title">{{ activeTitle }}</text>
-              <text class="hint">{{ readMembers.length ? '已读：' + readMembers.join('、') : (pollMs > 5000 ? '实时推送中 · 断线自动重连' : '每 4 秒自动获取新消息') }}</text>
+              <text class="hint">{{ readMembers.length ? '已读：' + readMembers.join('、') : (live ? '实时推送中 · 断线自动重连' : '每 4 秒自动获取新消息') }}</text>
             </view>
             <button v-if="activePeerId" class="call-btn" size="mini" @click="emit('call', activePeerId)">☎ 通话</button>
           </view>

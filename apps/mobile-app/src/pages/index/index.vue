@@ -55,7 +55,8 @@ const familySocket = new FamilySocket({
   // 新消息带内容直接下发，交给聊天面板上屏；消息页没打开时它不挂载，只能自己更新角标
   onMessage: frame => {
     if (chatPanel.value) chatPanel.value.receive(frame);
-    else refreshUnread();
+    // 回执不影响未读角标，面板没挂载时直接丢掉
+    else if (frame.type !== "read") refreshUnread();
   }
 });
 /**
@@ -175,7 +176,7 @@ async function changePassword() {
       <AlbumTimeline v-else ref="timelinePanel" @session-ended="clearSession" />
     </view>
 
-    <ChatPanel v-else-if="tab === '消息'" ref="chatPanel" :peer-id="chatPeer" :poll-ms="socketOpen ? 20000 : 4000" @session-ended="clearSession" @unread-change="unread = $event" @call="openCallWith" />
+    <ChatPanel v-else-if="tab === '消息'" ref="chatPanel" :peer-id="chatPeer" :poll-ms="socketOpen ? 20000 : 4000" :live="socketOpen" @session-ended="clearSession" @unread-change="unread = $event" @call="openCallWith" />
 
     <view v-else>
       <view class="subnav"><text v-for="item in SUB_TABS.我的家" :key="item" :class="['subtab', subTab.我的家 === item ? 'active' : '']" @click="switchSub(item)">{{ item }}</text></view>

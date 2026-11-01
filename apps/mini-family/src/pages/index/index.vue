@@ -98,7 +98,8 @@ const familySocket = new FamilySocket({
   // 新消息带内容直接下发，交给聊天面板上屏；聊天页没打开时它不挂载，只能自己更新角标
   onMessage: frame => {
     if (chatPanel.value) chatPanel.value.receive(frame);
-    else refreshUnread();
+    // 回执不影响未读角标，面板没挂载时直接丢掉
+    else if (frame.type !== "read") refreshUnread();
   }
 });
 /**
@@ -302,7 +303,7 @@ async function changePassword() {
       <CalendarPanel v-if="calTab==='日程'" ref="calendarPanel" @session-ended="clearSession"/><AnniversaryPanel v-else ref="anniversaryPanel" @session-ended="clearSession" @go="open"/>
     </view>
     <TaskPanel v-else-if="tab === '任务'" ref="taskPanel" @session-ended="clearSession"/>
-    <ChatPanel v-else-if="tab === '聊天'" ref="chatPanel" :peer-id="chatPeer" :poll-ms="socketOpen ? 20000 : 4000" @session-ended="clearSession" @unread-change="unread = $event" @call="openCallWith"/>
+    <ChatPanel v-else-if="tab === '聊天'" ref="chatPanel" :peer-id="chatPeer" :poll-ms="socketOpen ? 20000 : 4000" :live="socketOpen" @session-ended="clearSession" @unread-change="unread = $event" @call="openCallWith"/>
     <view v-else-if="tab === '家庭圈'">
       <view class="subnav"><button v-for="item in circleTabs" :key="item" :class="{active:circleTab===item}" @click="circleTab=item">{{ circleLabels[item] }}</button></view>
       <DynamicsPanel v-if="circleTab==='动态'" ref="dynamicsPanel" :token="token"/><AlbumsPanel v-else-if="circleTab==='相册'" ref="albumsPanel" :token="token"/><AlbumTimeline v-else ref="timelinePanel" @session-ended="clearSession"/>

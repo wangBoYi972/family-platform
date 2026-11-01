@@ -6,6 +6,8 @@
  *
  * 新消息例外：后端把整条消息塞进 {"type":"message",...} 帧直接下发，
  * 聊天面板收到即可上屏，不必等下一次轮询（回调 onMessage）。
+ * 已读回执同理走 {"type":"read",...}：谁读到了哪条只有推送能及时，轮询只能事后补。
+ * 私聊的这两类帧只投给会话双方，群聊才整户广播。
  *
  * 和其它推送分开的原因：通话要用 `/ws/call`（媒体服务，带信令语义、30 秒宽限），
  * 这里用 `/ws/im`，只承载「家里有变化，拉一下最新数据」和消息帧。
@@ -75,8 +77,8 @@ export class FamilySocket {
       } catch {
         return;
       }
-      // 消息帧不合并：晚 400ms 上屏没有意义，而且多条消息合并会丢内容
-      if (payload?.type === "message") this.onMessage(payload);
+      // 消息帧和已读回执都要立刻交付：晚 400ms 上屏没有意义，多条消息合并还会丢内容
+      if (payload?.type === "message" || payload?.type === "read") this.onMessage(payload);
       else if (payload?.type === "refresh") this.gate.push();
     });
     task.onClose(() => this.handleClose());
