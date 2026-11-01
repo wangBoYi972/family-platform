@@ -17,4 +17,6 @@ public class ChatMessage {
     private String kind;
     private String body;
     private LocalDateTime createdAt;
+    /** 撤回标记：撤回时置 true 并清空 body，消息本身保留（分页与占位都需要）。 */
+    private Boolean deleted;
 }

@@ -8,8 +8,10 @@ import com.familyhome.api.user.feign.UserFeignClient;
 import com.familyhome.api.user.vo.MemberApiVO;
 import com.familyhome.common.api.ApiResponse;
 import com.familyhome.im.dto.*;
+import com.familyhome.im.mapper.ChatMessageMapper;
 import com.familyhome.im.service.ImService;
 import com.familyhome.security.SessionPrincipal;
+import java.time.LocalDateTime;
 import java.util.*;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +36,7 @@ class ImIntegrationTest {
     }
 
     @Autowired ImService service;
+    @Autowired ChatMessageMapper messagesMapper;
     @MockBean UserFeignClient users;
     @MockBean FileFeignClient files;
 
@@ -106,5 +109,57 @@ class ImIntegrationTest {
         assertThat(service.messages(b, conversation.id(), latest.getLast().id(), 0, 0)).isEmpty();
         // 旧签名保持可用（after 语义）
         assertThat(service.messages(b, conversation.id(), earlier.getLast().id())).hasSize(130 - 30);
+    }
+
+    @Test
+    @DisplayName("撤回：只能撤自己的、窗口外不能撤、撤回后正文清空但消息保留")
+    void recallOwnMessageOnlyWithinWindow() {
+        var a = new SessionPrincipal(21, 30, "MEMBER", "test", "family");
+        var b = new SessionPrincipal(22, 30, "MEMBER", "test", "family");
+        when(users.members("token"))
+                .thenReturn(ApiResponse.success(List.of(new MemberApiVO(22L, "成员22", "MEMBER"))));
+        var conversation = service.create(a, "token", new ConversationCreateDTO(22L));
+        var mine =
+                service.send(
+                        a,
+                        "token",
+                        conversation.id(),
+                        new MessageSendDTO(UUID.randomUUID().toString(), "TEXT", "发错了"));
+        var others =
+                service.send(
+                        b,
+                        "token",
+                        conversation.id(),
+                        new MessageSendDTO(UUID.randomUUID().toString(), "TEXT", "别人的"));
+
+        // 别人的消息不能撤（哪怕是同会话的家人）
+        assertThatThrownBy(() -> service.recall(a, conversation.id(), others.id()))
+                .isInstanceOf(ResponseStatusException.class);
+
+        // 撤回成功且幂等：正文清空、消息保留占位
+        service.recall(a, conversation.id(), mine.id());
+        service.recall(a, conversation.id(), mine.id());
+        var list = service.messages(b, conversation.id(), 0);
+        var recalled =
+                list.stream().filter(item -> item.id().equals(mine.id())).findFirst().orElseThrow();
+        assertThat(recalled.deleted()).isTrue();
+        assertThat(recalled.body()).isEmpty();
+        // 对方看到的未撤回消息不受影响
+        var kept =
+                list.stream().filter(item -> item.id().equals(others.id())).findFirst().orElseThrow();
+        assertThat(kept.deleted()).isFalse();
+
+        // 窗口外不能撤：把 createdAt 拨回三分钟前再试
+        var old =
+                service.send(
+                        a,
+                        "token",
+                        conversation.id(),
+                        new MessageSendDTO(UUID.randomUUID().toString(), "TEXT", "很久以前的"));
+        var entity = messagesMapper.selectById(old.id());
+        entity.setCreatedAt(LocalDateTime.now().minusMinutes(3));
+        messagesMapper.updateById(entity);
+        assertThatThrownBy(() -> service.recall(a, conversation.id(), old.id()))
+                .isInstanceOf(ResponseStatusException.class);
     }
 }

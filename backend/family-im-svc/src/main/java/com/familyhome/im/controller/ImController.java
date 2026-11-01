@@ -66,6 +66,13 @@ public class ImController {
         return ApiResponse.success(null);
     }
 
+    @PostMapping("/conversations/{id}/messages/{messageId}/recall")
+    public ApiResponse<Void> recall(
+            HttpServletRequest r, @PathVariable String id, @PathVariable long messageId) {
+        service.recall(SessionPrincipal.from(r), id, messageId);
+        return ApiResponse.success(null);
+    }
+
     @GetMapping("/conversations/{id}/read")
     public ApiResponse<List<ReadReceiptVO>> reads(HttpServletRequest r, @PathVariable String id) {
         return ApiResponse.success(service.reads(SessionPrincipal.from(r), id));

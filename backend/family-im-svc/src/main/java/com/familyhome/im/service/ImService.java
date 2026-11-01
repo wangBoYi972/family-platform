@@ -39,6 +39,15 @@ public interface ImService {
 
     MessageVO send(SessionPrincipal p, String bearer, String id, MessageSendDTO i);
 
+    /** 撤回窗口：发出后多少秒内可撤回。 */
+    long RECALL_WINDOW_SECONDS = 120;
+
+    /**
+     * 撤回自己发出的消息（窗口内）。撤回后消息保留但清空正文，
+     * 客户端显示「此消息已撤回」占位；重复撤回幂等成功。
+     */
+    void recall(SessionPrincipal p, String id, long messageId);
+
     void read(SessionPrincipal p, String id, MessageReadDTO i);
 
     List<ReadReceiptVO> reads(SessionPrincipal p, String id);

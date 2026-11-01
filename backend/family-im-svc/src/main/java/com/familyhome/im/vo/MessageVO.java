@@ -9,4 +9,5 @@ public record MessageVO(
         String clientId,
         String kind,
         String body,
-        LocalDateTime createdAt) {}
+        LocalDateTime createdAt,
+        boolean deleted) {}

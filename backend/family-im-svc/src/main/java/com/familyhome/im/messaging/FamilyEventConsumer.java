@@ -4,6 +4,7 @@ import com.familyhome.im.websocket.ImSocket;
 
 import java.time.Duration;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -17,8 +18,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 @Component
 @ConditionalOnProperty(name = "family.messaging.enabled", havingValue = "true")
 public class FamilyEventConsumer {
-    /** 聊天消息由发送方在事务提交后直接推送，这里不再重复广播，见 ImServiceImpl#pushAfterCommit。 */
-    private static final String MESSAGE_EVENT = "message.sent";
+    /** 消息类事件都由发起方在事务提交后直接推送（含撤回帧），这里不再重复广播。 */
+    private static final Set<String> PUSHED_EVENTS = Set.of("message.sent", "message.deleted");
 
     @Autowired
     private StringRedisTemplate redis;
@@ -32,8 +33,8 @@ public class FamilyEventConsumer {
         if (!Boolean.TRUE.equals(first)) return;
         Object household = event.get("householdId");
         if (!(household instanceof Number n)) return;
-        // 新消息走的是带内容的帧，客户端收到就能上屏；这里再发一次 refresh 只会让所有人多拉一遍接口。
-        if (MESSAGE_EVENT.equals(String.valueOf(event.get("eventType")))) return;
+        // 新消息/撤回走的是带内容的帧，客户端收到即可处理；这里再发一次 refresh 只会让所有人多拉一遍接口。
+        if (PUSHED_EVENTS.contains(String.valueOf(event.get("eventType")))) return;
         socket.notifyLocalEvent(n.longValue());
     }
 }

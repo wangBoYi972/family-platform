@@ -199,6 +199,36 @@ public class ImServiceImpl implements ImService {
         return List.of(c.getUserA(), c.getUserB());
     }
 
+    @Transactional
+    public void recall(SessionPrincipal p, String id, long messageId) {
+        Conversation c = find(p, id);
+        ChatMessage m =
+            messages.selectOne(
+                new LambdaQueryWrapper<ChatMessage>()
+                    .eq(ChatMessage::getId, messageId)
+                    .eq(ChatMessage::getConversationId, id));
+        if (m == null) throw new IllegalArgumentException();
+        if (!Objects.equals(m.getSenderId(), p.userId()))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "只能撤回自己发出的消息");
+        if (Boolean.TRUE.equals(m.getDeleted())) return; // 重复撤回按成功处理，客户端不必区分
+        // 服务端时间做权威判断；用 createdAt + 窗口 与 now 比较，别反过来 now - 窗口，
+        // 那样对 createdAt 为 null 的旧数据会误判成「还没到窗口」
+        if (m.getCreatedAt() == null
+            || m.getCreatedAt().plusSeconds(RECALL_WINDOW_SECONDS).isBefore(LocalDateTime.now()))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "超过可撤回时间");
+        // 正文一并清掉：软删只是占位用的，原文本不该继续躺在接口响应里
+        m.setDeleted(true);
+        m.setBody("");
+        messages.updateById(m);
+        Map<String, Object> frame = new LinkedHashMap<>();
+        frame.put("type", "message.deleted");
+        frame.put("conversationId", id);
+        frame.put("messageId", messageId);
+        pushAfterCommit(p.householdId(), frame, audience(c));
+        outbox.append("message", String.valueOf(messageId), "message.deleted", p.householdId(),
+            Map.of("messageId", messageId, "conversationId", id, "senderId", m.getSenderId()));
+    }
+
     /**
      * 把新消息推给该看到它的连接。
      *

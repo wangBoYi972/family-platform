@@ -20,7 +20,8 @@ public final class ImConverter {
             m.getClientId(),
             m.getKind(),
             m.getBody(),
-            m.getCreatedAt());
+            m.getCreatedAt(),
+            Boolean.TRUE.equals(m.getDeleted()));
     }
 
     public static ReadReceiptVO toVO(ReadReceipt r) {
