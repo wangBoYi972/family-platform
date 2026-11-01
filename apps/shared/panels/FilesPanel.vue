@@ -14,7 +14,7 @@ function filePath() {
 }
 const {
   items: files, loading, loadingMore, exhausted, error: listError,
-  refresh, loadMore
+  refresh, reload, loadMore
 } = usePagedList((page, size) => request(pageQuery(filePath(), page, size)));
 const error = computed(() => listError.value?.message || "");
 const uploading = ref(false);
@@ -60,6 +60,11 @@ function clearSearch() {
 
 async function load() {
   if (await refresh()) return;
+  if (listError.value?.status === 401) emit("session-ended");
+}
+/** 实时刷新用：保持已翻到的位置，不把用户拽回第一页。 */
+async function sync() {
+  if (await reload()) return;
   if (listError.value?.status === 401) emit("session-ended");
 }
 async function loadMoreFiles() {
@@ -149,7 +154,7 @@ async function remove(item) {
   }
 }
 
-defineExpose({ load });
+defineExpose({ load, sync });
 onMounted(load);
 </script>
 

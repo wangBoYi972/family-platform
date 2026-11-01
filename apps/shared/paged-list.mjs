@@ -18,6 +18,29 @@ export function hasMore(returnedCount, size = PAGE_SIZE) {
 }
 
 /**
+ * 就地刷新后重新计算「已加载到第几页 / 是否到底」。
+ *
+ * pages 是按页码顺序重拉回来的 1..N 页。只要某一页不满，就说明后面没有了：
+ * 期间别人删掉数据会让列表整体前移，原计划的第 N 页可能已经短了甚至空了，
+ * 这时必须把页码收回来，否则下一次 loadMore 会跳过一段数据。
+ *
+ * 全部满页时无法判断是否还有下一页（接口不返回 total），保守地认为还有：
+ * 最坏情况是多请求一次空页，不会漏数据。
+ */
+export function summarizeReload(pages, size = PAGE_SIZE) {
+  const rows = [];
+  let used = 0;
+  for (const page of pages || []) {
+    used += 1;
+    rows.push(...(page || []));
+    if (!hasMore(page?.length || 0, size)) {
+      return { rows, page: used, exhausted: true };
+    }
+  }
+  return { rows, page: Math.max(1, used), exhausted: false };
+}
+
+/**
  * 合并新一页并去重。
  *
  * 列表按创建时间倒序、且新记录从头部插入，翻页期间若有新增，相邻两页会出现

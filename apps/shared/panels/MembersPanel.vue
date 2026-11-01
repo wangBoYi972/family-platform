@@ -72,7 +72,8 @@ async function disable(entry) {
 }
 function chat(item) { emit("chat", item); }
 onMounted(load);
-defineExpose({ load });
+// 不分页的面板：sync 与 load 等价，统一方法名好让宿主一视同仁。
+defineExpose({ load, sync: load });
 </script>
 
 <template>

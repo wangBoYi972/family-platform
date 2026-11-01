@@ -15,7 +15,7 @@ function entryPath() {
 }
 const {
   items: entries, loading, loadingMore, exhausted, error: listError,
-  refresh, loadMore
+  refresh, reload, loadMore
 } = usePagedList((page, size) => request(pageQuery(entryPath(), page, size)));
 const publishing = ref(false);
 const composing = ref(false);
@@ -55,6 +55,20 @@ async function load() {
   if (!props.token) return;
   if (await refresh()) return hydrate(entries.value);
   uni.showToast({ title: loadError.value || "加载失败", icon: "none" });
+}
+/** 实时刷新用：保持已翻到的位置，已解析过的图片地址直接复用，不重复换一次 URL。 */
+async function sync() {
+  if (!props.token) return;
+  const previous = new Map(entries.value.map(item => [String(item.id), item]));
+  if (!(await reload())) {
+    if (listError.value) uni.showToast({ title: loadError.value || "刷新失败", icon: "none" });
+    return;
+  }
+  entries.value.forEach(item => {
+    const old = previous.get(String(item.id));
+    if (old?.images?.length) item.images = old.images;
+  });
+  return hydrate(entries.value);
 }
 async function loadMoreDynamics() {
   if (await loadMore()) return hydrate(entries.value);
@@ -114,7 +128,7 @@ watch(keyword, () => {
   clearTimeout(keywordTimer);
   keywordTimer = setTimeout(load, 300);
 });
-defineExpose({ load });
+defineExpose({ load, sync });
 onMounted(load);
 onUnmounted(() => clearTimeout(keywordTimer));
 </script>

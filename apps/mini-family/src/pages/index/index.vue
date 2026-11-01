@@ -85,7 +85,12 @@ const livePanels = [
   timelinePanel, membersPanel, noticesPanel, archivePanel, filesPanel, todayOverview
 ];
 const familySocket = new FamilySocket({
-  onRefresh: () => livePanels.forEach(panel => panel.value?.load?.())
+  // 优先 sync：分页面板会就地重拉已翻过的页，不会把用户拽回第一页。
+  // 没实现的（如首页概览）回落到 load。
+  onRefresh: () => livePanels.forEach(panel => {
+    const instance = panel.value;
+    if (instance) (instance.sync || instance.load)?.();
+  })
 });
 onMounted(() => { if (token.value) familySocket.connect(); });
 onUnmounted(() => familySocket.close());

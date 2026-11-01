@@ -87,7 +87,8 @@ async function load() {
   }
 }
 
-defineExpose({ load });
+// 不分页的面板：sync 与 load 等价，统一方法名好让宿主一视同仁。
+defineExpose({ load, sync: load });
 onMounted(load);
 </script>
 

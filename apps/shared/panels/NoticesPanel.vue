@@ -9,7 +9,7 @@ import ListMore from "../ListMore.vue";
 const props = defineProps({ token: String });
 const {
   items: notices, loading, loadingMore, exhausted, error: loadError,
-  refresh, loadMore
+  refresh, reload, loadMore
 } = usePagedList((page, size) => request(pageQuery("/notices", page, size)));
 
 async function load() {
@@ -17,12 +17,17 @@ async function load() {
   if (await refresh()) return;
   uni.showToast({ title: loadError.value?.message || "加载失败", icon: "none" });
 }
+/** 实时刷新用：保持已翻到的位置，不把用户拽回第一页。 */
+async function sync() {
+  if (!props.token) return;
+  await reload();
+}
 async function loadMoreNotices() {
   if (await loadMore()) return;
   if (loadError.value) uni.showToast({ title: loadError.value.message || "加载失败", icon: "none" });
 }
 
-defineExpose({ load });
+defineExpose({ load, sync });
 onMounted(load);
 </script>
 

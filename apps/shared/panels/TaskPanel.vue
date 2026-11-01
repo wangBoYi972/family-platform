@@ -25,6 +25,7 @@ const {
   exhausted,
   error: listError,
   refresh: refreshTasks,
+  reload: reloadTasks,
   loadMore,
   reset: resetTasks
 } = usePagedList((page, size) => request(pageQuery(taskPath(), page, size)));
@@ -62,6 +63,11 @@ async function load() {
   if (identityResult.value) session.value = identityResult.value;
   if (identityResult.error) report(identityResult.error);
   if (!ok) return;
+}
+/** 实时刷新：只看列表，不动筛选条件、不回第一页。 */
+async function refreshListInPlace() {
+  if (await reloadTasks()) return;
+  report(listError.value);
 }
 let keywordTimer = null;
 watch(keyword, () => {
@@ -134,7 +140,7 @@ function advance(task) { changeStatus(task, nextTaskStatus(task.status)); }
 function revert(task) { changeStatus(task, prevTaskStatus(task.status)); }
 onMounted(load);
 onUnmounted(() => { clearTimeout(keywordTimer); resetTasks(); });
-defineExpose({ load });
+defineExpose({ load, sync: refreshListInPlace });
 </script>
 
 <template>

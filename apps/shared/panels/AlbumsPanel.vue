@@ -15,7 +15,7 @@ function albumPath() {
 }
 const {
   items: albums, loading, loadingMore, exhausted, error: listError,
-  refresh, loadMore
+  refresh, reload, loadMore
 } = usePagedList((page, size) => request(pageQuery(albumPath(), page, size)));
 const loadError = computed(() => listError.value?.message || "");
 function photoCount(item) { return String(item.fileIds||'').split(',').filter(Boolean).length; }
@@ -44,6 +44,20 @@ async function load() {
   if (await refresh()) return hydrate(albums.value);
   uni.showToast({ title: loadError.value || "加载失败", icon: "none" });
 }
+/** 实时刷新用：保持已翻到的位置，已解析过的图片地址直接复用。 */
+async function sync() {
+  if (!props.token) return;
+  const previous = new Map(albums.value.map(item => [String(item.id), item]));
+  if (!(await reload())) {
+    if (listError.value) uni.showToast({ title: loadError.value || "刷新失败", icon: "none" });
+    return;
+  }
+  albums.value.forEach(item => {
+    const old = previous.get(String(item.id));
+    if (old?.images?.length) item.images = old.images;
+  });
+  return hydrate(albums.value);
+}
 async function loadMoreAlbums() {
   if (await loadMore()) return hydrate(albums.value);
   if (listError.value) uni.showToast({ title: loadError.value || "加载失败", icon: "none" });
@@ -53,7 +67,7 @@ function preview(images, current) {
   uni.previewImage({ urls: images, current: images[current] });
 }
 
-defineExpose({ load });
+defineExpose({ load, sync });
 let keywordTimer = null;
 watch(keyword, () => {
   clearTimeout(keywordTimer);

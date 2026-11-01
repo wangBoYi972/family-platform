@@ -19,7 +19,7 @@ function archivePath() {
 }
 const {
   items: rows, loading, loadingMore, exhausted, error: listError,
-  refresh, loadMore
+  refresh, reload, loadMore
 } = usePagedList((page, size) => request(pageQuery(archivePath(), page, size)));
 const members = ref([]), session = ref(null);
 const error = computed(() => listError.value?.message || "");
@@ -55,6 +55,11 @@ async function load() {
   if (identityResult.error) report(identityResult.error);
   if (peopleResult.error) report(peopleResult.error);
   if (!ok) report(listError.value);
+}
+/** 实时刷新：只重拉列表，身份与成员不变；筛选条件与页码都保持。 */
+async function sync() {
+  if (await reload()) return;
+  report(listError.value);
 }
 let keywordTimer = null;
 watch(keyword, () => {
@@ -122,7 +127,7 @@ async function toggle(item) {
 }
 onMounted(load);
 onUnmounted(() => clearTimeout(keywordTimer));
-defineExpose({ load });
+defineExpose({ load, sync });
 </script>
 
 <template>

@@ -95,7 +95,8 @@ function formatDay(date) {
 }
 function preview(item, index) { uni.previewImage({ urls: item.images, current: item.images[index] }); }
 
-defineExpose({ load });
+// 不分页的面板：sync 与 load 等价，统一方法名好让宿主一视同仁。
+defineExpose({ load, sync: load });
 onMounted(load);
 </script>
 
