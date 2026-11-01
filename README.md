@@ -218,6 +218,16 @@
   （`uni-client.js` 新增 `loadAudioUrl`，与 `loadImageUrl` 同一实现、分开命名）；每次播放新建上下文，
   它的事件监听是叠加注册的，复用同一个实例会越挂越多。
 
+## 2026-11-01（续八）聊天传文件
+
+- 后端 `kind=FILE` 一直支持（只要求附件是家庭共享，不限 mime），这次补齐客户端：
+  输入框新增「文件」按钮，气泡显示文件名/大小，点开下载。
+- 选择器统一走 `uni.chooseFile`，不用条件编译：H5 是 `input[type=file]` 真实现；
+  微信小程序没有系统文件选择器，uni-app 把它映射到 `wx.chooseMessageFile`（从聊天记录选），同一调用两端都能跑。
+- 打开的坑和语音一样：`openDocument` 不支持带鉴权头的 URL，先 `loadFileUrl`（`uni-client.js` 新增）
+  鉴权下载成本地路径；H5 拿到的是 blob URL，用 `<a download>` 触发另存，小程序/App 走 `uni.openDocument`
+  （不支持的类型提示后放弃，不崩）。文件名/大小进会话时就并行拉元数据，拉不到退化为「文件 · 点击下载」。
+
 ## 生产上线前必须验收（发布阻断项）
 
 MySQL 与 Nacos 实例联调、真实短信/微信认证、对象存储、SFU/TURN 部署与压测、双小程序真机回归、监控告警及备份恢复演练。详见 `docs/企业级工程化交付记录.md`。
