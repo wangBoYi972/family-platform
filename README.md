@@ -171,6 +171,23 @@
   宿主改为自己拉会话列表用 `sumUnread()` 求和（与面板内同一套口径，4 项单测）。
 - **多实例**：结构化帧经 Redis `family:ws:event` 转发，坏帧只丢那一条并打 WARN，不让监听线程挂掉。
 
+## 2026-11-01（续四）私聊帧定向投递、已读回执实时化
+
+- **私聊正文不再进全家人的连接**：原来 `message` 帧按家庭广播，客户端只是「不是当前会话就不渲染」——
+  帧本身还是明文躺在别的设备上，同住一个家庭就能拿到别人的私聊。
+  现在 `ImServiceImpl#audience` 按会话算收件人（群聊 `null` = 整户，私聊 = 双方），
+  `ImSocket#sendLocal` 握手时记下 `userId` 后按名单投递，认不出身份就跳过。Redis 信封里也带上 `audience`，
+  本地直发与跨实例转发共用同一份「谁该收到」的判断。
+- **已读回执从轮询改成推送**：`read` 接口在事务提交后下发 `{"type":"read",conversationId,userId,lastMessageId}`。
+  `ReadReceiptMapper#advance` 改为返回影响行数（SQL 本就带 `last_message_id < #{message}`），
+  返回 0 说明是原地重复上报，不发帧——否则每开一次会话全家都收到一条无变化的回执。
+- **客户端去掉每 4 秒一次的 `/read`**：面板新增 `live` 属性（宿主传 `socketOpen`），
+  连着实时通道时不拉回执、发完消息也不多一次往返；断开时 `poll` 的 else 分支才补。
+  合并口径抽到 `apps/shared/receipts.mjs`：`mergeReceipt` 只进不退（重连后旧帧后到不能把「已读」退回去），
+  `readMemberIds` 排除自己（原来自己会以「家人」的名字出现在已读名单里）。5 项单测。
+- 测试：`ImSocketTest` 新增两例——定向帧只到收件人、同家庭第三者收不到；已读重复上报只推一次且只给双方。
+  后端全量 66 例通过（im 6），`node --test apps/shared` 31 例通过，家庭端 / 移动端 H5 / 管理端构建通过。
+
 ## 生产上线前必须验收（发布阻断项）
 
 MySQL 与 Nacos 实例联调、真实短信/微信认证、对象存储、SFU/TURN 部署与压测、双小程序真机回归、监控告警及备份恢复演练。详见 `docs/企业级工程化交付记录.md`。
