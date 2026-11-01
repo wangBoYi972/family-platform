@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onUnmounted, ref, computed } from "vue";
+import { onMounted, onUnmounted, ref, computed, watch } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { listMembers } from "../api/member";
 import { listArchives, listEntries, createEntry, updateEntry, deleteEntry, archiveDetail } from "../api/entry";
@@ -13,21 +13,52 @@ const newForm = () => ({ title: "", body: "", eventDate: "", yearly: false, pinn
 const form = ref(newForm());
 const visibilityLabel = { PRIVATE: "仅自己", FAMILY: "家庭成员" };
 const categoryLabel = { IDENTITY: "身份", HEALTH: "健康", DOCUMENT: "证件" };
-const filteredRows = computed(() => rows.value.filter(row => (row.displayName || row.title || "").includes(keyword.value.trim())));
-let sequence = 0, detailSequence = 0;
+// 成员接口没有服务端关键字，只能本地筛；其余列表的关键字与分页都进查询串。
+const filteredRows = computed(() => (isMembers.value
+  ? rows.value.filter(row => (row.displayName || row.title || "").includes(keyword.value.trim()))
+  : rows.value));
+const PAGE_SIZE = 12;
+const page = ref(1), exhausted = ref(false);
+let sequence = 0, detailSequence = 0, keywordTimer = null;
 const config = computed(() => ({ members: { eyebrow: "权限", title: "家庭成员", description: "管理家庭成员和访问边界。" }, notices: { eyebrow: "通知", title: "家庭公告", description: "发布家庭成员可见的事项。" }, calendar: { eyebrow: "日历", title: "家庭日历", description: "维护纪念日和家庭日程。" }, archives: { eyebrow: "档案", title: "加密档案", description: "敏感资料按家庭权限读取。" } }[props.kind]));
 const isMembers = computed(() => props.kind === "members"), isArchives = computed(() => props.kind === "archives");
-async function load() {
+async function load({ reset = true, at = null } = {}) {
   const current = ++sequence;
+  const target = at ?? (reset ? 1 : page.value);
   loading.value = true;
   loadError.value = "";
   try {
-    const data = isMembers.value ? await listMembers() : isArchives.value ? await listArchives() : await listEntries(props.kind);
-    if (current === sequence) rows.value = data;
+    let data;
+    if (isMembers.value) {
+      data = await listMembers();
+    } else {
+      const options = { page: target, size: PAGE_SIZE, keyword: keyword.value.trim() };
+      data = isArchives.value ? await listArchives(options) : await listEntries(props.kind, options);
+    }
+    if (current !== sequence) return;
+    rows.value = data;
+    page.value = target;
+    // 接口不返回总数，本页不满就是最后一页。
+    exhausted.value = !isMembers.value && data.length < PAGE_SIZE;
   } catch (error) {
     if (current === sequence) loadError.value = error.message || "加载失败，请重试";
   } finally { if (current === sequence) loading.value = false; }
 }
+function go(target) {
+  if (loading.value || target < 1) return;
+  load({ reset: false, at: target });
+}
+/** 删完最后一页就退一页，避免停在一张空白页上。 */
+async function reloadCurrent() {
+  await load({ reset: false });
+  if (!loading.value && !rows.value.length && page.value > 1) await load({ reset: false, at: page.value - 1 });
+}
+watch(keyword, () => {
+  if (isMembers.value) return;
+  // 输入停顿 300ms 再查，避免每个字符打一次接口
+  clearTimeout(keywordTimer);
+  keywordTimer = setTimeout(() => load({ reset: true }), 300);
+});
 function openCreate() {
   editingId.value = null;
   form.value = newForm();
@@ -63,9 +94,10 @@ async function submit() {
   try {
     if (editingId.value !== null) await updateEntry(props.kind, editingId.value, body);
     else await createEntry(props.kind, body);
+    const created = editingId.value === null;
     dialogVisible.value = false;
     ElMessage.success("已保存");
-    await load();
+    if (created) await load({ reset: true }); else await reloadCurrent();
   } catch (error) { ElMessage.error(error.message || "保存失败，填写内容已保留"); }
   finally { saving.value = false; }
 }
@@ -76,16 +108,16 @@ async function remove(row) {
     await ElMessageBox.confirm("确定删除“" + row.title + "”吗？删除后无法恢复。", "删除确认", { type: "warning", confirmButtonText: "确认删除", cancelButtonText: "取消" });
     await deleteEntry(props.kind, row.id);
     ElMessage.success("已删除");
-    await load();
+    await reloadCurrent();
   } catch (error) { if (error !== "cancel" && error !== "close") ElMessage.error(error.message || "删除失败"); }
   finally { deleting.value.delete(row.id); }
 }
-onMounted(load);
-onUnmounted(() => { sequence++; detailSequence++; });
+onMounted(() => load());
+onUnmounted(() => { sequence++; detailSequence++; clearTimeout(keywordTimer); });
 </script>
 <template>
 <section class="content-page">
-  <div class="page-heading"><div><p class="eyebrow">{{ config.eyebrow }}</p><h1>{{ config.title }}</h1><p class="subtitle">{{ config.description }}</p></div><div class="page-actions"><el-button text :disabled="saving" @click="emit('navigate','任务')">返回工作台</el-button><el-button :disabled="loading" @click="load">刷新</el-button><el-button v-if="!isMembers" type="primary" @click="openCreate">新建</el-button></div></div>
+  <div class="page-heading"><div><p class="eyebrow">{{ config.eyebrow }}</p><h1>{{ config.title }}</h1><p class="subtitle">{{ config.description }}</p></div><div class="page-actions"><el-button text :disabled="saving" @click="emit('navigate','任务')">返回工作台</el-button><el-button :disabled="loading" @click="load()">刷新</el-button><el-button v-if="!isMembers" type="primary" @click="openCreate">新建</el-button></div></div>
   <el-input v-model="keyword" class="search" placeholder="按名称搜索" aria-label="按名称搜索" clearable />
   <el-alert v-if="loadError" :title="loadError" type="error" :closable="false" show-icon />
   <div class="content-list" v-loading="loading">
@@ -103,7 +135,12 @@ onUnmounted(() => { sequence++; detailSequence++; });
         <template v-if="!isArchives"><el-button text :disabled="deleting.has(row.id)" @click="openEdit(row)">编辑</el-button><el-button text type="danger" :loading="deleting.has(row.id)" @click="remove(row)">删除</el-button></template>
       </div>
     </div>
-    <el-empty v-if="!loading && !loadError && !filteredRows.length" :description="rows.length ? '没有符合条件的记录' : '暂无记录，点击新建开始添加'" />
+    <el-empty v-if="!loading && !loadError && !filteredRows.length" :description="keyword.trim() || rows.length ? '没有符合条件的记录' : '暂无记录，点击新建开始添加'" />
+  </div>
+  <div v-if="!isMembers" class="pager">
+    <el-button text :disabled="page <= 1 || loading" @click="go(page - 1)">上一页</el-button>
+    <span class="pager-note">第 {{ page }} 页</span>
+    <el-button text :disabled="exhausted || loading" @click="go(page + 1)">下一页</el-button>
   </div>
   <el-dialog v-model="dialogVisible" :title="(editingId === null ? '新建' : '编辑') + config.title" width="min(520px, 94vw)" :close-on-click-modal="!saving" :close-on-press-escape="!saving" :show-close="!saving">
     <el-form label-position="top" :disabled="saving">
@@ -123,4 +160,4 @@ onUnmounted(() => { sequence++; detailSequence++; });
 </section>
 </template>
 <style scoped>.content-page{padding:44px 56px 64px;max-width:1440px;margin:auto;animation:mf-fade 320ms var(--e-out) both}.page-heading{display:flex;justify-content:space-between;gap:20px}.page-actions,.row-actions{display:flex;gap:8px;align-items:center;flex-shrink:0}.content-list{margin-top:26px;display:flex;flex-direction:column;gap:12px}.content-row{display:flex;align-items:center;gap:16px;padding:18px 22px;border-radius:var(--r-lg);background:var(--c-glass);-webkit-backdrop-filter:blur(16px) saturate(1.4);backdrop-filter:blur(16px) saturate(1.4);border:1px solid var(--c-glass-line);box-shadow:var(--sh-1);transition:transform var(--t) var(--e-out),box-shadow var(--t) var(--e-out);animation:mf-rise 420ms var(--e-out) both}.content-row:hover{transform:translateY(-2px);box-shadow:var(--sh-2),var(--sh-edge)}
-.content-row:nth-child(1){animation-delay:20ms}.content-row:nth-child(2){animation-delay:50ms}.content-row:nth-child(3){animation-delay:80ms}.content-row:nth-child(4){animation-delay:110ms}.content-row:nth-child(5){animation-delay:140ms}.content-row:nth-child(6){animation-delay:170ms}.content-row:nth-child(7){animation-delay:200ms}.content-row:nth-child(n+8){animation-delay:230ms}.row-main{display:grid;gap:6px;flex:1;min-width:0}.row-main strong{font-weight:600;overflow-wrap:anywhere}.row-main span{color:var(--family-muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row-main .event-date{color:var(--family-primary);font-weight:500}.search{margin:24px 0 16px;max-width:400px}.form-note{width:100%;color:var(--family-muted);font-size:12px}.detail{min-height:80px}.detail-body{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7}@media(max-width:960px){.content-page{padding:40px 24px}.page-heading{flex-direction:column}.page-actions{flex-wrap:wrap}.content-row{flex-wrap:wrap}.row-main{flex-basis:65%}.row-actions{width:100%}}</style>
+.content-row:nth-child(1){animation-delay:20ms}.content-row:nth-child(2){animation-delay:50ms}.content-row:nth-child(3){animation-delay:80ms}.content-row:nth-child(4){animation-delay:110ms}.content-row:nth-child(5){animation-delay:140ms}.content-row:nth-child(6){animation-delay:170ms}.content-row:nth-child(7){animation-delay:200ms}.content-row:nth-child(n+8){animation-delay:230ms}.row-main{display:grid;gap:6px;flex:1;min-width:0}.row-main strong{font-weight:600;overflow-wrap:anywhere}.row-main span{color:var(--family-muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row-main .event-date{color:var(--family-primary);font-weight:500}.search{margin:24px 0 16px;max-width:400px}.pager{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:24px}.pager-note{color:var(--family-muted);font-size:13px}.form-note{width:100%;color:var(--family-muted);font-size:12px}.detail{min-height:80px}.detail-body{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7}@media(max-width:960px){.content-page{padding:40px 24px}.page-heading{flex-direction:column}.page-actions{flex-wrap:wrap}.content-row{flex-wrap:wrap}.row-main{flex-basis:65%}.row-actions{width:100%}}</style>
