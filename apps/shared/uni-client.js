@@ -75,6 +75,14 @@ export function createUniClient({ uni, baseUrl, storageKey = "family_access_toke
     });
   }
 
+  /**
+   * 鉴权下载音频为临时文件路径。
+   *
+   * <p>和图片是同一个接口、同一段实现，但不直接复用 {@link loadImageUrl} 这个名字——
+   * InnerAudioContext 播放要的是「本地临时路径」，语义上分开命名，出错时日志才读得懂。
+   */
+  const loadAudioUrl = loadImageUrl;
+
   const login = data =>
     request("/auth/password-login", { method: "POST", data, authenticated: false, header: { "Content-Type": "application/json" } });
 
@@ -82,5 +90,5 @@ export function createUniClient({ uni, baseUrl, storageKey = "family_access_toke
   const register = data =>
     request("/auth/register", { method: "POST", data, authenticated: false, header: { "Content-Type": "application/json" } });
 
-  return { request, upload, loadImageUrl, login, register };
+  return { request, upload, loadImageUrl, loadAudioUrl, login, register };
 }

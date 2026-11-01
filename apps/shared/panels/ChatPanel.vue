@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
-import { request, upload, loadImageUrl } from "@app/utils/request";
+import { request, upload, loadImageUrl, loadAudioUrl } from "@app/utils/request";
 import { sumUnread } from "@shared/unread.mjs";
 import { mergeReceipt, readMemberIds } from "@shared/receipts.mjs";
 
@@ -21,6 +21,8 @@ const active = ref(""), activeTitle = ref(""), messages = ref([]), draft = ref("
 const loading = ref(false), listError = ref(""), detailError = ref("");
 const sending = ref(false), starting = ref(false), ensuringGroup = ref(false);
 const expanded = ref(false), receipts = ref([]), scrollTop = ref(0);
+// 语音：audioUrls 缓存 fileId -> 本地临时路径（InnerAudioContext 不支持带鉴权头的 src，只能先下载）。
+const audioUrls = ref({}), playingId = ref(""), recording = ref(false);
 // 与后端 ImService.MESSAGE_PAGE 对齐：返回条数达到这个值就认为还有更早的消息。
 const MESSAGE_PAGE = 100;
 const hasEarlier = ref(false), loadingEarlier = ref(false), anchor = ref("");
@@ -68,6 +70,11 @@ async function cachePreview(id) {
   try { previews.value = { ...previews.value, [id]: await loadImageUrl(id) }; }
   catch { /* 单张图片加载失败不影响会话整体 */ }
 }
+async function cacheAudio(id) {
+  if (audioUrls.value[id]) return;
+  try { audioUrls.value = { ...audioUrls.value, [id]: await loadAudioUrl(id) }; }
+  catch { /* 点击播放时会再试一次并提示 */ }
+}
 function append(incoming) {
   const seen = new Set(messages.value.filter(item => item.clientId).map(item => item.clientId));
   const known = new Set(messages.value.map(item => String(item.id)));
@@ -76,6 +83,7 @@ function append(incoming) {
     if (duplicated) continue;
     messages.value.push(item);
     if (item.kind === "IMAGE") cachePreview(item.body);
+    if (item.kind === "AUDIO") cacheAudio(item.body);
   }
   messages.value.sort((a, b) => Number(a.id) - Number(b.id));
 }
@@ -105,6 +113,7 @@ async function loadMessages() {
     hasEarlier.value = list.length >= MESSAGE_PAGE;
     anchor.value = "";
     messages.value.filter(item => item.kind === "IMAGE").forEach(item => cachePreview(item.body));
+    messages.value.filter(item => item.kind === "AUDIO").forEach(item => cacheAudio(item.body));
     await toBottom();
   } catch (error) {
     if (current === generation) detailError.value = error.message || "消息加载失败";
@@ -284,6 +293,99 @@ function previewImages(current) {
   const urls = messages.value.filter(item => item.kind === "IMAGE" && previews.value[item.body]).map(item => previews.value[item.body]);
   uni.previewImage({ urls, current });
 }
+
+/** 语音消息。后端 kind=AUDIO 早就支持（校验 mime 必须是 audio/*），这里补上录音与播放。 */
+
+/** 比这短的录音按误触处理直接丢弃；不然手一抖就发出去一条 0.1 秒的气音。 */
+const MIN_VOICE_MS = 800;
+const MAX_VOICE_MS = 60_000;
+let recorder = null, recordStartedAt = 0, discardRecording = false, audioContext = null;
+
+function ensureRecorder() {
+  if (recorder || typeof uni.getRecorderManager !== "function") return recorder;
+  recorder = uni.getRecorderManager();
+  recorder.onStart(() => { recordStartedAt = Date.now(); });
+  recorder.onStop(result => {
+    recording.value = false;
+    if (discardRecording) { discardRecording = false; return; }
+    if (!result?.tempFilePath || Date.now() - recordStartedAt < MIN_VOICE_MS) {
+      uni.showToast({ title: "说话时间太短", icon: "none" });
+      return;
+    }
+    sendVoice(result.tempFilePath);
+  });
+  recorder.onError(() => {
+    recording.value = false;
+    uni.showToast({ title: "录音失败，请检查麦克风权限", icon: "none" });
+  });
+  return recorder;
+}
+
+function startRecord() {
+  if (!active.value || sending.value || recording.value) return;
+  let instance = null;
+  try { instance = ensureRecorder(); }
+  catch { instance = null; }
+  if (!instance) {
+    // H5 端 uni-app 的录音 API 是「不支持」桩实现，一调就抛；语音先在小程序/ App 里录
+    uni.showToast({ title: "当前环境不支持录音，可在小程序里使用", icon: "none" });
+    return;
+  }
+  discardRecording = false;
+  recording.value = true;
+  try { instance.start({ format: "mp3", duration: MAX_VOICE_MS }); }
+  catch { recording.value = false; uni.showToast({ title: "录音启动失败", icon: "none" }); }
+}
+function finishRecord() {
+  if (!recording.value) return;
+  try { recorder.stop(); } catch { recording.value = false; }
+}
+function cancelRecord() {
+  if (!recording.value) return;
+  discardRecording = true;
+  try { recorder.stop(); } catch { recording.value = false; }
+}
+
+async function sendVoice(filePath) {
+  if (!active.value) return;
+  sending.value = true;
+  try {
+    const file = await upload("/files", filePath, { visibility: "FAMILY" });
+    const clientId = uuid();
+    const created = await request("/im/conversations/" + active.value + "/messages", {
+      method: "POST",
+      data: { clientId, kind: "AUDIO", body: file.id }
+    });
+    append([created]);
+    await cacheAudio(file.id);
+    await toBottom();
+    markRead();
+  } catch (error) { report(error); }
+  finally { sending.value = false; }
+}
+
+function stopVoice() {
+  if (audioContext) {
+    try { audioContext.destroy(); } catch { /* 已经销毁就不必再管 */ }
+    audioContext = null;
+  }
+  playingId.value = "";
+}
+async function toggleVoice(item) {
+  if (playingId.value === String(item.id)) return stopVoice();
+  stopVoice();
+  await cacheAudio(item.body);
+  const src = audioUrls.value[item.body];
+  if (!src) return;
+  // 每次播放都新建上下文：InnerAudioContext 的事件是叠加注册的，复用会越挂越多
+  const context = uni.createInnerAudioContext();
+  context.src = src;
+  context.onEnded(stopVoice);
+  context.onError(() => { stopVoice(); uni.showToast({ title: "播放失败", icon: "none" }); });
+  audioContext = context;
+  playingId.value = String(item.id);
+  context.play();
+}
 async function load() {
   generation++;
   loading.value = true;
@@ -299,7 +401,7 @@ onMounted(async () => {
   if (props.peerId && session.value) openDirect(props.peerId);
   else if (conversations.value.length) select(conversations.value[0]);
 });
-onUnmounted(() => { generation++; stopPolling(); });
+onUnmounted(() => { generation++; stopPolling(); stopVoice(); });
 defineExpose({ load, receive });
 </script>
 
@@ -355,12 +457,27 @@ defineExpose({ load, receive });
                 <text v-if="!isOwn(item)" class="sender">{{ memberName(item.senderId) }}</text>
                 <image v-if="item.kind === 'IMAGE'" v-show="previews[item.body]" class="photo" :src="previews[item.body]" mode="widthFix" @click="previewImages(previews[item.body])" />
                 <text v-if="item.kind === 'IMAGE' && !previews[item.body]" class="hint">图片加载中…</text>
-                <text v-if="item.kind !== 'IMAGE'" class="body">{{ item.body }}</text>
+                <view v-if="item.kind === 'AUDIO'" class="voice" @click="toggleVoice(item)">
+                  <text class="voice-icon">{{ playingId === String(item.id) ? '⏸' : '▶' }}</text>
+                  <text class="voice-label">语音消息</text>
+                </view>
+                <text v-if="item.kind !== 'IMAGE' && item.kind !== 'AUDIO'" class="body">{{ item.body }}</text>
                 <text class="time">{{ stamp(item.createdAt) }}</text>
               </view>
             </view>
           </scroll-view>
           <view class="composer">
+            <button
+              size="mini"
+              :class="['mic', { recording }]"
+              :disabled="!active"
+              @touchstart.prevent="startRecord"
+              @touchend.prevent="finishRecord"
+              @touchcancel="cancelRecord"
+              @mousedown="startRecord"
+              @mouseup="finishRecord"
+              @mouseleave="cancelRecord"
+            >{{ recording ? "松开 发送" : "🎙" }}</button>
             <input v-model="draft" class="input" maxlength="4000" placeholder="说点什么给家人…" :disabled="sending" @confirm="sendText" />
             <button size="mini" :disabled="sending" @click="sendImage">图片</button>
             <button class="primary" size="mini" :loading="sending" :disabled="sending" @click="sendText">发送</button>
@@ -415,6 +532,11 @@ defineExpose({ load, receive });
 .composer{flex-direction:row;align-items:center;gap:8px}
 .input{flex:1;height:44px;background:var(--c-surface-2);border:1px solid var(--c-line);border-radius:11px;padding:0 14px;font-size:13px;box-sizing:border-box}
 .composer button{margin:0;font-size:12px}
+.mic{font-size:15px}
+.mic.recording{background:var(--c-danger);color:#fff;box-shadow:0 2px 10px rgba(220,80,60,.35)}
+.voice{display:flex;align-items:center;gap:8px;min-width:104px;padding:2px 0}
+.voice-icon{font-size:14px}
+.voice-label{font-size:13px}
 .state{text-align:center;color:var(--c-muted);font-size:13px;padding:26px 10px}
 .state button{margin-top:8px;font-size:11px}
 @media(max-width:760px){.chat-frame{grid-template-columns:1fr}.sidebar{max-height:none}.sidebar-foot{order:2}}
