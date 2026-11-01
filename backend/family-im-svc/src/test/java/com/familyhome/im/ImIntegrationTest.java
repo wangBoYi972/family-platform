@@ -72,4 +72,39 @@ class ImIntegrationTest {
         assertThat(service.reads(b, conversation.id()).getFirst().lastMessageId()).isEqualTo(next.id());
         assertThat(service.detail(b, conversation.id()).unread()).isZero();
     }
+
+    @Test
+    @DisplayName("会话变长后默认给最新消息，「加载更早」按游标补历史")
+    void messagesStartFromLatestAndSupportEarlier() {
+        var a = new SessionPrincipal(11, 20, "MEMBER", "test", "family");
+        var b = new SessionPrincipal(12, 20, "MEMBER", "test", "family");
+        when(users.members("token"))
+                .thenReturn(ApiResponse.success(List.of(new MemberApiVO(12L, "成员二", "MEMBER"))));
+        var conversation = service.create(a, "token", new ConversationCreateDTO(12L));
+        for (int i = 1; i <= 130; i++) {
+            service.send(
+                    a,
+                    "token",
+                    conversation.id(),
+                    new MessageSendDTO(UUID.randomUUID().toString(), "TEXT", "消息" + i));
+        }
+
+        // 首次进入：必须是最近的 100 条，而不是最早的 100 条（早先正序 + LIMIT 100 的写法，
+        // 会让第 101 条之后的新消息永远进不了界面）
+        var latest = service.messages(b, conversation.id(), 0, 0, 0);
+        assertThat(latest).hasSize(100);
+        assertThat(latest.getFirst().body()).isEqualTo("消息31");
+        assertThat(latest.getLast().body()).isEqualTo("消息130");
+
+        // 加载更早：拿当前最老一条的 id 当游标，补回剩下的 30 条且仍是正序
+        var earlier = service.messages(b, conversation.id(), 0, latest.getFirst().id(), 0);
+        assertThat(earlier).hasSize(30);
+        assertThat(earlier.getFirst().body()).isEqualTo("消息1");
+        assertThat(earlier.getLast().body()).isEqualTo("消息30");
+
+        // 增量轮询语义不变：游标在最新一条之后就没有新消息
+        assertThat(service.messages(b, conversation.id(), latest.getLast().id(), 0, 0)).isEmpty();
+        // 旧签名保持可用（after 语义）
+        assertThat(service.messages(b, conversation.id(), earlier.getLast().id())).hasSize(130 - 30);
+    }
 }

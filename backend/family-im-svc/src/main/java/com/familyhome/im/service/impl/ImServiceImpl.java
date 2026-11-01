@@ -106,20 +106,36 @@ public class ImServiceImpl implements ImService {
         return ImConverter.toVO(find(p, id), receipts.unread(id, p.userId()));
     }
 
+    /** 单次上限，超过就按这个切；前端「加载更早」依赖这个值与返回条数比较判断是否还有。 */
+    private static final int MAX_MESSAGE_PAGE = 200;
+
     @Transactional(readOnly = true)
-    public List<MessageVO> messages(SessionPrincipal p, String id, long after) {
+    public List<MessageVO> messages(
+            SessionPrincipal p, String id, long after, long before, int limit) {
         find(p, id);
-        return messages
-            .selectList(
+        int size = limit <= 0 ? ImService.MESSAGE_PAGE : Math.min(limit, MAX_MESSAGE_PAGE);
+        LambdaQueryWrapper<ChatMessage> query =
                 new LambdaQueryWrapper<ChatMessage>()
-                    .eq(ChatMessage::getConversationId, id)
-                    .eq(ChatMessage::getHouseholdId, p.householdId())
-                    .gt(ChatMessage::getId, Math.max(0, after))
-                    .orderByAsc(ChatMessage::getId)
-                    .last("LIMIT 100"))
-            .stream()
-            .map(ImConverter::toVO)
-            .toList();
+                        .eq(ChatMessage::getConversationId, id)
+                        .eq(ChatMessage::getHouseholdId, p.householdId());
+        if (after > 0) {
+            // 增量：游标之后的消息按时间正序取最早的一批，前端靠最后一条的 id 继续追。
+            return messages
+                    .selectList(
+                            query.gt(ChatMessage::getId, after)
+                                    .orderByAsc(ChatMessage::getId)
+                                    .last("LIMIT " + size))
+                    .stream()
+                    .map(ImConverter::toVO)
+                    .toList();
+        }
+        // 首次进入或「加载更早」：先按倒序取最近的 size 条，再翻回正序。
+        // 早先这里用正序 + LIMIT 100，等于只给最早的 100 条，会话一长新消息就永远不出现。
+        if (before > 0) query.lt(ChatMessage::getId, before);
+        List<ChatMessage> rows =
+                messages.selectList(query.orderByDesc(ChatMessage::getId).last("LIMIT " + size));
+        Collections.reverse(rows);
+        return rows.stream().map(ImConverter::toVO).toList();
     }
 
     @Transactional

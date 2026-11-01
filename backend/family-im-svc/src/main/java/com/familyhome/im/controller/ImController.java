@@ -43,8 +43,13 @@ public class ImController {
 
     @GetMapping("/conversations/{id}/messages")
     public ApiResponse<List<MessageVO>> messages(
-            HttpServletRequest r, @PathVariable String id, @RequestParam(defaultValue = "0") long after) {
-        return ApiResponse.success(service.messages(SessionPrincipal.from(r), id, after));
+            HttpServletRequest r,
+            @PathVariable String id,
+            @RequestParam(defaultValue = "0") long after,
+            @RequestParam(defaultValue = "0") long before,
+            @RequestParam(defaultValue = "0") int limit) {
+        return ApiResponse.success(
+                service.messages(SessionPrincipal.from(r), id, after, before, limit));
     }
 
     @PostMapping("/conversations/{id}/messages")
