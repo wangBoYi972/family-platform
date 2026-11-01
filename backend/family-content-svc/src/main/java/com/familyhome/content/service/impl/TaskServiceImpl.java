@@ -11,6 +11,7 @@ import com.familyhome.content.dto.TaskUpdateDTO;
 import com.familyhome.content.mapper.FamilyTaskMapper;
 import com.familyhome.content.model.FamilyTask;
 import com.familyhome.content.service.TaskService;
+import com.familyhome.content.vo.TaskStatsVO;
 import com.familyhome.content.vo.TaskVO;
 import com.familyhome.security.SessionPrincipal;
 import com.familyhome.messaging.OutboxEventStore;
@@ -41,6 +42,28 @@ public class TaskServiceImpl implements TaskService {
     @Autowired
     private OutboxEventStore outbox;
 
+    /**
+     * 三条 COUNT 各走一次索引范围扫描，比把全量任务捞回内存再统计便宜得多；
+     * 逾期数复用列表筛选里同一个派生条件，避免「筛选说 3 条、指标说 5 条」这种对不上的情况。
+     */
+    public TaskStatsVO stats(SessionPrincipal p) {
+        long total = tasks.selectCount(new LambdaQueryWrapper<FamilyTask>().eq(FamilyTask::getHouseholdId, p.householdId()));
+        long completed = tasks.selectCount(scoped(p).eq(FamilyTask::getStatus, "COMPLETED"));
+        long overdue = tasks.selectCount(overdueCondition(scoped(p)));
+        return new TaskStatsVO(total, total - completed, completed, overdue);
+    }
+
+    private LambdaQueryWrapper<FamilyTask> scoped(SessionPrincipal p) {
+        return new LambdaQueryWrapper<FamilyTask>().eq(FamilyTask::getHouseholdId, p.householdId());
+    }
+
+    /** 「已逾期」= 未完成且截止日早于今天；列表筛选与汇总指标共用这一处定义。 */
+    private LambdaQueryWrapper<FamilyTask> overdueCondition(LambdaQueryWrapper<FamilyTask> w) {
+        return w.ne(FamilyTask::getStatus, "COMPLETED")
+                .isNotNull(FamilyTask::getDeadline)
+                .lt(FamilyTask::getDeadline, java.time.LocalDate.now());
+    }
+
     public List<TaskVO> list(SessionPrincipal p, PageQuery page, String keyword, String status) {
         LambdaQueryWrapper<FamilyTask> w =
                 new LambdaQueryWrapper<FamilyTask>().eq(FamilyTask::getHouseholdId, p.householdId());
@@ -53,10 +76,7 @@ public class TaskServiceImpl implements TaskService {
                                     .or()
                                     .like(FamilyTask::getAssigneeName, text));
         switch (normalizeStatus(status)) {
-            case "OVERDUE" ->
-                    w.ne(FamilyTask::getStatus, "COMPLETED")
-                            .isNotNull(FamilyTask::getDeadline)
-                            .lt(FamilyTask::getDeadline, java.time.LocalDate.now());
+            case "OVERDUE" -> overdueCondition(w);
             case "ALL" -> {}
             default -> w.eq(FamilyTask::getStatus, normalizeStatus(status));
         }

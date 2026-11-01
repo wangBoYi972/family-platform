@@ -10,6 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
@@ -36,6 +37,12 @@ public class ImSocket extends TextWebSocketHandler implements WebSocketConfigure
     private ObjectProvider<RedisOnlineConnectionRegistry> onlineRegistryProvider;
     @Autowired
     private ObjectProvider<RedisConnectionFactory> redisConnectionFactoryProvider;
+    /**
+     * 握手来源白名单。原来硬编码成 localhost，本地开发没问题，一上线浏览器带真实域名
+     * 就会被 403 挡掉、刷新事件永远收不到。生产用 FAMILY_IM_ALLOWED_ORIGINS 覆盖成自己的域名。
+     */
+    @Value("${family.im.allowed-origins:http://localhost:*,http://127.0.0.1:*}")
+    private String[] allowedOrigins;
     private RedisTicketStore ticketStore;
     private RedisOnlineConnectionRegistry onlineRegistry;
     private RedisConnectionFactory redisConnectionFactory;
@@ -94,7 +101,7 @@ public class ImSocket extends TextWebSocketHandler implements WebSocketConfigure
                         Exception exception) {
                     }
                 })
-            .setAllowedOriginPatterns("http://localhost:*", "http://127.0.0.1:*");
+            .setAllowedOriginPatterns(allowedOrigins);
     }
 
     @Override

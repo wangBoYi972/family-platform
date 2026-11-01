@@ -3,6 +3,7 @@ package com.familyhome.content.service;
 import com.familyhome.common.api.PageQuery;
 import com.familyhome.content.dto.TaskCreateDTO;
 import com.familyhome.content.dto.TaskUpdateDTO;
+import com.familyhome.content.vo.TaskStatsVO;
 import com.familyhome.content.vo.TaskVO;
 import com.familyhome.security.SessionPrincipal;
 import java.util.List;
@@ -26,6 +27,9 @@ public interface TaskService {
     default List<TaskVO> list(SessionPrincipal p) {
         return list(p, PageQuery.first(), null, null);
     }
+
+    /** 家庭任务汇总（总数 / 待处理 / 已完成 / 已逾期），与列表分页无关。 */
+    TaskStatsVO stats(SessionPrincipal p);
 
     TaskVO create(SessionPrincipal p, String bearer, TaskCreateDTO i);
 

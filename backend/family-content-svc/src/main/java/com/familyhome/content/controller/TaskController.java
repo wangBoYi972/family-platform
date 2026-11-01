@@ -7,6 +7,7 @@ import com.familyhome.content.dto.TaskCreateDTO;
 import com.familyhome.content.dto.TaskStatusDTO;
 import com.familyhome.content.dto.TaskUpdateDTO;
 import com.familyhome.content.service.TaskService;
+import com.familyhome.content.vo.TaskStatsVO;
 import com.familyhome.content.vo.TaskVO;
 import com.familyhome.security.SessionPrincipal;
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,6 +34,11 @@ public class TaskController {
         // 不传分页/筛选参数时等价于原来的「取前 500 条」，老客户端行为不变
         return ApiResponse.success(
                 service.list(SessionPrincipal.from(r), PageQuery.of(page, size), keyword, status));
+    }
+
+    @GetMapping("/stats")
+    public ApiResponse<TaskStatsVO> stats(HttpServletRequest r) {
+        return ApiResponse.success(service.stats(SessionPrincipal.from(r)));
     }
 
     @PostMapping

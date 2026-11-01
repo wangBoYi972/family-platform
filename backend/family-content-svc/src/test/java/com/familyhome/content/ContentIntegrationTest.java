@@ -323,19 +323,46 @@ class ContentIntegrationTest {
     }
 
     @Test
+    @DisplayName("任务汇总按家庭统计，且与逾期筛选口径一致")
+    void taskStatsMatchFilter() {
+        // 统计断言依赖「这个家庭一共有几条」，必须用独立家庭，否则前面测试留下的任务会把数字打乱
+        SessionPrincipal solo = new SessionPrincipal(31, 301, "ADMIN", "test", "family");
+        var ownerBefore = tasks.stats(owner);
+
+        var overdue = tasks.create(solo, "unused",
+                new TaskCreateDTO("汇总-逾期-" + UUID.randomUUID(), java.time.LocalDate.now().minusDays(1), null));
+        var done = tasks.create(solo, "unused", new TaskCreateDTO("汇总-完成-" + UUID.randomUUID(), null, null));
+        tasks.status(solo, done.id(), "IN_PROGRESS");
+        tasks.status(solo, done.id(), "COMPLETED");
+
+        var stats = tasks.stats(solo);
+        assertThat(stats.total()).isEqualTo(2);
+        assertThat(stats.completed()).isEqualTo(1);
+        assertThat(stats.pending()).isEqualTo(1);
+        assertThat(stats.overdue()).isEqualTo(1);
+        // 汇总的逾期数必须等于「逾期筛选」查出来的条数，否则看板指标和列表会互相打脸
+        assertThat(stats.overdue()).isEqualTo(tasks.list(solo, PageQuery.of(1, PageQuery.MAX_SIZE), null, "OVERDUE").size());
+        // 别的家庭的任务不计入
+        assertThat(tasks.stats(owner).total()).isEqualTo(ownerBefore.total());
+        assertThat(overdue.status()).isEqualTo("TODO");
+    }
+
+    @Test
     @DisplayName("列表支持分页：不传参数保持原行为，传 page/size 能翻到后面的数据")
     void listPagination() {
+        // 分页断言依赖「总共只有 3 条」，同样得用干净的家庭
+        SessionPrincipal pager = new SessionPrincipal(32, 302, "ADMIN", "test", "family");
         String prefix = "分页任务-" + UUID.randomUUID().toString().substring(0, 8);
-        for (int i = 0; i < 3; i++) tasks.create(owner, "unused", new TaskCreateDTO(prefix + "-" + i, null, null));
+        for (int i = 0; i < 3; i++) tasks.create(pager, "unused", new TaskCreateDTO(prefix + "-" + i, null, null));
 
         // 不传分页参数：等价于改造前，三条都在
-        assertThat(tasks.list(owner).stream().filter(t -> t.title().startsWith(prefix)).count())
-                .isEqualTo(3);
+        assertThat(tasks.list(pager)).hasSize(3);
+        assertThat(tasks.list(pager)).allMatch(t -> t.title().startsWith(prefix));
         // 第一页取 2 条
-        var firstPage = tasks.list(owner, PageQuery.of(1, 2));
+        var firstPage = tasks.list(pager, PageQuery.of(1, 2));
         assertThat(firstPage).hasSize(2);
         // 第二页接上剩下的 1 条，且与第一页不重叠
-        var secondPage = tasks.list(owner, PageQuery.of(2, 2));
+        var secondPage = tasks.list(pager, PageQuery.of(2, 2));
         assertThat(secondPage).hasSize(1);
         assertThat(secondPage).extracting(t -> t.id())
                 .doesNotContainAnyElementsOf(firstPage.stream().map(t -> t.id()).toList());
