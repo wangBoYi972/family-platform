@@ -78,7 +78,7 @@ export class FamilySocket {
         return;
       }
       // 消息帧和已读回执都要立刻交付：晚 400ms 上屏没有意义，多条消息合并还会丢内容
-      if (payload?.type === "message" || payload?.type === "read") this.onMessage(payload);
+      if (payload?.type === "message" || payload?.type === "read" || payload?.type === "message.deleted") this.onMessage(payload);
       else if (payload?.type === "refresh") this.gate.push();
     });
     task.onClose(() => this.handleClose());

@@ -151,6 +151,34 @@ async function markRead() {
     if (active.value && !props.live) await loadReceipts();
   } catch { /* 已读回执失败不影响聊天 */ }
 }
+
+/** 撤回窗口，与后端 ImService.RECALL_WINDOW_SECONDS 对齐；窗口判断以服务端为准，这里只管藏入口。 */
+const RECALL_WINDOW_MS = 120_000;
+
+/** 撤回成功（本机发起或另一台设备的自己撤回）后就地改占位，不等重拉。 */
+function markDeleted(messageId) {
+  const target = messages.value.find(item => String(item.id) === String(messageId));
+  if (!target || target.deleted) return;
+  target.deleted = true;
+  target.body = "";
+}
+
+function recallable(item) {
+  if (!isOwn(item) || item.deleted || !item.createdAt) return false;
+  return Date.now() - new Date(item.createdAt).getTime() < RECALL_WINDOW_MS;
+}
+
+/** 长按自己的消息撤回；别人的消息与窗口外的旧消息长按无反应。 */
+async function confirmRecall(item) {
+  if (!recallable(item)) return;
+  const confirmed = await new Promise(resolve =>
+    uni.showModal({ title: "撤回这条消息？", success: resolve, fail: () => resolve(null) }));
+  if (!confirmed?.confirm) return;
+  try {
+    await request("/im/conversations/" + active.value + "/messages/" + item.id + "/recall", { method: "POST" });
+    markDeleted(item.id);
+  } catch (error) { report(error); }
+}
 /** 加载更早的消息：拿当前最老一条的 id 当游标，前插并保持视口停在原来那条上。 */
 async function loadEarlier() {
   if (loadingEarlier.value || !messages.value.length) return;
@@ -209,12 +237,19 @@ watch(() => props.pollMs, () => { if (active.value) startPolling(); });
  * - `type=message`：帧里带齐了渲染字段，直接上屏；同一会话的轮询兜底返回同一条时由 append 按 id 去重。
  * - `type=read`：谁读到了哪条。当前会话就并进回执列表；是**自己**在另一台设备读的，
  *   就重拉一次会话列表把本机未读角标清掉——别人的已读不影响我的未读数，不用跟着跑。
+ * - `type=message.deleted`：谁撤回了哪条。当前会话就地改成占位；不在当前会话就交给
+ *   会话列表刷新即可（列表预览不展示正文，角标数也不受影响）。
  */
 function receive(frame) {
   if (!frame) return;
   if (frame.type === "read") {
     if (String(frame.conversationId) === active.value) receipts.value = mergeReceipt(receipts.value, frame);
     else if (String(frame.userId) === selfId.value) loadConversations().catch(() => {});
+    return;
+  }
+  if (frame.type === "message.deleted") {
+    if (String(frame.conversationId) === active.value) markDeleted(frame.messageId);
+    else loadConversations().catch(() => {});
     return;
   }
   if (!frame.messageId) return;
@@ -525,22 +560,25 @@ defineExpose({ load, receive });
             <view v-else-if="loading && !messages.length" class="state">正在加载消息…</view>
             <view v-else-if="!messages.length" class="state">还没有消息<text class="hint">打个招呼吧，让家人知道你在。</text></view>
             <view v-for="item in messages" :id="'msg-' + item.id" :key="item.id" :class="['row', { own: isOwn(item) }]">
-              <view class="bubble">
+              <view class="bubble" @longpress="confirmRecall(item)">
                 <text v-if="!isOwn(item)" class="sender">{{ memberName(item.senderId) }}</text>
-                <image v-if="item.kind === 'IMAGE'" v-show="previews[item.body]" class="photo" :src="previews[item.body]" mode="widthFix" @click="previewImages(previews[item.body])" />
-                <text v-if="item.kind === 'IMAGE' && !previews[item.body]" class="hint">图片加载中…</text>
-                <view v-if="item.kind === 'AUDIO'" class="voice" @click="toggleVoice(item)">
-                  <text class="voice-icon">{{ playingId === String(item.id) ? '⏸' : '▶' }}</text>
-                  <text class="voice-label">语音消息</text>
-                </view>
-                <view v-if="item.kind === 'FILE'" class="file" @click="openFile(item)">
-                  <text class="file-icon">{{ downloadingId === item.body ? '…' : '⌸' }}</text>
-                  <view class="file-info">
-                    <text class="file-name">{{ fileMeta[item.body]?.name || '文件' }}</text>
-                    <text class="file-size">{{ fileSize(fileMeta[item.body]?.sizeBytes) || '点击下载' }}</text>
+                <view v-if="item.deleted" class="body recalled">此消息已撤回</view>
+                <template v-else>
+                  <image v-if="item.kind === 'IMAGE'" v-show="previews[item.body]" class="photo" :src="previews[item.body]" mode="widthFix" @click="previewImages(previews[item.body])" />
+                  <text v-if="item.kind === 'IMAGE' && !previews[item.body]" class="hint">图片加载中…</text>
+                  <view v-if="item.kind === 'AUDIO'" class="voice" @click="toggleVoice(item)">
+                    <text class="voice-icon">{{ playingId === String(item.id) ? '⏸' : '▶' }}</text>
+                    <text class="voice-label">语音消息</text>
                   </view>
-                </view>
-                <text v-if="item.kind !== 'IMAGE' && item.kind !== 'AUDIO' && item.kind !== 'FILE'" class="body">{{ item.body }}</text>
+                  <view v-if="item.kind === 'FILE'" class="file" @click="openFile(item)">
+                    <text class="file-icon">{{ downloadingId === item.body ? '…' : '⌸' }}</text>
+                    <view class="file-info">
+                      <text class="file-name">{{ fileMeta[item.body]?.name || '文件' }}</text>
+                      <text class="file-size">{{ fileSize(fileMeta[item.body]?.sizeBytes) || '点击下载' }}</text>
+                    </view>
+                  </view>
+                  <text v-if="item.kind !== 'IMAGE' && item.kind !== 'AUDIO' && item.kind !== 'FILE'" class="body">{{ item.body }}</text>
+                </template>
                 <text class="time">{{ stamp(item.createdAt) }}</text>
               </view>
             </view>
@@ -607,6 +645,7 @@ defineExpose({ load, receive });
 .row.own .bubble .sender,.row.own .bubble .time{color:rgba(255,255,255,.75)}
 .sender{font-size:11px;color:var(--c-ink-2)}
 .body{font-size:14px;line-height:1.7;overflow-wrap:anywhere}
+.recalled{font-size:13px;color:var(--c-muted);font-style:italic}
 .photo{width:180px;border-radius:10px;margin:2px 0}
 .time{font-size:10px;color:var(--c-muted);text-align:right}
 .composer{flex-direction:row;align-items:center;gap:8px}
