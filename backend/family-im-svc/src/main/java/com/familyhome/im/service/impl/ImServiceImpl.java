@@ -22,6 +22,8 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
@@ -172,10 +174,40 @@ public class ImServiceImpl implements ImService {
                 || !i.kind().equals(m.getKind()))
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "重复请求编号对应了不同消息");
         }
-        socket.notifyFamily(p.householdId());
+        pushAfterCommit(p, id, m);
         outbox.append("message", String.valueOf(m.getId()), "message.sent", p.householdId(),
             Map.of("messageId", m.getId(), "conversationId", id, "senderId", p.userId()));
         return ImConverter.toVO(m);
+    }
+
+    /**
+     * 把新消息推给同家庭的所有在线连接。
+     *
+     * <p>必须等事务提交：提前推送会把一条最终回滚掉的消息显示在家人屏幕上。
+     * 帧里带齐了客户端渲染要用的字段，收到即可上屏，不用再回查接口。
+     */
+    private void pushAfterCommit(SessionPrincipal p, String conversationId, ChatMessage m) {
+        Map<String, Object> frame = new LinkedHashMap<>();
+        frame.put("type", "message");
+        frame.put("conversationId", conversationId);
+        frame.put("messageId", m.getId());
+        frame.put("senderId", m.getSenderId());
+        frame.put("clientId", m.getClientId());
+        frame.put("kind", m.getKind());
+        frame.put("body", m.getBody());
+        frame.put("createdAt", m.getCreatedAt() == null ? null : m.getCreatedAt().toString());
+        long household = p.householdId();
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            socket.notifyFamilyEvent(household, frame);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        socket.notifyFamilyEvent(household, frame);
+                    }
+                });
     }
 
     @Transactional

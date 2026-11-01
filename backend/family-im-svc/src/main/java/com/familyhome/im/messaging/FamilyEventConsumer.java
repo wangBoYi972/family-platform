@@ -17,6 +17,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 @Component
 @ConditionalOnProperty(name = "family.messaging.enabled", havingValue = "true")
 public class FamilyEventConsumer {
+    /** 聊天消息由发送方在事务提交后直接推送，这里不再重复广播，见 ImServiceImpl#pushAfterCommit。 */
+    private static final String MESSAGE_EVENT = "message.sent";
+
     @Autowired
     private StringRedisTemplate redis;
     @Autowired
@@ -28,6 +31,9 @@ public class FamilyEventConsumer {
         Boolean first = redis.opsForValue().setIfAbsent("family:consumer:im:" + eventId, "1", Duration.ofDays(7));
         if (!Boolean.TRUE.equals(first)) return;
         Object household = event.get("householdId");
-        if (household instanceof Number n) socket.notifyLocalEvent(n.longValue());
+        if (!(household instanceof Number n)) return;
+        // 新消息走的是带内容的帧，客户端收到就能上屏；这里再发一次 refresh 只会让所有人多拉一遍接口。
+        if (MESSAGE_EVENT.equals(String.valueOf(event.get("eventType")))) return;
+        socket.notifyLocalEvent(n.longValue());
     }
 }

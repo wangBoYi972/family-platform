@@ -69,6 +69,32 @@ class ImSocketTest {
         assertThat(strangerMessages.poll(1, TimeUnit.SECONDS)).isNull();
     }
 
+    @Test
+    @DisplayName("新消息以结构化帧下发，客户端收到即可上屏，不必再回查接口")
+    void messageFrameCarriesContent() throws Exception {
+        var mine = new SessionPrincipal(1, 10, "MEMBER", "test", "family");
+        var queue = connect(socket.ticket(mine));
+
+        socket.notifyFamilyEvent(
+                mine.householdId(),
+                java.util.Map.of(
+                        "type", "message",
+                        "conversationId", "dm-10-1-2",
+                        "messageId", 7,
+                        "senderId", 1,
+                        "kind", "TEXT",
+                        "body", "到家了",
+                        "createdAt", "2026-11-01T09:00:00"));
+
+        String frame = poll(queue);
+        // 帧里必须有渲染所需的一切：只发一个 id 等于让客户端再拉一次，白搭一条推送
+        assertThat(frame)
+                .contains("\"type\":\"message\"")
+                .contains("\"conversationId\":\"dm-10-1-2\"")
+                .contains("\"messageId\":7")
+                .contains("\"body\":\"到家了\"");
+    }
+
     private BlockingQueue<String> connect(String ticket) throws Exception {
         BlockingQueue<String> queue = new LinkedBlockingQueue<>();
         WebSocketSession session =

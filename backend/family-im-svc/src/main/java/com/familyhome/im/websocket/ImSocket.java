@@ -1,5 +1,7 @@
 package com.familyhome.im.websocket;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.familyhome.security.SessionPrincipal;
 import com.familyhome.messaging.RedisOnlineConnectionRegistry;
 import com.familyhome.messaging.RedisTicketStore;
@@ -8,6 +10,8 @@ import jakarta.annotation.PostConstruct;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,6 +29,13 @@ import org.springframework.web.util.UriComponentsBuilder;
 @Configuration
 @EnableWebSocket
 public class ImSocket extends TextWebSocketHandler implements WebSocketConfigurer {
+    private static final Logger log = LoggerFactory.getLogger(ImSocket.class);
+    /** 只带家庭号的广播：收到就重拉一次数据。 */
+    private static final String REFRESH_CHANNEL = "family:ws:broadcast";
+    /** 带结构化帧的广播：多实例部署时其它实例上的连接也要拿到同样的内容。 */
+    private static final String EVENT_CHANNEL = "family:ws:event";
+    private static final String REFRESH_FRAME = "{\"type\":\"refresh\"}";
+
     private record Ticket(SessionPrincipal principal, long expiry) {
     }
 
@@ -37,6 +48,8 @@ public class ImSocket extends TextWebSocketHandler implements WebSocketConfigure
     private ObjectProvider<RedisOnlineConnectionRegistry> onlineRegistryProvider;
     @Autowired
     private ObjectProvider<RedisConnectionFactory> redisConnectionFactoryProvider;
+    @Autowired
+    private ObjectMapper mapper;
     /**
      * 握手来源白名单。原来硬编码成 localhost，本地开发没问题，一上线浏览器带真实域名
      * 就会被 403 挡掉、刷新事件永远收不到。生产用 FAMILY_IM_ALLOWED_ORIGINS 覆盖成自己的域名。
@@ -55,9 +68,23 @@ public class ImSocket extends TextWebSocketHandler implements WebSocketConfigure
         if (onlineRegistry == null || redisConnectionFactory == null) return;
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(redisConnectionFactory);
-        container.addMessageListener((message, pattern) -> notifyLocal(Long.parseLong(new String(message.getBody()))), new ChannelTopic("family:ws:broadcast"));
+        container.addMessageListener((message, pattern) -> notifyLocal(Long.parseLong(new String(message.getBody()))), new ChannelTopic(REFRESH_CHANNEL));
+        container.addMessageListener((message, pattern) -> relayEvent(new String(message.getBody())), new ChannelTopic(EVENT_CHANNEL));
         container.afterPropertiesSet();
         container.start();
+    }
+
+    /** 其它实例转发过来的结构化帧：{@code {"householdId":10,"frame":{"type":"message",...}}}。 */
+    private void relayEvent(String body) {
+        try {
+            JsonNode node = mapper.readTree(body);
+            long household = node.path("householdId").asLong();
+            JsonNode frame = node.path("frame");
+            if (household > 0 && !frame.isMissingNode()) sendLocal(household, frame.toString());
+        } catch (Exception ex) {
+            // 单条坏帧丢掉就好，不能让监听线程挂掉——那会导致这台实例再也收不到任何广播
+            log.warn("实时帧转发解析失败，已丢弃：{}", ex.getMessage());
+        }
     }
 
     public String ticket(SessionPrincipal p) {
@@ -125,20 +152,44 @@ public class ImSocket extends TextWebSocketHandler implements WebSocketConfigure
         notifyLocal(household);
     }
 
+    /**
+     * 向同家庭的所有连接推送一条结构化帧（如新消息），多实例下由 Redis 转发。
+     *
+     * <p>帧里已经带齐客户端要用的字段，收到就能直接上屏，不用再回查一次接口——
+     * 这也是消息推送相比「收到信号再拉一次」的唯一优势。
+     */
+    public void notifyFamilyEvent(long household, Map<String, Object> frame) {
+        String json;
+        try {
+            json = mapper.writeValueAsString(frame);
+        } catch (Exception ex) {
+            // 序列化不出来就退回刷新，至少不会静默丢通知
+            log.warn("实时帧序列化失败，退化为刷新 type={}", frame.get("type"));
+            json = REFRESH_FRAME;
+        }
+        if (onlineRegistry != null) onlineRegistry.broadcast(household, json);
+        sendLocal(household, json);
+    }
+
+    /** 发给本机连接的刷新信号（兼容旧调用）。 */
+    public void notifyLocalEvent(long household) {
+        notifyLocal(household);
+    }
+
     private void notifyLocal(long household) {
+        sendLocal(household, REFRESH_FRAME);
+    }
+
+    private void sendLocal(long household, String frame) {
         for (var s : sessions.values())
             if (Objects.equals(s.getAttributes().get("householdId"), household) && s.isOpen()) {
                 try {
                     synchronized (s) {
-                        s.sendMessage(new TextMessage("{\"type\":\"refresh\"}"));
+                        s.sendMessage(new TextMessage(frame));
                     }
                 } catch (Exception ex) {
                     sessions.remove(s.getId());
                 }
             }
-    }
-
-    public void notifyLocalEvent(long household) {
-        notifyLocal(household);
     }
 }

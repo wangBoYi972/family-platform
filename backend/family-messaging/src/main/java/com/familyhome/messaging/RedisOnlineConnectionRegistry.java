@@ -1,6 +1,8 @@
 package com.familyhome.messaging;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -10,7 +12,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 @Component
 @ConditionalOnProperty(name = "family.messaging.enabled", havingValue = "true")
 public class RedisOnlineConnectionRegistry {
+    /** 只带家庭号的广播，收到就重拉数据。 */
+    private static final String REFRESH_CHANNEL = "family:ws:broadcast";
+    /** 带结构化帧的广播（如新消息），多实例部署时其它实例上的连接也要收到同一份内容。 */
+    private static final String EVENT_CHANNEL = "family:ws:event";
+
     @Autowired private StringRedisTemplate redis;
+    @Autowired private ObjectMapper mapper;
     private final String instanceId = UUID.randomUUID().toString();
     public String register(long householdId, String sessionId) {
         String member = instanceId + ":" + sessionId;
@@ -20,5 +28,23 @@ public class RedisOnlineConnectionRegistry {
     }
     public void touch(long householdId, String member) { redis.opsForSet().add("family:online:" + householdId, member); redis.expire("family:online:" + householdId, Duration.ofMinutes(2)); }
     public void unregister(long householdId, String member) { redis.opsForSet().remove("family:online:" + householdId, member); }
-    public void broadcast(long householdId) { redis.convertAndSend("family:ws:broadcast", String.valueOf(householdId)); }
+    public void broadcast(long householdId) { redis.convertAndSend(REFRESH_CHANNEL, String.valueOf(householdId)); }
+
+    /**
+     * 把已经序列化好的帧转发给其它实例。
+     *
+     * <p>注意这里给的是「帧 JSON 字符串」而不是对象：调用方已经序列化过一次，
+     * 再传对象就得在两边各写一份同样的 DTO，加字段时必漏一边。
+     */
+    public void broadcast(long householdId, String frameJson) {
+        try {
+            redis.convertAndSend(
+                    EVENT_CHANNEL,
+                    mapper.writeValueAsString(
+                            Map.of("householdId", householdId, "frame", mapper.readTree(frameJson))));
+        } catch (Exception ex) {
+            // 结构化帧发不出去就退回普通刷新：宁可多拉一次，也别让家人以为消息没发出去
+            broadcast(householdId);
+        }
+    }
 }
