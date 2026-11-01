@@ -179,12 +179,14 @@ watch(() => props.pollMs, () => { if (active.value) startPolling(); });
  * 收到后端推送的帧。
  *
  * - `type=message`：帧里带齐了渲染字段，直接上屏；同一会话的轮询兜底返回同一条时由 append 按 id 去重。
- * - `type=read`：谁读到了哪条，并进本地回执列表。
+ * - `type=read`：谁读到了哪条。当前会话就并进回执列表；是**自己**在另一台设备读的，
+ *   就重拉一次会话列表把本机未读角标清掉——别人的已读不影响我的未读数，不用跟着跑。
  */
 function receive(frame) {
   if (!frame) return;
   if (frame.type === "read") {
     if (String(frame.conversationId) === active.value) receipts.value = mergeReceipt(receipts.value, frame);
+    else if (String(frame.userId) === selfId.value) loadConversations().catch(() => {});
     return;
   }
   if (!frame.messageId) return;

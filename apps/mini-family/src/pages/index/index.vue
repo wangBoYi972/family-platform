@@ -98,8 +98,8 @@ const familySocket = new FamilySocket({
   // 新消息带内容直接下发，交给聊天面板上屏；聊天页没打开时它不挂载，只能自己更新角标
   onMessage: frame => {
     if (chatPanel.value) chatPanel.value.receive(frame);
-    // 回执不影响未读角标，面板没挂载时直接丢掉
-    else if (frame.type !== "read") refreshUnread();
+    // 面板没挂载时新消息和「另一台设备已读」都要刷角标：后者不清，角标会一直挂着
+    else refreshUnread();
   }
 });
 /**
