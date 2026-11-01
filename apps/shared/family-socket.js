@@ -31,7 +31,7 @@ export class FamilySocket {
     this.onRefresh = onRefresh || (() => {});
     this.onMessage = onMessage || (() => {});
     this.onStatus = onStatus || (() => {});
-    this.gate = gate || createRefreshGate({ delay: 400, onFlush: () => this.onRefresh() });
+    this.gate = gate || createRefreshGate({ delay: 400, onFlush: (count, events) => this.onRefresh(count, events) });
     this.task = null;
     this.open = false;
     this.closedByUser = false;
@@ -79,7 +79,8 @@ export class FamilySocket {
       }
       // 消息帧和已读回执都要立刻交付：晚 400ms 上屏没有意义，多条消息合并还会丢内容
       if (payload?.type === "message" || payload?.type === "read" || payload?.type === "message.deleted") this.onMessage(payload);
-      else if (payload?.type === "refresh") this.gate.push();
+      // refresh 帧可带 event 字段（如 task.created），交给闸门合并后由宿主按类型挑面板重拉
+      else if (payload?.type === "refresh") this.gate.push(payload.event);
     });
     task.onClose(() => this.handleClose());
     task.onError(() => this.handleClose());

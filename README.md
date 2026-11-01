@@ -239,6 +239,20 @@
 - 客户端：长按弹确认框，成功后就地改占位；另一台设备/对方撤回的帧到达时同样就地生效。
   H5 桌面浏览器没有长按手势，触摸设备与小程序可用。
 
+## 2026-11-02（续十）增量刷新
+
+- refresh 帧从裸的 `{"type":"refresh"}` 升级为 `{"type":"refresh","event":"<eventType>"}`：
+  `FamilyEventConsumer` 把领域事件类型（task.created / file.deleted…）原样带给客户端，
+  客户端按主题（点号前的前缀）只重拉受影响的面板——任务变了不必连相册一起刷。
+- 顺带修了一个多实例问题：Rabbit 队列是竞争消费，事件只会被一台 `im-svc` 实例收到，
+  之前 refresh 只发本机连接，其它实例上的客户端永远收不到刷新；现在改走
+  `notifyFamilyEvent` 结构化广播，由 Redis 扇出到所有实例。
+- 前端：`createRefreshGate` 在 400ms 合并窗口内收集事件类型成 Set，flush 时一并交给
+  `onRefresh(count, events)`；新增 `apps/shared/refresh-topics.mjs` 做主题匹配，
+  两个宿主各自维护「面板 → 主题」映射（todayOverview 关心任务/日程/动态/成员）。
+- 两条兜底：帧没带 event（旧版后端）或类型前端不认识（新增事件没进映射表）都回退全量刷新，
+  宁可多刷不能漏。新增 4 项前端单测 + 1 项 WebSocket 契约测试（刷新帧必须带 event 字段）。
+
 ## 生产上线前必须验收（发布阻断项）
 
 MySQL 与 Nacos 实例联调、真实短信/微信认证、对象存储、SFU/TURN 部署与压测、双小程序真机回归、监控告警及备份恢复演练。详见 `docs/企业级工程化交付记录.md`。

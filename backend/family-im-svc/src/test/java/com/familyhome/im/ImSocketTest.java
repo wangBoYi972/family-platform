@@ -76,6 +76,22 @@ class ImSocketTest {
     }
 
     @Test
+    @DisplayName("领域事件触发的刷新帧带上事件类型，客户端据此只重拉受影响的面板")
+    void refreshFrameCarriesEventType() throws Exception {
+        var mine = new SessionPrincipal(1, 10, "MEMBER", "test", "family");
+        var queue = connect(socket.ticket(mine));
+
+        socket.notifyFamilyEvent(
+                mine.householdId(),
+                java.util.Map.of("type", "refresh", "event", "task.created"));
+
+        String frame = poll(queue);
+        assertThat(frame)
+                .contains("\"type\":\"refresh\"")
+                .contains("\"event\":\"task.created\"");
+    }
+
+    @Test
     @DisplayName("新消息以结构化帧下发，客户端收到即可上屏，不必再回查接口")
     void messageFrameCarriesContent() throws Exception {
         var mine = new SessionPrincipal(1, 10, "MEMBER", "test", "family");

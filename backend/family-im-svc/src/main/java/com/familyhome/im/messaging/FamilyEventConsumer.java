@@ -34,7 +34,11 @@ public class FamilyEventConsumer {
         Object household = event.get("householdId");
         if (!(household instanceof Number n)) return;
         // 新消息/撤回走的是带内容的帧，客户端收到即可处理；这里再发一次 refresh 只会让所有人多拉一遍接口。
-        if (PUSHED_EVENTS.contains(String.valueOf(event.get("eventType")))) return;
-        socket.notifyLocalEvent(n.longValue());
+        String type = String.valueOf(event.get("eventType"));
+        if (PUSHED_EVENTS.contains(type)) return;
+        // 刷新帧带上事件类型：客户端据此只重拉受影响的面板（任务变了不必连相册一起刷）。
+        // 走结构化帧广播（而非只发本机）还修了一个多实例问题：Rabbit 队列是竞争消费，
+        // 事件只会被其中一台实例收到，refresh 只发本机的话其它实例上的连接永远收不到。
+        socket.notifyFamilyEvent(n.longValue(), Map.of("type", "refresh", "event", type));
     }
 }

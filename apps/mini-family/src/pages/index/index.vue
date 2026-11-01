@@ -17,7 +17,11 @@ import AnniversaryPanel from "@shared/panels/AnniversaryPanel.vue";
 import CallPanel from "@shared/call/CallPanel.vue";
 import { FAMILY_NAV_TARGETS, resolveNavTarget } from "@shared/navigation.mjs";
 import { FamilySocket } from "@shared/family-socket.js";
+import { refreshPlan, hitsTopic } from "@shared/refresh-topics.mjs";
 import { sumUnread } from "@shared/unread.mjs";
+
+/** 后端会发哪些领域事件，这里就认识哪些主题；新事件类型上来先加进这个集合。 */
+const KNOWN_TOPICS = new Set(["task", "file", "notice", "dynamic", "album", "archive", "calendar", "anniversary", "member"]);
 
 const phone = ref(""), password = ref(""), token = ref(uni.getStorageSync("family_access_token"));
 const tab = ref("首页");
@@ -73,8 +77,9 @@ function openCall() { callPanel.value?.openDial(); }
 function openCallWith(id) { callPanel.value?.openDialWith(id); }
 
 /**
- * 实时刷新：家里另一台设备改了任务、公告、相册或文件，后端会向同家庭广播一次 refresh，
+ * 实时刷新：家里另一台设备改了任务、公告、相册或文件，后端会向同家庭广播 refresh，
  * 这里只重拉当前挂载着的面板（面板本来按 v-if 渲染，没显示的那块不会白跑请求）。
+ * refresh 帧带事件类型（task.created / file.deleted…），按主题挑面板：任务变了不必连相册一起刷。
  * 聊天面板不在此列——它自己轮询，重拉会把正在输入的内容和滚动位置一起冲掉。
  */
 const calendarPanel = ref(null), anniversaryPanel = ref(null), taskPanel = ref(null);
@@ -82,18 +87,32 @@ const dynamicsPanel = ref(null), albumsPanel = ref(null), timelinePanel = ref(nu
 const membersPanel = ref(null), noticesPanel = ref(null), archivePanel = ref(null), filesPanel = ref(null);
 const todayOverview = ref(null);
 const chatPanel = ref(null);
-const livePanels = [
-  calendarPanel, anniversaryPanel, taskPanel, dynamicsPanel, albumsPanel,
-  timelinePanel, membersPanel, noticesPanel, archivePanel, filesPanel, todayOverview
-];
 const socketOpen = ref(false);
+/** 每个面板关心哪些主题；todayOverview 汇总任务/日程/动态/成员，跟着相关事件一起刷。 */
+const refreshMap = [
+  { ref: calendarPanel, topics: ["calendar"] },
+  { ref: anniversaryPanel, topics: ["anniversary"] },
+  { ref: taskPanel, topics: ["task"] },
+  { ref: todayOverview, topics: ["task", "calendar", "dynamic", "member"] },
+  { ref: dynamicsPanel, topics: ["dynamic"] },
+  { ref: albumsPanel, topics: ["album"] },
+  { ref: timelinePanel, topics: ["album"] },
+  { ref: membersPanel, topics: ["member"] },
+  { ref: noticesPanel, topics: ["notice"] },
+  { ref: archivePanel, topics: ["archive"] },
+  { ref: filesPanel, topics: ["file"] }
+];
 const familySocket = new FamilySocket({
   // 优先 sync：分页面板会就地重拉已翻过的页，不会把用户拽回第一页。
   // 没实现的（如首页概览）回落到 load。
-  onRefresh: () => livePanels.forEach(panel => {
-    const instance = panel.value;
-    if (instance) (instance.sync || instance.load)?.();
-  }),
+  onRefresh: (count, events) => {
+    const plan = refreshPlan(events, KNOWN_TOPICS);
+    refreshMap.forEach(({ ref, topics }) => {
+      if (!hitsTopic(plan, topics)) return;
+      const instance = ref.value;
+      if (instance) (instance.sync || instance.load)?.();
+    });
+  },
   onStatus: status => { socketOpen.value = status === "open"; },
   // 新消息带内容直接下发，交给聊天面板上屏；聊天页没打开时它不挂载，只能自己更新角标
   onMessage: frame => {
