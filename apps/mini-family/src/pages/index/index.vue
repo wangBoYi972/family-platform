@@ -79,9 +79,10 @@ function openCallWith(id) { callPanel.value?.openDialWith(id); }
 const calendarPanel = ref(null), anniversaryPanel = ref(null), taskPanel = ref(null);
 const dynamicsPanel = ref(null), albumsPanel = ref(null), timelinePanel = ref(null);
 const membersPanel = ref(null), noticesPanel = ref(null), archivePanel = ref(null), filesPanel = ref(null);
+const todayOverview = ref(null);
 const livePanels = [
   calendarPanel, anniversaryPanel, taskPanel, dynamicsPanel, albumsPanel,
-  timelinePanel, membersPanel, noticesPanel, archivePanel, filesPanel
+  timelinePanel, membersPanel, noticesPanel, archivePanel, filesPanel, todayOverview
 ];
 const familySocket = new FamilySocket({
   onRefresh: () => livePanels.forEach(panel => panel.value?.load?.())
@@ -268,7 +269,7 @@ async function changePassword() {
         </button>
       </view>
 
-      <view class="overview-slot mf-rise" style="--i:5"><TodayOverview @go="open" @session-ended="clearSession"/></view>
+      <view class="overview-slot mf-rise" style="--i:5"><TodayOverview ref="todayOverview" @go="open" @session-ended="clearSession"/></view>
     </view>
 
     <view v-else-if="tab === '日历'">
