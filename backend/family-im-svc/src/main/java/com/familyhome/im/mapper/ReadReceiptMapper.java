@@ -13,5 +13,11 @@ public interface ReadReceiptMapper {
 
     void insert(@Param("id") String id, @Param("user") long user);
 
-    void advance(@Param("id") String id, @Param("user") long user, @Param("message") long message);
+    /**
+     * 把已读水位推到 {@code message}，返回是否真的动了。
+     *
+     * <p>只进不退（{@code last_message_id < #{message}}）：返回 0 说明这次是原地重复上报，
+     * 调用方据此不再推送——否则每开一次会话都给全家发一遍同样的回执。
+     */
+    int advance(@Param("id") String id, @Param("user") long user, @Param("message") long message);
 }

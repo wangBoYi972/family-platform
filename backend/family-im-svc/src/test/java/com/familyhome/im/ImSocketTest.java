@@ -1,9 +1,14 @@
 package com.familyhome.im;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
 
 import com.familyhome.api.file.feign.FileFeignClient;
 import com.familyhome.api.user.feign.UserFeignClient;
+import com.familyhome.im.dto.ConversationCreateDTO;
+import com.familyhome.im.dto.MessageReadDTO;
+import com.familyhome.im.dto.MessageSendDTO;
+import com.familyhome.im.service.ImService;
 import com.familyhome.im.websocket.ImSocket;
 import com.familyhome.security.SessionPrincipal;
 
@@ -49,6 +54,7 @@ class ImSocketTest {
     }
 
     @Autowired ImSocket socket;
+    @Autowired ImService service;
     @LocalServerPort int port;
     @MockBean UserFeignClient users;
     @MockBean FileFeignClient files;
@@ -93,6 +99,67 @@ class ImSocketTest {
                 .contains("\"conversationId\":\"dm-10-1-2\"")
                 .contains("\"messageId\":7")
                 .contains("\"body\":\"到家了\"");
+    }
+
+    @Test
+    @DisplayName("定向帧只投给收件人，同家庭的其他连接收不到")
+    void targetedFrameSkipsOtherMembers() throws Exception {
+        var sender = new SessionPrincipal(1, 10, "MEMBER", "test", "family");
+        var peer = new SessionPrincipal(2, 10, "MEMBER", "test", "family");
+        var bystander = new SessionPrincipal(3, 10, "MEMBER", "test", "family");
+
+        var senderQueue = connect(socket.ticket(sender));
+        var peerQueue = connect(socket.ticket(peer));
+        var bystanderQueue = connect(socket.ticket(bystander));
+
+        socket.notifyFamilyEvent(
+                sender.householdId(),
+                java.util.Map.of("type", "message", "conversationId", "dm-10-1-2", "messageId", 9),
+                java.util.List.of(sender.userId(), peer.userId()));
+
+        // 私聊正文只能到会话双方手里：同住一个家庭不等于能看别人的私聊
+        assertThat(poll(senderQueue)).contains("\"messageId\":9");
+        assertThat(poll(peerQueue)).contains("\"messageId\":9");
+        assertThat(bystanderQueue.poll(1, TimeUnit.SECONDS)).isNull();
+    }
+
+    @Test
+    @DisplayName("已读回执实时下发：双方各收到一次，同家庭第三者收不到")
+    void readReceiptIsPushedToParticipantsOnly() throws Exception {
+        var a = new SessionPrincipal(1, 10, "MEMBER", "test", "family");
+        var b = new SessionPrincipal(2, 10, "MEMBER", "test", "family");
+        var bystander = new SessionPrincipal(3, 10, "MEMBER", "test", "family");
+        var aQueue = connect(socket.ticket(a));
+        var bQueue = connect(socket.ticket(b));
+        var bystanderQueue = connect(socket.ticket(bystander));
+
+        when(users.members("token"))
+                .thenReturn(
+                        com.familyhome.common.api.ApiResponse.success(
+                                List.of(
+                                        new com.familyhome.api.user.vo.MemberApiVO(
+                                                2L, "成员二", "MEMBER"))));
+        var conversation = service.create(a, "token", new ConversationCreateDTO(2L));
+        var message =
+                service.send(
+                        a,
+                        "token",
+                        conversation.id(),
+                        new MessageSendDTO(UUID.randomUUID().toString(), "TEXT", "回我一下"));
+        // 先把新消息帧收掉，下面才能确定收到的是回执
+        assertThat(poll(aQueue)).contains("\"type\":\"message\"");
+        assertThat(poll(bQueue)).contains("\"type\":\"message\"");
+
+        service.read(b, conversation.id(), new MessageReadDTO(message.id()));
+        // 重复上报同一个水位不该再推一次：否则每开一次会话，全家都收到一条无变化的回执
+        service.read(b, conversation.id(), new MessageReadDTO(message.id()));
+
+        assertThat(poll(aQueue))
+                .contains("\"type\":\"read\"")
+                .contains("\"userId\":2")
+                .contains("\"lastMessageId\":" + message.id());
+        assertThat(poll(bQueue)).contains("\"type\":\"read\"");
+        assertThat(bystanderQueue.poll(1, TimeUnit.SECONDS)).isNull();
     }
 
     private BlockingQueue<String> connect(String ticket) throws Exception {

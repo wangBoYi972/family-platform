@@ -142,7 +142,7 @@ public class ImServiceImpl implements ImService {
 
     @Transactional
     public MessageVO send(SessionPrincipal p, String bearer, String id, MessageSendDTO i) {
-        find(p, id);
+        Conversation c = find(p, id);
         if (!i.kind().equals("TEXT")) {
             if (!i.body().matches("[a-f0-9-]{36}")) throw new IllegalArgumentException();
             var f = files.metadata(bearer, i.body()).data();
@@ -174,45 +174,54 @@ public class ImServiceImpl implements ImService {
                 || !i.kind().equals(m.getKind()))
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "重复请求编号对应了不同消息");
         }
-        pushAfterCommit(p, id, m);
-        outbox.append("message", String.valueOf(m.getId()), "message.sent", p.householdId(),
-            Map.of("messageId", m.getId(), "conversationId", id, "senderId", p.userId()));
-        return ImConverter.toVO(m);
-    }
-
-    /**
-     * 把新消息推给同家庭的所有在线连接。
-     *
-     * <p>必须等事务提交：提前推送会把一条最终回滚掉的消息显示在家人屏幕上。
-     * 帧里带齐了客户端渲染要用的字段，收到即可上屏，不用再回查接口。
-     */
-    private void pushAfterCommit(SessionPrincipal p, String conversationId, ChatMessage m) {
         Map<String, Object> frame = new LinkedHashMap<>();
         frame.put("type", "message");
-        frame.put("conversationId", conversationId);
+        frame.put("conversationId", id);
         frame.put("messageId", m.getId());
         frame.put("senderId", m.getSenderId());
         frame.put("clientId", m.getClientId());
         frame.put("kind", m.getKind());
         frame.put("body", m.getBody());
         frame.put("createdAt", m.getCreatedAt() == null ? null : m.getCreatedAt().toString());
-        long household = p.householdId();
+        pushAfterCommit(p.householdId(), frame, audience(c));
+        outbox.append("message", String.valueOf(m.getId()), "message.sent", p.householdId(),
+            Map.of("messageId", m.getId(), "conversationId", id, "senderId", p.userId()));
+        return ImConverter.toVO(m);
+    }
+
+    /**
+     * 这条会话的帧该投给谁。{@code null} = 整户广播（群聊）。
+     *
+     * <p>私聊只给双方：帧是明文正文，广播给全家庭等于「客户端不显示但服务端已经送到了」。
+     */
+    private static List<Long> audience(Conversation c) {
+        if ("GROUP".equals(c.getKind()) || c.getUserA() == null || c.getUserB() == null) return null;
+        return List.of(c.getUserA(), c.getUserB());
+    }
+
+    /**
+     * 把新消息推给该看到它的连接。
+     *
+     * <p>必须等事务提交：提前推送会把一条最终回滚掉的消息显示在家人屏幕上。
+     * 帧里带齐了客户端渲染要用的字段，收到即可上屏，不用再回查接口。
+     */
+    private void pushAfterCommit(long household, Map<String, Object> frame, List<Long> audience) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            socket.notifyFamilyEvent(household, frame);
+            socket.notifyFamilyEvent(household, frame, audience);
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(
                 new TransactionSynchronization() {
                     @Override
                     public void afterCommit() {
-                        socket.notifyFamilyEvent(household, frame);
+                        socket.notifyFamilyEvent(household, frame, audience);
                     }
                 });
     }
 
     @Transactional
     public void read(SessionPrincipal p, String id, MessageReadDTO i) {
-        find(p, id);
+        Conversation c = find(p, id);
         if (messages.selectCount(
             new LambdaQueryWrapper<ChatMessage>()
                 .eq(ChatMessage::getId, i.messageId())
@@ -222,7 +231,13 @@ public class ImServiceImpl implements ImService {
             receipts.insert(id, p.userId());
         } catch (DuplicateKeyException ignored) {
         }
-        receipts.advance(id, p.userId(), i.messageId());
+        if (receipts.advance(id, p.userId(), i.messageId()) <= 0) return;
+        Map<String, Object> frame = new LinkedHashMap<>();
+        frame.put("type", "read");
+        frame.put("conversationId", id);
+        frame.put("userId", p.userId());
+        frame.put("lastMessageId", i.messageId());
+        pushAfterCommit(p.householdId(), frame, audience(c));
     }
 
     @Transactional(readOnly = true)

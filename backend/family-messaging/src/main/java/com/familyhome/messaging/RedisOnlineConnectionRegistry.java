@@ -2,6 +2,8 @@ package com.familyhome.messaging;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -37,11 +39,22 @@ public class RedisOnlineConnectionRegistry {
      * 再传对象就得在两边各写一份同样的 DTO，加字段时必漏一边。
      */
     public void broadcast(long householdId, String frameJson) {
+        broadcast(householdId, frameJson, null);
+    }
+
+    /**
+     * 定向转发：信封里带上收件人，其它实例据此只投给自己的那几条连接。
+     *
+     * <p>{@code audience} 为 {@code null}/空表示整户广播。列表本身也走信封而不是另开通道，
+     * 这样「谁该收到」只在一处判断，本地直发和跨实例转发不会得出不同答案。
+     */
+    public void broadcast(long householdId, String frameJson, Collection<Long> audience) {
         try {
-            redis.convertAndSend(
-                    EVENT_CHANNEL,
-                    mapper.writeValueAsString(
-                            Map.of("householdId", householdId, "frame", mapper.readTree(frameJson))));
+            Map<String, Object> envelope = new LinkedHashMap<>();
+            envelope.put("householdId", householdId);
+            if (audience != null && !audience.isEmpty()) envelope.put("audience", audience);
+            envelope.put("frame", mapper.readTree(frameJson));
+            redis.convertAndSend(EVENT_CHANNEL, mapper.writeValueAsString(envelope));
         } catch (Exception ex) {
             // 结构化帧发不出去就退回普通刷新：宁可多拉一次，也别让家人以为消息没发出去
             broadcast(householdId);
