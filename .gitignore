@@ -18,3 +18,6 @@ output/
 .env.*
 !.env.example
 
+# 本地启动脚本：里面写死了本机 JDK 路径与数据库口令，只作个人便利，不入库
+backend/start-*.sh
+
