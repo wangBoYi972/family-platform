@@ -83,6 +83,14 @@ export function createUniClient({ uni, baseUrl, storageKey = "family_access_toke
    */
   const loadAudioUrl = loadImageUrl;
 
+  /**
+   * 鉴权下载任意文件为本地临时路径（聊天文件消息用）。
+   *
+   * <p>同 {@link loadImageUrl} 一个实现：小程序端 openDocument 只认本地路径，
+   * 不给鉴权头直接 open 下载 URL 会 401；H5 端拿到的是 blob URL，可直接触发另存。
+   */
+  const loadFileUrl = loadImageUrl;
+
   const login = data =>
     request("/auth/password-login", { method: "POST", data, authenticated: false, header: { "Content-Type": "application/json" } });
 
@@ -90,5 +98,5 @@ export function createUniClient({ uni, baseUrl, storageKey = "family_access_toke
   const register = data =>
     request("/auth/register", { method: "POST", data, authenticated: false, header: { "Content-Type": "application/json" } });
 
-  return { request, upload, loadImageUrl, loadAudioUrl, login, register };
+  return { request, upload, loadImageUrl, loadAudioUrl, loadFileUrl, login, register };
 }

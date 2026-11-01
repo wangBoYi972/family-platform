@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
-import { request, upload, loadImageUrl, loadAudioUrl } from "@app/utils/request";
+import { request, upload, loadImageUrl, loadAudioUrl, loadFileUrl } from "@app/utils/request";
 import { sumUnread } from "@shared/unread.mjs";
 import { mergeReceipt, readMemberIds } from "@shared/receipts.mjs";
 
@@ -27,6 +27,9 @@ const audioUrls = ref({}), playingId = ref(""), recording = ref(false);
 const MESSAGE_PAGE = 100;
 const hasEarlier = ref(false), loadingEarlier = ref(false), anchor = ref("");
 const previews = ref({});
+// 文件消息：元数据（文件名/大小）与已下载的本地路径分开缓存——
+// 元数据每条消息都要显示，路径只在点开时才下载。
+const fileMeta = ref({}), fileUrls = ref({}), downloadingId = ref("");
 let timer = null, generation = 0;
 
 const memberMap = computed(() => Object.fromEntries(members.value.map(item => [String(item.id), item.displayName])));
@@ -70,6 +73,19 @@ async function cachePreview(id) {
   try { previews.value = { ...previews.value, [id]: await loadImageUrl(id) }; }
   catch { /* 单张图片加载失败不影响会话整体 */ }
 }
+/** 文件名/大小是气泡文案，进会话就要显示；拉不到就退化为「文件 · 点击下载」。 */
+async function cacheFileMeta(id) {
+  if (fileMeta.value[id]) return;
+  try { fileMeta.value = { ...fileMeta.value, [id]: await request("/files/" + id + "/metadata") }; }
+  catch { /* 元数据拉不到不挡聊天，点开仍可下载 */ }
+}
+function fileSize(bytes) {
+  const size = Number(bytes);
+  if (!size || size < 0) return "";
+  if (size < 1024) return size + " B";
+  if (size < 1024 * 1024) return (size / 1024).toFixed(1) + " KB";
+  return (size / 1024 / 1024).toFixed(1) + " MB";
+}
 async function cacheAudio(id) {
   if (audioUrls.value[id]) return;
   try { audioUrls.value = { ...audioUrls.value, [id]: await loadAudioUrl(id) }; }
@@ -84,6 +100,7 @@ function append(incoming) {
     messages.value.push(item);
     if (item.kind === "IMAGE") cachePreview(item.body);
     if (item.kind === "AUDIO") cacheAudio(item.body);
+    if (item.kind === "FILE") cacheFileMeta(item.body);
   }
   messages.value.sort((a, b) => Number(a.id) - Number(b.id));
 }
@@ -114,6 +131,7 @@ async function loadMessages() {
     anchor.value = "";
     messages.value.filter(item => item.kind === "IMAGE").forEach(item => cachePreview(item.body));
     messages.value.filter(item => item.kind === "AUDIO").forEach(item => cacheAudio(item.body));
+    messages.value.filter(item => item.kind === "FILE").forEach(item => cacheFileMeta(item.body));
     await toBottom();
   } catch (error) {
     if (current === generation) detailError.value = error.message || "消息加载失败";
@@ -149,6 +167,7 @@ async function loadEarlier() {
     if (!older.length) return;
     messages.value = [...older, ...messages.value];
     older.filter(item => item.kind === "IMAGE").forEach(item => cachePreview(item.body));
+    older.filter(item => item.kind === "FILE").forEach(item => cacheFileMeta(item.body));
     // 前插会把视口顶走，用 scroll-into-view 把原来最老的那条钉住
     await nextTick();
     anchor.value = "msg-" + oldest;
@@ -225,6 +244,8 @@ async function select(item) {
   activeTitle.value = conversationLabel(item);
   messages.value = [];
   previews.value = {};
+  fileMeta.value = {};
+  fileUrls.value = {};
   receipts.value = [];
   hasEarlier.value = false;
   anchor.value = "";
@@ -292,6 +313,57 @@ async function sendImage() {
 function previewImages(current) {
   const urls = messages.value.filter(item => item.kind === "IMAGE" && previews.value[item.body]).map(item => previews.value[item.body]);
   uni.previewImage({ urls, current });
+}
+
+/**
+ * 聊天传文件。后端 kind=FILE 只要求文件是家庭共享，不限 mime。
+ *
+ * 选择器：H5 / App 用 uni.chooseFile（H5 是 input[type=file] 真实现）；
+ * 微信小程序没有系统文件选择器，uni 把 chooseFile 映射到 wx.chooseMessageFile
+ * （从聊天记录里选），同一调用两端都能跑，不用条件编译。
+ */
+async function sendFile() {
+  if (sending.value || !active.value) return;
+  sending.value = true;
+  try {
+    const result = await uni.chooseFile({ count: 1 });
+    const picked = (result.tempFiles || [])[0];
+    if (!picked) return;
+    const file = await upload("/files", picked.path || picked.tempFilePath, { visibility: "FAMILY" });
+    const clientId = uuid();
+    const created = await request("/im/conversations/" + active.value + "/messages", { method: "POST", data: { clientId, kind: "FILE", body: file.id } });
+    fileMeta.value = { ...fileMeta.value, [file.id]: file };
+    append([created]);
+    await toBottom();
+    markRead();
+  } catch (error) {
+    if (!String(error?.errMsg || "").includes("cancel")) report(error);
+  } finally { sending.value = false; }
+}
+
+/** 点开文件气泡：先鉴权下载成本地路径，小程序/App 用 openDocument 预览，H5 直接触发另存。 */
+async function openFile(item) {
+  if (downloadingId.value) return;
+  const id = item.body;
+  downloadingId.value = id;
+  try {
+    const path = fileUrls.value[id] || await loadFileUrl(id);
+    fileUrls.value = { ...fileUrls.value, [id]: path };
+    if (typeof document !== "undefined") {
+      // H5：tempFilePath 是 blob URL，<a download> 即可保存
+      const anchor = document.createElement("a");
+      anchor.href = path;
+      anchor.download = fileMeta.value[id]?.name || "family-file";
+      anchor.click();
+    } else {
+      uni.openDocument({
+        filePath: path,
+        showMenu: true,
+        fail: () => uni.showToast({ title: "暂不支持打开此类型文件", icon: "none" })
+      });
+    }
+  } catch (error) { report(error); }
+  finally { downloadingId.value = ""; }
 }
 
 /** 语音消息。后端 kind=AUDIO 早就支持（校验 mime 必须是 audio/*），这里补上录音与播放。 */
@@ -461,7 +533,14 @@ defineExpose({ load, receive });
                   <text class="voice-icon">{{ playingId === String(item.id) ? '⏸' : '▶' }}</text>
                   <text class="voice-label">语音消息</text>
                 </view>
-                <text v-if="item.kind !== 'IMAGE' && item.kind !== 'AUDIO'" class="body">{{ item.body }}</text>
+                <view v-if="item.kind === 'FILE'" class="file" @click="openFile(item)">
+                  <text class="file-icon">{{ downloadingId === item.body ? '…' : '⌸' }}</text>
+                  <view class="file-info">
+                    <text class="file-name">{{ fileMeta[item.body]?.name || '文件' }}</text>
+                    <text class="file-size">{{ fileSize(fileMeta[item.body]?.sizeBytes) || '点击下载' }}</text>
+                  </view>
+                </view>
+                <text v-if="item.kind !== 'IMAGE' && item.kind !== 'AUDIO' && item.kind !== 'FILE'" class="body">{{ item.body }}</text>
                 <text class="time">{{ stamp(item.createdAt) }}</text>
               </view>
             </view>
@@ -480,6 +559,7 @@ defineExpose({ load, receive });
             >{{ recording ? "松开 发送" : "🎙" }}</button>
             <input v-model="draft" class="input" maxlength="4000" placeholder="说点什么给家人…" :disabled="sending" @confirm="sendText" />
             <button size="mini" :disabled="sending" @click="sendImage">图片</button>
+            <button size="mini" :disabled="sending" @click="sendFile">文件</button>
             <button class="primary" size="mini" :loading="sending" :disabled="sending" @click="sendText">发送</button>
           </view>
         </view>
@@ -537,6 +617,11 @@ defineExpose({ load, receive });
 .voice{display:flex;align-items:center;gap:8px;min-width:104px;padding:2px 0}
 .voice-icon{font-size:14px}
 .voice-label{font-size:13px}
+.file{display:flex;align-items:center;gap:10px;min-width:150px;padding:4px 0}
+.file-icon{font-size:20px;flex-shrink:0}
+.file-info{display:flex;flex-direction:column;gap:2px;min-width:0}
+.file-name{font-size:13px;font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:170px}
+.file-size{font-size:10px;color:var(--c-muted)}
 .state{text-align:center;color:var(--c-muted);font-size:13px;padding:26px 10px}
 .state button{margin-top:8px;font-size:11px}
 @media(max-width:760px){.chat-frame{grid-template-columns:1fr}.sidebar{max-height:none}.sidebar-foot{order:2}}

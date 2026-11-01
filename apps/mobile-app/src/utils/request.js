@@ -9,6 +9,7 @@ export const request = client.request;
 export const upload = client.upload;
 export const loadImageUrl = client.loadImageUrl;
 export const loadAudioUrl = client.loadAudioUrl;
+export const loadFileUrl = client.loadFileUrl;
 export const login = client.login;
 export const register = client.register;
 
