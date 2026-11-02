@@ -497,6 +497,26 @@ async function toggleVoice(item) {
   playingId.value = String(item.id);
   context.play();
 }
+/**
+ * 窄屏（≤760px）是两屏切换：列表页 / 聊天页，由根节点 in-room 类纯 CSS 控制。
+ * 初始宽度决定要不要自动选中第一个会话——窄屏停在列表页等用户点选（红点也在这里看），
+ * 宽屏左右并排，自动打开第一个会话省一步点击。
+ */
+function isNarrowScreen() {
+  try {
+    const info = typeof uni.getWindowInfo === "function" ? uni.getWindowInfo() : uni.getSystemInfoSync();
+    return Number(info.windowWidth) <= 760;
+  } catch { return false; }
+}
+
+/** 窄屏下从聊天页返回列表页；宽屏返回按钮不显示，这里仍兜底停轮询。 */
+function backToList() {
+  generation++;
+  active.value = "";
+  activeTitle.value = "";
+  stopPolling();
+}
+
 async function load() {
   generation++;
   loading.value = true;
@@ -510,14 +530,14 @@ async function load() {
 onMounted(async () => {
   await load();
   if (props.peerId && session.value) openDirect(props.peerId);
-  else if (conversations.value.length) select(conversations.value[0]);
+  else if (conversations.value.length && !isNarrowScreen()) select(conversations.value[0]);
 });
 onUnmounted(() => { generation++; stopPolling(); stopVoice(); });
 defineExpose({ load, receive });
 </script>
 
 <template>
-  <view class="chat">
+  <view :class="['chat', { 'in-room': !!active }]">
     <view class="chat-frame">
       <view class="sidebar">
         <view class="sidebar-head"><text class="title">家人聊天</text><button size="mini" :disabled="loading" @click="load">刷新</button></view>
@@ -550,7 +570,8 @@ defineExpose({ load, receive });
         </view>
         <view v-else class="room-body">
           <view class="room-head">
-            <view>
+            <button class="back-btn" size="mini" @click="backToList">‹ 会话</button>
+            <view class="room-head-title">
               <text class="title">{{ activeTitle }}</text>
               <text class="hint">{{ readMembers.length ? '已读：' + readMembers.join('、') : (live ? '实时推送中 · 断线自动重连' : '每 4 秒自动获取新消息') }}</text>
             </view>
@@ -618,6 +639,9 @@ defineExpose({ load, receive });
 @supports (backdrop-filter: blur(18px)){.sidebar,.room{background:rgba(255,252,248,.62);backdrop-filter:blur(18px)}}
 .sidebar{gap:14px;max-height:560px;overflow:auto}
 .sidebar-head,.room-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.room-head-title{flex:1;min-width:0}
+/* 返回按钮默认隐藏，只在窄屏两屏切换时显示 */
+.back-btn{display:none;margin:0;font-size:12px;flex-shrink:0}
 .sidebar-head{padding-bottom:12px;border-bottom:1px solid var(--c-surface-2)}
 .title{font-size:16px;font-weight:650}
 .hint{display:block;font-size:11px;color:var(--c-muted);margin-top:6px;line-height:1.8}
@@ -667,5 +691,13 @@ defineExpose({ load, receive });
 .file-size{font-size:10px;color:var(--c-muted)}
 .state{text-align:center;color:var(--c-muted);font-size:13px;padding:26px 10px}
 .state button{margin-top:8px;font-size:11px}
-@media(max-width:760px){.chat-frame{grid-template-columns:1fr}.sidebar{max-height:none}.sidebar-foot{order:2}}
+/* 窄屏两屏切换：未选会话只显示列表，选中后只显示聊天区（含返回按钮）。 */
+@media(max-width:760px){
+  .chat-frame{grid-template-columns:1fr}
+  .sidebar{max-height:none}
+  .sidebar-foot{order:2}
+  .chat.in-room .sidebar{display:none}
+  .chat:not(.in-room) .room{display:none}
+  .chat.in-room .back-btn{display:inline-flex}
+}
 </style>
