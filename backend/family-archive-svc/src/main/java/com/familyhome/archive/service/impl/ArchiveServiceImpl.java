@@ -154,4 +154,52 @@ public class ArchiveServiceImpl implements ArchiveService {
             .map(ArchiveConverter::toVO)
             .toList();
     }
+
+    /** 总览窗口与单条上限：家庭 ≤10 人、动作低频，1000 条足够，超了也是聚合准确性的可接受取舍。 */
+    static final int SUMMARY_WINDOW_DAYS = 30;
+    static final int SUMMARY_MAX_LOGS = 1000;
+
+    public AuditSummaryVO summary(SessionPrincipal p) {
+        p.requireAdmin();
+        List<ArchiveAccessLog> rows = logs.selectList(
+            new LambdaQueryWrapper<ArchiveAccessLog>()
+                .eq(ArchiveAccessLog::getHouseholdId, p.householdId())
+                .ge(ArchiveAccessLog::getCreatedAt, LocalDateTime.now().minusDays(SUMMARY_WINDOW_DAYS))
+                .orderByDesc(ArchiveAccessLog::getId)
+                .last("LIMIT " + SUMMARY_MAX_LOGS));
+        return aggregate(rows);
+    }
+
+    /** 聚合独立成静态方法：按人/按天/按动作三组计数，组内按次数降序、次数相同按名字升序。 */
+    static AuditSummaryVO aggregate(List<ArchiveAccessLog> rows) {
+        Map<Long, Long> byUser = new HashMap<>();
+        Map<String, Long> byDay = new HashMap<>();
+        Map<String, Long> byAction = new HashMap<>();
+        for (ArchiveAccessLog row : rows) {
+            byUser.merge(row.getUserId(), 1L, Long::sum);
+            byDay.merge(String.valueOf(row.getCreatedAt().toLocalDate()), 1L, Long::sum);
+            byAction.merge(row.getAction(), 1L, Long::sum);
+        }
+        return new AuditSummaryVO(
+            rows.size(),
+            sortedUsers(byUser),
+            sortedNames(byDay),
+            sortedNames(byAction));
+    }
+
+    private static List<AuditSummaryVO.NameCount> sortedNames(Map<String, Long> counts) {
+        return counts.entrySet().stream()
+            .sorted(Map.Entry.<String, Long>comparingByValue().reversed()
+                .thenComparing(Map.Entry.comparingByKey()))
+            .map(e -> new AuditSummaryVO.NameCount(e.getKey(), e.getValue()))
+            .toList();
+    }
+
+    private static List<AuditSummaryVO.NameCount> sortedUsers(Map<Long, Long> counts) {
+        return counts.entrySet().stream()
+            .sorted(Map.Entry.<Long, Long>comparingByValue().reversed()
+                .thenComparing(Map.Entry.comparingByKey()))
+            .map(e -> new AuditSummaryVO.NameCount(String.valueOf(e.getKey()), e.getValue()))
+            .toList();
+    }
 }

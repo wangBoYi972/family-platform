@@ -36,4 +36,11 @@ public interface ArchiveService {
     default List<ArchiveAuditVO> audit(SessionPrincipal p, String id) {
         return audit(p, id, PageQuery.of(null, null, 100));
     }
+
+    /**
+     * 家庭级审计总览（近 30 天，按人/按天/按动作聚合），仅管理员。
+     *
+     * <p>总览会暴露「谁看过私有档案」，这个视角只该给管理员。
+     */
+    AuditSummaryVO summary(SessionPrincipal p);
 }

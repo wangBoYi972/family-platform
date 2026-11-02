@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { request } from "@app/utils/request";
 import { pageQuery } from "../paged-list.mjs";
 import { usePagedList } from "../use-paged-list.js";
+import { ACTION_LABELS, fillDays, percent } from "@shared/audit-view.mjs";
 import ListMore from "../ListMore.vue";
 
 const emit = defineEmits(["session-ended"]);
@@ -44,6 +45,27 @@ function ownerLabel(id) { return memberMap.value[String(id)] || "家庭成员"; 
 function canManage(item) { return !!session.value && (session.value.role === "ADMIN" || String(item.ownerId) === String(session.value.userId)); }
 function stamp(value) { return value ? String(value).slice(0, 10) : ""; }
 function stampFull(value) { return value ? String(value).slice(0, 16).replace("T", " ") : ""; }
+
+// 审计总览（仅管理员）：谁在看、哪天看的多、什么动作，纯 CSS 条形图不引图表库。
+// summary 接口按家庭聚合近 30 天日志，能看到私有档案的访问记录，所以只给管理员。
+const showSummary = ref(false), summary = ref(null), summaryLoading = ref(false);
+const isAdmin = computed(() => session.value?.role === "ADMIN");
+const summaryDays = computed(() => fillDays(summary.value?.byDay || [], 30));
+const summaryMax = computed(() => Math.max(...summaryDays.value.map(d => d.count), 0));
+const summaryUsers = computed(() => {
+  const list = (summary.value?.byUser || []).slice(0, 5);
+  const max = Math.max(...list.map(item => item.count), 0);
+  return list.map(item => ({ name: ownerLabel(item.name), count: item.count, width: percent(item.count, max) }));
+});
+function actionLabel(key) { return ACTION_LABELS[key] || key; }
+async function toggleSummary() {
+  showSummary.value = !showSummary.value;
+  if (!showSummary.value || summary.value || summaryLoading.value) return;
+  summaryLoading.value = true;
+  try { summary.value = await request("/archives/audit/summary"); }
+  catch (e) { showSummary.value = false; report(e); }
+  finally { summaryLoading.value = false; }
+}
 
 async function load() {
   // 列表分页 + 身份/成员并行；身份失败不影响列表展示。
@@ -150,6 +172,33 @@ defineExpose({ load, sync });
     <text v-else class="scope-note">筛选结果 {{ rows.length }} 条{{ exhausted ? '' : '（还有更多，继续加载可看到全部匹配）' }}</text>
     <text v-if="!exhausted && rows.length" class="hint">统计与筛选基于已加载的 {{ rows.length }} 条，继续加载可扩大范围</text>
 
+    <view v-if="isAdmin" class="summary-toggle">
+      <button size="mini" @click="toggleSummary">{{ showSummary ? "收起访问总览" : "📊 访问总览（近 30 天）" }}</button>
+    </view>
+    <view v-if="showSummary" class="summary card">
+      <view v-if="summaryLoading" class="state-inline">正在汇总访问记录…</view>
+      <template v-else-if="summary">
+        <text class="summary-title">近 30 天共 {{ summary.total }} 次访问</text>
+        <view v-if="summary.total" class="chart" aria-label="近 30 天每日访问次数">
+          <view v-for="day in summaryDays" :key="day.day" class="bar-slot" :title="day.day + '：' + day.count + ' 次'">
+            <view class="bar" :style="{ height: percent(day.count, summaryMax) + '%' }"></view>
+          </view>
+        </view>
+        <text class="axis-note">{{ summaryDays[0]?.day }} ~ {{ summaryDays[summaryDays.length - 1]?.day }}</text>
+        <view v-if="summaryUsers.length" class="ranking">
+          <text class="summary-title">谁看得最多</text>
+          <view v-for="item in summaryUsers" :key="item.name" class="rank-row">
+            <text class="rank-name">{{ item.name }}</text>
+            <view class="rank-track"><view class="rank-bar" :style="{ width: item.width + '%' }"></view></view>
+            <text class="rank-count">{{ item.count }}</text>
+          </view>
+        </view>
+        <view v-if="summary.total" class="actions-line">
+          <text v-for="item in summary.byAction" :key="item.name" class="tag">{{ actionLabel(item.name) }} {{ item.count }}</text>
+        </view>
+      </template>
+    </view>
+
     <view v-if="creating" class="form card">
       <input v-model="form.title" class="input" maxlength="120" placeholder="档案标题（必填）" :disabled="saving" />
       <view class="switch-row"><text>家人可见</text><switch :checked="form.visibility === 'FAMILY'" :disabled="saving" color="var(--c-primary)" @change="form.visibility = $event.detail.value ? 'FAMILY' : 'PRIVATE'" /></view>
@@ -244,4 +293,19 @@ defineExpose({ load, sync });
 .danger{background:var(--c-danger-soft);color:var(--c-danger)}
 .state{text-align:center;color:var(--c-muted);font-size:13px;padding:26px 10px}
 .state button{margin-top:8px;font-size:11px}
+.summary-toggle{margin:4px 0}
+.summary{margin-top:10px;display:flex;flex-direction:column;gap:12px}
+.summary-title{font-size:13px;font-weight:700;color:var(--c-ink)}
+.state-inline{font-size:12px;color:var(--c-muted)}
+.chart{display:flex;align-items:flex-end;gap:2px;height:64px}
+.bar-slot{flex:1;height:100%;display:flex;align-items:flex-end}
+.bar{width:100%;min-height:2px;background:var(--c-primary);border-radius:2px 2px 0 0;opacity:.85}
+.axis-note{font-size:10px;color:var(--c-muted)}
+.ranking{display:flex;flex-direction:column;gap:7px}
+.rank-row{display:flex;align-items:center;gap:10px}
+.rank-name{width:72px;font-size:12px;color:var(--c-ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rank-track{flex:1;height:10px;background:var(--c-primary-soft);border-radius:5px;overflow:hidden}
+.rank-bar{height:100%;background:var(--c-primary);border-radius:5px}
+.rank-count{min-width:26px;text-align:right;font-size:12px;font-weight:700;color:var(--c-primary)}
+.actions-line{display:flex;gap:8px;flex-wrap:wrap}
 </style>

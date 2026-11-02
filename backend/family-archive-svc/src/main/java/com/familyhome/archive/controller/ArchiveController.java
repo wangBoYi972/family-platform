@@ -63,4 +63,10 @@ public class ArchiveController {
         return ApiResponse.success(
                 service.audit(SessionPrincipal.from(r), id, PageQuery.of(page, size, 100)));
     }
+
+    /** 家庭级审计总览（近 30 天聚合），仅管理员；路径放在 {id} 语义之外避免歧义。 */
+    @GetMapping("/audit/summary")
+    public ApiResponse<AuditSummaryVO> summary(HttpServletRequest r) {
+        return ApiResponse.success(service.summary(SessionPrincipal.from(r)));
+    }
 }

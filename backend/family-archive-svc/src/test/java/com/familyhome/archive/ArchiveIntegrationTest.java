@@ -97,4 +97,51 @@ class ArchiveIntegrationTest {
                 .extracting(x -> x.id())
                 .containsExactlyInAnyOrder(health.id(), doc.id());
     }
+
+    @Autowired com.familyhome.archive.mapper.ArchiveAccessLogMapper logs;
+
+    private com.familyhome.archive.model.ArchiveAccessLog log(long household, long user, String action, java.time.LocalDateTime at) {
+        var row = new com.familyhome.archive.model.ArchiveAccessLog();
+        row.setHouseholdId(household);
+        row.setUserId(user);
+        row.setArchiveId(UUID.randomUUID().toString());
+        row.setAction(action);
+        row.setCreatedAt(at);
+        logs.insert(row);
+        return row;
+    }
+
+    @Test
+    @DisplayName("审计总览按人/天/动作聚合，只算本家庭，非管理员被拒")
+    void auditSummary() {
+        var admin = new SessionPrincipal(30, 400, "ADMIN", "test", "family");
+        var member = new SessionPrincipal(31, 400, "MEMBER", "test", "family");
+        var today = java.time.LocalDate.now().atStartOfDay();
+        // 本家庭：30 号看了 3 次、31 号看 1 次 + 一次创建；另一家庭的日志不计入
+        log(400, 31, "READ", today);
+        log(400, 31, "READ", today);
+        log(400, 31, "READ", today.minusDays(1));
+        log(400, 30, "CREATE", today);
+        log(500, 31, "READ", today);
+        // 30 天窗口外的旧日志不计入
+        log(400, 31, "READ", today.minusDays(40));
+
+        assertThatThrownBy(() -> service.summary(member))
+                .isInstanceOf(ResponseStatusException.class);
+
+        var summary = service.summary(admin);
+        assertThat(summary.total()).isEqualTo(4);
+        // 按人：31 看 3 次 > 30 建档 1 次
+        assertThat(summary.byUser())
+                .extracting(com.familyhome.archive.vo.AuditSummaryVO.NameCount::name)
+                .containsExactly("31", "30");
+        assertThat(summary.byUser().get(0).count()).isEqualTo(3);
+        // 按动作与按天都存在且计数一致
+        assertThat(summary.byAction()).extracting(
+                com.familyhome.archive.vo.AuditSummaryVO.NameCount::name,
+                com.familyhome.archive.vo.AuditSummaryVO.NameCount::count)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("READ", 3L), org.assertj.core.groups.Tuple.tuple("CREATE", 1L));
+        assertThat(summary.byDay()).extracting(com.familyhome.archive.vo.AuditSummaryVO.NameCount::count)
+                .containsExactly(3L, 1L);
+    }
 }
