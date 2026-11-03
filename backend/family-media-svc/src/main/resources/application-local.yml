@@ -2,9 +2,11 @@ server:
   address: 127.0.0.1
 spring:
   datasource:
-    url: jdbc:h2:file:./.local/media;MODE=MySQL;DATABASE_TO_LOWER=TRUE
-    username: sa
-    password: ${FAMILY_LOCAL_DB_PASSWORD:}
+    url: jdbc:mysql://localhost:3306/family_media?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+  flyway:
+    enabled: false
   cloud:
     nacos:
       discovery:
@@ -13,6 +15,8 @@ family:
   clients:
     user-url: http://127.0.0.1:8081
     file-url: http://127.0.0.1:8087
+  auth:
+    jwt-secret: ${FAMILY_JWT_SECRET:local-development-secret-32-characters-min}
 springdoc:
   api-docs:
     enabled: true

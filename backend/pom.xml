@@ -35,6 +35,7 @@
     <module>family-archive-svc</module>
     <module>family-im-svc</module>
     <module>family-media-svc</module>
+    <module>family-ai-svc</module>
   </modules>
   <dependencyManagement>
     <dependencies>

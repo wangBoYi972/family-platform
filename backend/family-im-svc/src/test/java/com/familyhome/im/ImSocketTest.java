@@ -179,6 +179,7 @@ class ImSocketTest {
     }
 
     private BlockingQueue<String> connect(String ticket) throws Exception {
+        int before = socket.sessionCount();
         BlockingQueue<String> queue = new LinkedBlockingQueue<>();
         WebSocketSession session =
                 new StandardWebSocketClient()
@@ -191,7 +192,9 @@ class ImSocketTest {
                                 },
                                 URI.create("ws://127.0.0.1:" + port + "/ws/im?ticket=" + ticket).toString())
                         .get(5, TimeUnit.SECONDS);
-        // 连接关掉后服务端才摘 session，测试结束前留个引用避免被回收
+        // 服务端登记连接是异步的：立即推送时连接可能还没进 sessions，帧会漏掉。
+        // 连接关得晚时 session 引用要留着避免被回收
+        for (int i = 0; i < 50 && socket.sessionCount() <= before; i++) Thread.sleep(100);
         sessions.add(session);
         return queue;
     }

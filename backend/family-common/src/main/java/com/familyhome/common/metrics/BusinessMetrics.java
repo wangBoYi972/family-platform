@@ -17,12 +17,8 @@ import java.util.concurrent.TimeUnit;
 @Component
 public class BusinessMetrics {
 
-    private final MeterRegistry registry;
-
     @Autowired
-    public BusinessMetrics(MeterRegistry registry) {
-        this.registry = registry;
-    }
+    private MeterRegistry registry;
 
     /**
      * 记录任务创建

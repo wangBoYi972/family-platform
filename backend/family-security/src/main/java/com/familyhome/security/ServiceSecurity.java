@@ -25,7 +25,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 @Import({ApiErrors.class, ServiceClients.class})
 public class ServiceSecurity implements WebMvcConfigurer {
-    @Value("${FAMILY_JWT_SECRET:}") private String secret;
+    @Value("${family.auth.jwt-secret:}") private String secret;
     @Autowired private ObjectProvider<UserFeignClient> client;
     @Autowired private ObjectProvider<IdentityVerifier> verifier;
     private byte[] key;

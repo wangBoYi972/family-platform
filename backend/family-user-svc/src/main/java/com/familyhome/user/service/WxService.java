@@ -52,7 +52,7 @@ public class WxService {
     @Autowired private WxSubscribeGrantMapper grants;
     @Autowired private ObjectMapper mapper;
 
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+    private HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     /** access_token 全局唯一、2 小时有效，过期前 5 分钟换新。 */
     private volatile String accessToken;
     private volatile long accessTokenExpiresAt;

@@ -1,4 +1,5 @@
 import { createUniClient } from "@shared/uni-client.js";
+import { createAiClient } from "@shared/ai-client.mjs";
 
 // 与家庭端共用同一份实现（apps/shared/uni-client.js），不再各写一份导致能力漂移。
 const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8080/api";
@@ -12,6 +13,8 @@ export const loadAudioUrl = client.loadAudioUrl;
 export const loadFileUrl = client.loadFileUrl;
 export const login = client.login;
 export const register = client.register;
+/** AI 家庭助手流式对话（SSE），见 apps/shared/ai-client.mjs。 */
+export const aiChat = createAiClient({ uni, baseUrl }).streamChat;
 
 export const taskStatusLabel = { TODO: "待办", IN_PROGRESS: "进行中", COMPLETED: "已完成" };
 export const roleLabel = { ADMIN: "管理员", MEMBER: "成员" };

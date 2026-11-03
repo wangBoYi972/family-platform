@@ -7,6 +7,7 @@ import AccountView from "./views/AccountView.vue";
 import LoginView from "./views/LoginView.vue";
 import TaskDashboard from "./views/TaskDashboard.vue";
 import ContentView from "./views/ContentView.vue";
+import AiSettingsView from "./views/AiSettingsView.vue";
 
 const authenticated = ref(Boolean(localStorage.getItem("family_access_token")));
 const activeView = ref("任务");
@@ -43,6 +44,7 @@ onUnmounted(() => window.removeEventListener("family-session-ended", ended));
     <LoginView v-if="!authenticated" key="login" @authenticated="handleAuthenticated" />
     <TaskDashboard v-else-if="activeView === '任务'" key="task" @logout="handleLogout" @navigate="navigate" />
     <AccountView v-else-if="activeView === '成员'" key="account" @navigate="navigate" />
+    <AiSettingsView v-else-if="activeView === 'AI助手'" key="ai" @navigate="navigate" />
     <ContentView v-else :key="'content-' + contentKind" :kind="contentKind" @navigate="navigate" />
   </Transition>
 </template>

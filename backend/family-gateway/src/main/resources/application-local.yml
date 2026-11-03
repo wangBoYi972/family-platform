@@ -31,6 +31,10 @@ spring:
           uri: http://127.0.0.1:8090
           predicates:
             - Path=/api/media/**
+        - id: family-ai-local
+          uri: http://127.0.0.1:8091
+          predicates:
+            - Path=/api/ai/**
         - id: family-im-ws-local
           uri: ws://127.0.0.1:8089
           predicates:

@@ -1,0 +1,32 @@
+server:
+  port: 8091
+spring:
+  application:
+    name: family-ai-svc
+  jackson:
+    default-property-inclusion: non_null
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+family:
+  ai:
+    # key 只从环境变量注入（FAMILY_AI_API_KEY），绝不写进仓库。
+    # enabled=false 时 /api/ai/chat 返回 503，前端按「AI 未配置」提示。
+    enabled: ${FAMILY_AI_ENABLED:false}
+    api-key: ${FAMILY_AI_API_KEY:}
+    base-url: ${FAMILY_AI_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+    model: ${FAMILY_AI_MODEL:qwen-plus}
+    max-tool-rounds: ${FAMILY_AI_MAX_TOOL_ROUNDS:3}
+    content-url: ${FAMILY_AI_CONTENT_URL:http://127.0.0.1:8082}
+    file-url: ${FAMILY_AI_FILE_URL:http://127.0.0.1:8087}
+    archive-url: ${FAMILY_AI_ARCHIVE_URL:http://127.0.0.1:8088}
+    user-url: ${FAMILY_AI_USER_URL:http://127.0.0.1:8081}
+    # 管理端保存的 key/开关落盘位置（已被 .gitignore 覆盖）；删除该文件即恢复环境变量
+    config-file: ${FAMILY_AI_CONFIG_FILE:.local/ai-settings.json}
+springdoc:
+  api-docs:
+    enabled: ${FAMILY_DOCS_ENABLED:false}
+  swagger-ui:
+    enabled: ${FAMILY_DOCS_ENABLED:false}

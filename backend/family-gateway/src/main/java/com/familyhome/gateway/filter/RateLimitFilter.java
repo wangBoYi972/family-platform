@@ -76,7 +76,7 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
             exchange.getResponse().getHeaders().add("X-RateLimit-Limit", String.valueOf(DEFAULT_LIMIT));
             exchange.getResponse().getHeaders().add("X-RateLimit-Remaining", String.valueOf(DEFAULT_LIMIT - count));
 
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             log.error("限流检查失败,放行请求", e);
         }
 

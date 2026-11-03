@@ -144,6 +144,7 @@ onMounted(() => { load(); loadMembers(); });
           <el-menu-item index="档案" @click="emit('navigate', '档案')">家庭档案</el-menu-item>
           <el-menu-item index="通知" @click="emit('navigate', '通知')">公告通知</el-menu-item>
           <el-menu-item index="日历" @click="emit('navigate', '日历')">家庭日历</el-menu-item>
+          <el-menu-item index="AI助手" @click="emit('navigate', 'AI助手')">AI 家庭助手</el-menu-item>
         </el-menu>
         <div class="family-context mf-rise" style="--i: 6">
           <span>当前家庭</span>
@@ -163,7 +164,7 @@ onMounted(() => { load(); loadMembers(); });
           <el-button type="primary" class="create-button" @click="openCreate">＋ 新建任务</el-button>
         </div>
 
-        <nav class="mobile-nav" aria-label="家庭功能"><el-button v-for="view in ['成员','档案','通知','日历']" :key="view" @click="emit('navigate', view)">{{ view }}</el-button></nav>
+        <nav class="mobile-nav" aria-label="家庭功能"><el-button v-for="view in ['成员','档案','通知','日历','AI助手']" :key="view" @click="emit('navigate', view)">{{ view }}</el-button></nav>
 
         <el-alert v-if="loadError" :title="loadError" type="error" :closable="false" show-icon />
 

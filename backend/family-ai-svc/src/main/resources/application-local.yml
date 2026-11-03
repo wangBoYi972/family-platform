@@ -1,0 +1,21 @@
+server:
+  address: 127.0.0.1
+# ServiceSecurity 装配的 Feign（UserFeignClient 等）需要显式 url，空 url 会让上下文起不来。
+family:
+  auth:
+    jwt-secret: ${FAMILY_JWT_SECRET:local-development-secret-32-characters-min}
+  clients:
+    user-url: http://127.0.0.1:8081
+    content-url: http://127.0.0.1:8082
+    file-url: http://127.0.0.1:8087
+    archive-url: http://127.0.0.1:8088
+  ai:
+    content-url: http://127.0.0.1:8082
+    file-url: http://127.0.0.1:8087
+    archive-url: http://127.0.0.1:8088
+    user-url: http://127.0.0.1:8081
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true

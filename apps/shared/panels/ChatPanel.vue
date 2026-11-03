@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
-import { request, upload, loadImageUrl, loadAudioUrl, loadFileUrl } from "@app/utils/request";
+import { request, upload, loadImageUrl, loadAudioUrl, loadFileUrl, aiChat } from "@app/utils/request";
 import { sumUnread } from "@shared/unread.mjs";
 import { mergeReceipt, readMemberIds } from "@shared/receipts.mjs";
 import { requestNotify, TEMPLATE_KEYS } from "@shared/wx-notify.mjs";
@@ -38,6 +38,82 @@ const selfId = computed(() => String(session.value?.userId ?? ""));
 const unreadTotal = computed(() => sumUnread(conversations.value));
 const lastMessageId = computed(() => messages.value.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0));
 const hasGroup = computed(() => conversations.value.some(item => item.kind === "GROUP"));
+
+/**
+ * AI 家庭助手：会话列表固定置顶的一个特殊会话。不入 IM 消息库——
+ * 历史按设备存本地（family_ai_history），发送走 /ai/chat 流式接口。
+ * AI 能用当前用户身份查任务/日程/档案，回答的是「你家里的事」。
+ */
+const AI_ID = "ai-assistant";
+const AI_HISTORY_KEY = "family_ai_history";
+const AI_TITLE = "家庭小助手";
+const TOOL_LABELS = {
+  list_tasks: "正在查询家庭任务…",
+  list_calendar: "正在查询家庭日程…",
+  search_family_data: "正在搜索家庭数据…"
+};
+let aiSeq = 0;
+const aiThinking = ref(false);
+
+/** 列表展示 = AI 助手置顶 + IM 会话。 */
+const displayConversations = computed(() => [
+  { id: AI_ID, kind: "AI", title: AI_TITLE },
+  ...conversations.value
+]);
+function isAi() { return active.value === AI_ID; }
+function aiHistory() { return uni.getStorageSync(AI_HISTORY_KEY) || []; }
+function saveAiHistory(list) { uni.setStorageSync(AI_HISTORY_KEY, list.slice(-40)); }
+
+/** 进入 AI 会话：把本地历史转成与 IM 消息同构的对象，渲染层零分支。 */
+function loadAiHistory() {
+  aiSeq = 0;
+  const history = aiHistory();
+  messages.value = history.map(item => ({
+    id: "ai-" + (++aiSeq),
+    senderId: item.role === "user" ? session.value?.userId : "ai",
+    kind: "TEXT",
+    body: item.content,
+    createdAt: ""
+  }));
+  // 首次进入给一句开场白（不落历史，只是展示层引导）
+  if (!history.length) {
+    messages.value.push({
+      id: "ai-" + (++aiSeq), senderId: "ai", kind: "TEXT", createdAt: "",
+      body: "你好，我是家庭小助手 ✦ 可以帮你查家庭任务、日程和纪念日，也能跨档案、文件找东西。试试问我：「这周有什么任务？」"
+    });
+  }
+  toBottom();
+}
+
+async function sendAi(text) {
+  const history = aiHistory();
+  history.push({ role: "user", content: text });
+  // 提问立刻落盘：模型报错或流中断时回答存不下来，但这句提问不该跟着一起丢
+  saveAiHistory(history);
+  const reply = { id: "ai-" + (++aiSeq), senderId: "ai", kind: "TEXT", body: "", createdAt: new Date().toISOString(), streaming: true, tool: "" };
+  messages.value.push(reply);
+  await toBottom();
+  aiThinking.value = true;
+  try {
+    await aiChat({
+      // 后端只认最近 12 轮，这里同步裁剪，别把 40 条全发上去
+      messages: history.slice(-13),
+      onTool: name => { reply.tool = name; },
+      onDelta: text2 => { reply.body += text2; toBottom(); }
+    });
+    if (reply.body) {
+      history.push({ role: "assistant", content: reply.body });
+      saveAiHistory(history);
+    }
+  } catch (error) {
+    reply.body = reply.body || (error.message || "AI 助手暂时不可用");
+  } finally {
+    reply.streaming = false;
+    reply.tool = "";
+    aiThinking.value = false;
+  }
+}
+function toolLabel(name) { return TOOL_LABELS[name] || "正在查询…"; }
 const ownLastId = computed(() => {
   const own = messages.value.filter(item => String(item.senderId) === selfId.value);
   return own.length ? Number(own[own.length - 1].id) || 0 : 0;
@@ -57,7 +133,7 @@ function uuid() {
     return (char === "x" ? value : (value & 0x3) | 0x8).toString(16);
   });
 }
-function memberName(id) { return memberMap.value[String(id)] || "家人"; }
+function memberName(id) { return String(id) === "ai" ? AI_TITLE : (memberMap.value[String(id)] || "家人"); }
 function conversationLabel(item) {
   if (item.kind === "GROUP") return item.title || "家庭群聊";
   const me = String(item.userA) === selfId.value ? item.userB : item.userA;
@@ -145,7 +221,7 @@ async function loadReceipts() {
 }
 async function markRead() {
   const id = lastMessageId.value;
-  if (!id || !active.value) return;
+  if (!id || !active.value || isAi()) return;
   try {
     await request("/im/conversations/" + active.value + "/read", { method: "POST", data: { messageId: id } });
     // 连着实时通道时回执由后端推回来，不用再拉一遍；断线才需要自己补
@@ -169,9 +245,9 @@ function recallable(item) {
   return Date.now() - new Date(item.createdAt).getTime() < RECALL_WINDOW_MS;
 }
 
-/** 长按自己的消息撤回；别人的消息与窗口外的旧消息长按无反应。 */
+/** 长按自己的消息撤回；AI 会话的消息不在 IM 库里，长按无反应。 */
 async function confirmRecall(item) {
-  if (!recallable(item)) return;
+  if (isAi() || !recallable(item)) return;
   const confirmed = await new Promise(resolve =>
     uni.showModal({ title: "撤回这条消息？", success: resolve, fail: () => resolve(null) }));
   if (!confirmed?.confirm) return;
@@ -207,7 +283,7 @@ async function loadEarlier() {
   }
 }
 async function poll() {
-  if (!active.value) return;
+  if (!active.value || isAi()) return;
   try {
     const incoming = await request("/im/conversations/" + active.value + "/messages", { data: { after: lastMessageId.value } });
     if (incoming.length) {
@@ -277,7 +353,7 @@ async function select(item) {
   if (item.id === active.value) return;
   generation++;
   active.value = item.id;
-  activeTitle.value = conversationLabel(item);
+  activeTitle.value = item.kind === "AI" ? AI_TITLE : conversationLabel(item);
   messages.value = [];
   previews.value = {};
   fileMeta.value = {};
@@ -285,6 +361,13 @@ async function select(item) {
   receipts.value = [];
   hasEarlier.value = false;
   anchor.value = "";
+  // AI 会话没有 IM 消息库，也不需要轮询——历史在本地，回答是流式推送
+  if (item.id === AI_ID) {
+    stopPolling();
+    loading.value = false;
+    loadAiHistory();
+    return;
+  }
   loading.value = true;
   startPolling();
   try { await loadMessages(); await markRead(); await loadReceipts(); }
@@ -317,6 +400,13 @@ async function ensureGroup() {
 async function sendText() {
   const text = draft.value.trim();
   if (!text || sending.value || !active.value) return;
+  if (isAi()) {
+    // AI 会话：本地直接上屏提问，回答流式填充占位气泡
+    draft.value = "";
+    messages.value.push({ id: "ai-" + (++aiSeq), senderId: session.value?.userId, kind: "TEXT", body: text, createdAt: new Date().toISOString() });
+    await sendAi(text);
+    return;
+  }
   // 微信端借这次点击顺带申请订阅授权（必须在点击同步链里触发，不能等 await 之后）；
   // 不 await：弹窗归弹窗，消息该发就发。对方离线时后端会消耗授权发服务通知。
   requestNotify(request, [TEMPLATE_KEYS.imMessage]).catch(() => {});
@@ -530,7 +620,7 @@ async function load() {
 onMounted(async () => {
   await load();
   if (props.peerId && session.value) openDirect(props.peerId);
-  else if (conversations.value.length && !isNarrowScreen()) select(conversations.value[0]);
+  else if (displayConversations.value.length && !isNarrowScreen()) select(displayConversations.value[0]);
 });
 onUnmounted(() => { generation++; stopPolling(); stopVoice(); });
 defineExpose({ load, receive });
@@ -542,14 +632,15 @@ defineExpose({ load, receive });
       <view class="sidebar">
         <view class="sidebar-head"><text class="title">家人聊天</text><button size="mini" :disabled="loading" @click="load">刷新</button></view>
         <view v-if="listError" class="state"><text>{{ listError }}</text><button size="mini" @click="load">重试</button></view>
-        <view v-else-if="loading && !conversations.length" class="state">正在加载会话…</view>
-        <view v-else-if="!conversations.length" class="state">还没有会话<text class="hint">发起家庭群聊，或点选家庭成员开始聊天。</text></view>
+        <view v-else-if="loading && !displayConversations.length" class="state">正在加载会话…</view>
+        <view v-else-if="!displayConversations.length" class="state">还没有会话<text class="hint">发起家庭群聊，或点选家庭成员开始聊天。</text></view>
         <view v-else class="conv-list">
-          <view v-for="item in conversations" :key="item.id" :class="['conv', { active: item.id === active }]" @click="select(item)">
-            <view class="conv-avatar">{{ item.kind === 'GROUP' ? '家' : conversationLabel(item).slice(0, 1) }}</view>
+          <view v-for="item in displayConversations" :key="item.id" :class="['conv', { active: item.id === active }]" @click="select(item)">
+            <view v-if="item.kind === 'AI'" class="conv-avatar ai"><image class="conv-avatar-img" src="/static/ai-avatar.png" mode="aspectFit" /></view>
+            <view v-else class="conv-avatar">{{ item.kind === 'GROUP' ? '家' : conversationLabel(item).slice(0, 1) }}</view>
             <view class="conv-body">
-              <view class="conv-line"><text class="conv-name">{{ conversationLabel(item) }}</text><text v-if="item.unread" class="badge">{{ item.unread }}</text></view>
-              <text class="conv-meta">{{ item.kind === 'GROUP' ? '全家都在 · ' + (members.length + 1) + ' 人' : '私聊 · 只有你们两人可见' }}</text>
+              <view class="conv-line"><text class="conv-name">{{ item.kind === 'AI' ? AI_TITLE : conversationLabel(item) }}</text><text v-if="item.unread" class="badge">{{ item.unread }}</text></view>
+              <text class="conv-meta">{{ item.kind === 'AI' ? 'AI 智能体 · 查任务、日程，帮你找东西' : (item.kind === 'GROUP' ? '全家都在 · ' + (members.length + 1) + ' 人' : '私聊 · 只有你们两人可见') }}</text>
             </view>
           </view>
         </view>
@@ -573,7 +664,7 @@ defineExpose({ load, receive });
             <button class="back-btn" size="mini" @click="backToList">‹ 会话</button>
             <view class="room-head-title">
               <text class="title">{{ activeTitle }}</text>
-              <text class="hint">{{ readMembers.length ? '已读：' + readMembers.join('、') : (live ? '实时推送中 · 断线自动重连' : '每 4 秒自动获取新消息') }}</text>
+              <text class="hint">{{ isAi() ? 'AI 智能体 · 基于你能看到的数据回答' : (readMembers.length ? '已读：' + readMembers.join('、') : (live ? '实时推送中 · 断线自动重连' : '每 4 秒自动获取新消息')) }}</text>
             </view>
             <button v-if="activePeerId" class="call-btn" size="mini" @click="emit('call', activePeerId)">☎ 通话</button>
           </view>
@@ -587,6 +678,7 @@ defineExpose({ load, receive });
             <view v-for="item in messages" :id="'msg-' + item.id" :key="item.id" :class="['row', { own: isOwn(item) }]">
               <view class="bubble" @longpress="confirmRecall(item)">
                 <text v-if="!isOwn(item)" class="sender">{{ memberName(item.senderId) }}</text>
+                <view v-if="item.tool && item.streaming" class="tool-hint">{{ toolLabel(item.tool) }}</view>
                 <view v-if="item.deleted" class="body recalled">此消息已撤回</view>
                 <template v-else>
                   <image v-if="item.kind === 'IMAGE'" v-show="previews[item.body]" class="photo" :src="previews[item.body]" mode="widthFix" @click="previewImages(previews[item.body])" />
@@ -602,7 +694,7 @@ defineExpose({ load, receive });
                       <text class="file-size">{{ fileSize(fileMeta[item.body]?.sizeBytes) || '点击下载' }}</text>
                     </view>
                   </view>
-                  <text v-if="item.kind !== 'IMAGE' && item.kind !== 'AUDIO' && item.kind !== 'FILE'" class="body">{{ item.body }}</text>
+                  <text v-if="item.kind !== 'IMAGE' && item.kind !== 'AUDIO' && item.kind !== 'FILE'" class="body">{{ item.body }}<text v-if="item.streaming" class="cursor">▌</text></text>
                 </template>
                 <text class="time">{{ stamp(item.createdAt) }}</text>
               </view>
@@ -610,6 +702,7 @@ defineExpose({ load, receive });
           </scroll-view>
           <view class="composer">
             <button
+              v-if="!isAi()"
               size="mini"
               :class="['mic', { recording }]"
               :disabled="!active"
@@ -620,10 +713,10 @@ defineExpose({ load, receive });
               @mouseup="finishRecord"
               @mouseleave="cancelRecord"
             >{{ recording ? "松开 发送" : "🎙" }}</button>
-            <input v-model="draft" class="input" maxlength="4000" placeholder="说点什么给家人…" :disabled="sending" @confirm="sendText" />
-            <button size="mini" :disabled="sending" @click="sendImage">图片</button>
-            <button size="mini" :disabled="sending" @click="sendFile">文件</button>
-            <button class="primary" size="mini" :loading="sending" :disabled="sending" @click="sendText">发送</button>
+            <input v-model="draft" class="input" maxlength="4000" :placeholder="isAi() ? '问问家庭小助手：这周有什么任务？' : '说点什么给家人…'" :disabled="sending || aiThinking" @confirm="sendText" />
+            <button v-if="!isAi()" size="mini" :disabled="sending" @click="sendImage">图片</button>
+            <button v-if="!isAi()" size="mini" :disabled="sending" @click="sendFile">文件</button>
+            <button class="primary" size="mini" :loading="sending || aiThinking" :disabled="sending || aiThinking" @click="sendText">发送</button>
           </view>
         </view>
       </view>
@@ -652,6 +745,11 @@ defineExpose({ load, receive });
 .conv{display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;background:var(--c-surface-2)}
 .conv.active{background:var(--c-primary-soft);border:1px solid rgba(196,121,90,.35);box-shadow:0 2px 10px rgba(196,121,90,.12)}
 .conv-avatar{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--c-primary),var(--c-primary-deep,#a6603f));color:#fff;text-align:center;line-height:40px;font-size:15px;flex-shrink:0;box-shadow:0 2px 8px rgba(196,121,90,.35)}
+.conv-avatar.ai{background:linear-gradient(135deg,#eef0ff,#e4e0ff);box-shadow:0 2px 8px rgba(91,110,232,.2);padding:4px;overflow:hidden}
+.conv-avatar-img{width:100%;height:100%;border-radius:50%}
+.tool-hint{font-size:11px;color:var(--c-muted);font-style:italic}
+.cursor{animation:blink 1s step-start infinite}
+@keyframes blink{50%{opacity:0}}
 .conv-body{flex:1;min-width:0}
 .conv-line{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .conv-name{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

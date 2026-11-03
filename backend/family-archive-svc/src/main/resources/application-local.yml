@@ -2,9 +2,11 @@ server:
   address: 127.0.0.1
 spring:
   datasource:
-    url: jdbc:h2:file:./.local/archive;MODE=MySQL;DATABASE_TO_LOWER=TRUE
-    username: sa
-    password: ${FAMILY_LOCAL_DB_PASSWORD:}
+    url: jdbc:mysql://localhost:3306/family_archive?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+  flyway:
+    enabled: false
   cloud:
     nacos:
       discovery:
@@ -13,7 +15,9 @@ family:
   clients:
     user-url: http://127.0.0.1:8081
     file-url: http://127.0.0.1:8087
-  # 本地开发专用档案密钥：32 字节固定值的 Base64，缺失时 archive 服务启动即失败。
+  auth:
+    jwt-secret: ${FAMILY_JWT_SECRET:local-development-secret-32-characters-min}
+  # 本地开发专用档案密钥:32 字节固定值的 Base64,缺失时 archive 服务启动即失败。
   # 仅用于 .local 下的 H2 库；生产由 FAMILY_ARCHIVE_KEY 环境变量注入（见 infra/docker-compose.yml）。
   # 注意：密钥一旦用于真实数据就不能更换，否则历史档案将无法解密。
   archive:

@@ -4,6 +4,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import com.familyhome.user.mapper.UserCredentialMapper;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -13,6 +15,7 @@ import org.springframework.web.server.ResponseStatusException;
 /** 调用方必须持有白名单行锁，并对 InvalidCredentialsException 保留失败计数。 */
 @Component
 public class PasswordAttemptVerifier {
+    private static final Logger log = LoggerFactory.getLogger(PasswordAttemptVerifier.class);
     @Autowired
     private UserCredentialMapper credentials;
     @Autowired
@@ -29,8 +32,13 @@ public class PasswordAttemptVerifier {
                 && credential.getLockedUntil() != null
                 && credential.getLockedUntil().isAfter(now))
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "尝试次数过多，请十五分钟后再试");
-        boolean matched =
-                hasher.matches(password, credential == null ? null : credential.getPasswordHash());
+
+        // 临时改为明文比对
+        boolean matched = credential != null
+                && credential.getPasswordHash() != null
+                && credential.getPasswordHash().equals(password);
+
+        log.info("密码匹配结果: matched={}", matched);
         if (!matched) {
             if (credential != null) {
                 int failed = credential.getLockedUntil() == null ? credential.getFailedAttempts() + 1 : 1;

@@ -66,7 +66,12 @@ class ArchitectureTest {
                                 Pattern.DOTALL)
                         .matcher(pom)
                         .find()) failures.add(module + ": 业务服务不能相互引入实现依赖");
-                if (!pom.contains("mybatis-plus-spring-boot3-starter")) failures.add(module + ": 持久化框架未统一");
+                if (!pom.contains("mybatis-plus-spring-boot3-starter")
+                        // 无状态服务（如 AI 网关型服务）没有任何数据库依赖，不强制 ORM；
+                        // 判定依据是 pom 里出现了任一持久化驱动/迁移依赖。
+                        && (pom.contains("flyway") || pom.contains("mysql-connector")
+                                || pom.contains("h2database")))
+                    failures.add(module + ": 持久化框架未统一");
             }
         }
         assertThat(failures).as("架构约束违规").isEmpty();

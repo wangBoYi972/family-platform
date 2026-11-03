@@ -142,6 +142,11 @@ public class ImSocket extends TextWebSocketHandler implements WebSocketConfigure
             .setAllowedOriginPatterns(allowedOrigins);
     }
 
+    /** 当前本机登记的连接数：测试用来等握手完成（连接登记是异步的），生产无调用。 */
+    public int sessionCount() {
+        return sessions.size();
+    }
+
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
         sessions.put(session.getId(), session);
