@@ -43,19 +43,19 @@ public class AiService {
 
     private static final Logger log = LoggerFactory.getLogger(AiService.class);
 
-    @Autowired
-    private AiProperties properties;
-
-    @Autowired
-    private AiConfigStore config;
-
-    @Autowired
-    private ToolRegistry toolRegistry;
-
-    @Autowired
-    private ObjectMapper json;
-
+    private final AiProperties properties;
+    private final AiConfigStore config;
+    private final ToolRegistry toolRegistry;
+    private final ObjectMapper json;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+
+    @Autowired
+    public AiService(AiProperties properties, AiConfigStore config, ToolRegistry toolRegistry) {
+        this.properties = properties;
+        this.config = config;
+        this.toolRegistry = toolRegistry;
+        this.json = new ObjectMapper();
+    }
 
     /** 保留给模型的对话历史轮数：太长只会让回答跑偏并翻倍 token 费用。 */
     private static final int HISTORY_LIMIT = 20;

@@ -155,13 +155,14 @@ public class ImServiceImpl implements ImService {
     public MessageVO send(SessionPrincipal p, String bearer, String id, MessageSendDTO i) {
         Conversation c = find(p, id);
         if (!i.kind().equals("TEXT")) {
-            if (!i.body().matches("[a-f0-9-]{36}")) throw new IllegalArgumentException();
+            if (!i.body().matches("[a-f0-9-]{36}"))
+                throw new IllegalArgumentException("无效的文件 ID 格式");
             var f = files.metadata(bearer, i.body()).data();
             if (!"FAMILY".equals(f.visibility()))
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "聊天附件必须为家庭共享文件");
             if ((i.kind().equals("IMAGE") && !f.mime().startsWith("image/"))
                 || (i.kind().equals("AUDIO") && !f.mime().startsWith("audio/")))
-                throw new IllegalArgumentException();
+                throw new IllegalArgumentException("文件类型与消息类型不匹配");
         }
         var m = new ChatMessage();
         m.setConversationId(id);
@@ -219,7 +220,7 @@ public class ImServiceImpl implements ImService {
                 new LambdaQueryWrapper<ChatMessage>()
                     .eq(ChatMessage::getId, messageId)
                     .eq(ChatMessage::getConversationId, id));
-        if (m == null) throw new IllegalArgumentException();
+        if (m == null) throw new IllegalArgumentException("消息不存在");
         if (!Objects.equals(m.getSenderId(), p.userId()))
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "只能撤回自己发出的消息");
         if (Boolean.TRUE.equals(m.getDeleted())) return; // 重复撤回按成功处理，客户端不必区分
@@ -316,7 +317,7 @@ public class ImServiceImpl implements ImService {
             new LambdaQueryWrapper<ChatMessage>()
                 .eq(ChatMessage::getId, i.messageId())
                 .eq(ChatMessage::getConversationId, id))
-            != 1) throw new IllegalArgumentException();
+            != 1) throw new IllegalArgumentException("消息 ID 无效");
         try {
             receipts.insert(id, p.userId());
         } catch (DuplicateKeyException ignored) {

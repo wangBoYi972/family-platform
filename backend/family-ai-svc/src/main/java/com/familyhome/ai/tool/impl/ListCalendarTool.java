@@ -20,8 +20,12 @@ public class ListCalendarTool implements Tool {
     private static final Logger log = LoggerFactory.getLogger(ListCalendarTool.class);
     private static final String NAME = "list_calendar";
 
+    private final ContentServiceClient contentClient;
+
     @Autowired
-    private ContentServiceClient contentClient;
+    public ListCalendarTool(ContentServiceClient contentClient) {
+        this.contentClient = contentClient;
+    }
 
     @Override
     public String getName() {

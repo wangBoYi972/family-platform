@@ -30,9 +30,13 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ToolRegistry {
     private static final Logger log = LoggerFactory.getLogger(ToolRegistry.class);
     private final Map<String, Tool> tools = new ConcurrentHashMap<>();
+    private final List<Tool> toolList;
 
     @Autowired
-    private List<Tool> toolList;
+    public ToolRegistry(List<Tool> toolList) {
+        this.toolList = toolList;
+        init();
+    }
 
     @PostConstruct
     public void init() {

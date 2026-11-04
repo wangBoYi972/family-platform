@@ -33,19 +33,23 @@ public class SearchFamilyDataTool implements Tool {
     private static final Logger log = LoggerFactory.getLogger(SearchFamilyDataTool.class);
     private static final String NAME = "search_family_data";
 
-    @Autowired
-    private ContentServiceClient contentClient;
-
-    @Autowired
-    private ArchiveServiceClient archiveClient;
-
-    @Autowired
-    private FileServiceClient fileClient;
-
-    @Autowired
-    private ObjectMapper json;
-
+    private final ContentServiceClient contentClient;
+    private final ArchiveServiceClient archiveClient;
+    private final FileServiceClient fileClient;
+    private final ObjectMapper json;
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+
+    @Autowired
+    public SearchFamilyDataTool(
+            ContentServiceClient contentClient,
+            ArchiveServiceClient archiveClient,
+            FileServiceClient fileClient,
+            ObjectMapper json) {
+        this.contentClient = contentClient;
+        this.archiveClient = archiveClient;
+        this.fileClient = fileClient;
+        this.json = json;
+    }
 
     @Override
     public String getName() {

@@ -55,7 +55,7 @@ public class ServiceSecurity implements WebMvcConfigurer {
                                 SessionPrincipal principal;
                                 try {
                                     if (bearer == null || !bearer.startsWith("Bearer "))
-                                        throw new IllegalArgumentException();
+                                        throw new IllegalArgumentException("缺少或无效的 Authorization header");
                                     Claims claims =
                                             Jwts.parser()
                                                     .verifyWith(Keys.hmacShaKeyFor(key))
@@ -64,7 +64,7 @@ public class ServiceSecurity implements WebMvcConfigurer {
                                                     .parseSignedClaims(bearer.substring(7))
                                                     .getPayload();
                                     if (claims.getExpiration() == null || claims.getId() == null)
-                                        throw new IllegalArgumentException();
+                                        throw new IllegalArgumentException("JWT 缺少必需字段");
                                     principal =
                                             new SessionPrincipal(
                                                     Long.parseLong(claims.getSubject()),
@@ -76,7 +76,7 @@ public class ServiceSecurity implements WebMvcConfigurer {
                                             || principal.householdId() < 1
                                             || !Set.of("ADMIN", "MEMBER").contains(principal.role())
                                             || !Set.of("admin", "family", "archive").contains(principal.client()))
-                                        throw new IllegalArgumentException();
+                                        throw new IllegalArgumentException("JWT 包含无效的 principal 数据");
                                 } catch (RuntimeException ex) {
                                     throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "登录已失效，请重新登录");
                                 }

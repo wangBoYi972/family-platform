@@ -80,7 +80,7 @@ public class GatewayRateLimitConfiguration {
                             Jwts.parser()
                                     .verifyWith(
                                             Keys.hmacShaKeyFor(
-                                                    authPropertiesde.getJwtSecret()
+                                                    authProperties.getJwtSecret()
                                                             .getBytes(StandardCharsets.UTF_8)))
                                     .requireIssuer("family-home")
                                     .build()

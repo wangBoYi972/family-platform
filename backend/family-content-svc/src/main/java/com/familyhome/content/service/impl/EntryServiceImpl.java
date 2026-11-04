@@ -86,9 +86,9 @@ public class EntryServiceImpl implements EntryService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择事件日期");
         if (i.fileIds() != null && !i.fileIds().isBlank()) {
             var ids = i.fileIds().split(",");
-            if (ids.length > 30) throw new IllegalArgumentException();
+            if (ids.length > 30) throw new IllegalArgumentException("文件数量不能超过 30 个");
             for (String id : ids) {
-                if (!id.matches("[a-f0-9-]{36}")) throw new IllegalArgumentException();
+                if (!id.matches("[a-f0-9-]{36}")) throw new IllegalArgumentException("无效的文件 ID 格式");
                 var file = files.metadata(bearer, id).data();
                 if (!"PRIVATE".equals(i.visibility()) && !"FAMILY".equals(file.visibility()))
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "共享内容只能引用共享文件");

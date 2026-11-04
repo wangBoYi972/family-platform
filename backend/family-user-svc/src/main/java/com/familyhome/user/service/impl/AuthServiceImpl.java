@@ -68,7 +68,7 @@ public class AuthServiceImpl implements AuthService {
         limit(request.phone());
         String client = request.client() == null ? "family" : request.client();
         if (!Set.of("admin", "family", "archive").contains(client))
-            throw new IllegalArgumentException();
+            throw new IllegalArgumentException("无效的客户端类型");
         boolean local = Arrays.asList(environment.getActiveProfiles()).contains("local");
         if (!local || !properties.isMockLoginEnabled() || properties.getMockCode().isBlank())
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "测试验证码登录未启用");
@@ -88,7 +88,7 @@ public class AuthServiceImpl implements AuthService {
     @Transactional(noRollbackFor = InvalidCredentialsException.class)
     public LoginVO passwordLogin(PasswordLoginDTO request) {
         if (!Set.of("admin", "family", "archive").contains(request.client()))
-            throw new IllegalArgumentException();
+            throw new IllegalArgumentException("无效的客户端类型");
         // 以数据库行锁串行化同一账号的认证和改密，防止多实例并发绕过计数。
         var entry = whitelist.lockByPhone(request.phone());
         passwordVerifier.verify(request.phone(), request.password(), false);

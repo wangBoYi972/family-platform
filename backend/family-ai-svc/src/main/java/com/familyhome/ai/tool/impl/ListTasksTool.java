@@ -27,11 +27,14 @@ public class ListTasksTool implements Tool {
     private static final Logger log = LoggerFactory.getLogger(ListTasksTool.class);
     private static final String NAME = "list_tasks";
 
-    @Autowired
-    private ContentServiceClient contentClient;
+    private final ContentServiceClient contentClient;
+    private final ObjectMapper json;
 
     @Autowired
-    private ObjectMapper json;
+    public ListTasksTool(ContentServiceClient contentClient, ObjectMapper json) {
+        this.contentClient = contentClient;
+        this.json = json;
+    }
 
     @Override
     public String getName() {
