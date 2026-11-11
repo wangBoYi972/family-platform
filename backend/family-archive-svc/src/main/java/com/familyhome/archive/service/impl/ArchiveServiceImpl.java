@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -158,6 +159,23 @@ public class ArchiveServiceImpl implements ArchiveService {
     /** 总览窗口与单条上限：家庭 ≤10 人、动作低频，1000 条足够，超了也是聚合准确性的可接受取舍。 */
     static final int SUMMARY_WINDOW_DAYS = 30;
     static final int SUMMARY_MAX_LOGS = 1000;
+    private static final int LOG_RETENTION_DAYS = 90; // 日志保留 90 天
+
+    /**
+     * 定时清理超过 90 天的审计日志，防止表无限增长
+     * 每天凌晨 2 点执行一次
+     */
+    @Scheduled(cron = "0 0 2 * * ?")
+    public void cleanupOldLogs() {
+        LocalDateTime cutoff = LocalDateTime.now().minusDays(LOG_RETENTION_DAYS);
+        int deleted = logs.delete(
+            new LambdaQueryWrapper<ArchiveAccessLog>()
+                .lt(ArchiveAccessLog::getCreatedAt, cutoff));
+        if (deleted > 0) {
+            org.slf4j.LoggerFactory.getLogger(ArchiveServiceImpl.class)
+                .info("清理过期审计日志: 删除 {} 条记录", deleted);
+        }
+    }
 
     public AuditSummaryVO summary(SessionPrincipal p) {
         p.requireAdmin();

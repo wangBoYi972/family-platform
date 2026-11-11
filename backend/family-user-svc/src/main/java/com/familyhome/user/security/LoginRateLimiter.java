@@ -28,7 +28,16 @@ public class LoginRateLimiter {
      * @param maxAttempts 窗口内最大尝试次数
      */
     public void checkAndIncrement(String namespace, String phone, int maxAttempts) {
-        if (redis == null) return; // Redis 不可用时降级放行
+        if (redis == null) {
+            // Redis 不可用时：根据环境变量决定是否继续放行或拒绝
+            boolean failopen = Boolean.parseBoolean(System.getenv("FAMILY_LOGIN_RATE_LIMIT_FAILOPEN"));
+            if (!failopen) {
+                throw new ResponseStatusException(
+                        HttpStatus.SERVICE_UNAVAILABLE, "登录服务暂时不可用，请稍后再试");
+            }
+            return; // 放行请求
+        }
+
         String key = "family:loginlimit:" + namespace + ":" + phone;
         Long count = redis.opsForValue().increment(key);
         if (count == null) return;

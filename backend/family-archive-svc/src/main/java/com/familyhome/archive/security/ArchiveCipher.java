@@ -48,16 +48,29 @@ public class ArchiveCipher {
     }
 
     public String decrypt(String value, String context) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException("加密内容不能为空");
+        }
+
+        String[] parts = value.split(":", 2);
+        if (parts.length != 2 || parts[0].isBlank() || parts[1].isBlank()) {
+            throw new IllegalArgumentException("加密格式不正确");
+        }
+
         try {
-            String[] parts = value.split(":", 2);
+            byte[] iv = Base64.getDecoder().decode(parts[0]);
+            byte[] ciphertext = Base64.getDecoder().decode(parts[1]);
+
+            if (iv.length != 12) {
+                throw new IllegalArgumentException("IV 长度不正确");
+            }
+
             Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(
-                    Cipher.DECRYPT_MODE,
-                    key,
-                    new GCMParameterSpec(128, Base64.getDecoder().decode(parts[0])));
+            cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, iv));
             cipher.updateAAD(context.getBytes(StandardCharsets.UTF_8));
-            return new String(
-                    cipher.doFinal(Base64.getDecoder().decode(parts[1])), StandardCharsets.UTF_8);
+            return new String(cipher.doFinal(ciphertext), StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException ex) {
+            throw ex; // 参数错误直接抛出
         } catch (Exception ex) {
             throw new IllegalStateException("档案解密失败", ex);
         }

@@ -42,6 +42,10 @@ public class ImSocket extends TextWebSocketHandler implements WebSocketConfigure
     private final Map<String, Ticket> tickets = new ConcurrentHashMap<>();
     private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
     private final Map<String, String> onlineMembers = new ConcurrentHashMap<>();
+    /** Ticket 清理时间窗口，避免每次请求都遍历整个 Map */
+    private volatile long lastTicketCleanupTime = 0;
+    private static final long TICKET_CLEANUP_INTERVAL_MS = 5_000L; // 5秒清理一次
+
     @Autowired
     private ObjectProvider<RedisTicketStore> ticketStoreProvider;
     @Autowired
@@ -98,10 +102,25 @@ public class ImSocket extends TextWebSocketHandler implements WebSocketConfigure
 
     public String ticket(SessionPrincipal p) {
         if (ticketStore != null) return ticketStore.issue(p);
-        tickets.entrySet().removeIf(e -> e.getValue().expiry < System.currentTimeMillis());
-        if (tickets.size() > 1000) throw new IllegalStateException("连接过多");
+
+        long now = System.currentTimeMillis();
+        // 定时清理过期 ticket，避免每次请求都遍历
+        if (now - lastTicketCleanupTime > TICKET_CLEANUP_INTERVAL_MS) {
+            tickets.entrySet().removeIf(e -> e.getValue().expiry < now);
+            lastTicketCleanupTime = now;
+        }
+
+        if (tickets.size() > 1000) {
+            // 强制清理后再检查
+            tickets.entrySet().removeIf(e -> e.getValue().expiry < now);
+            if (tickets.size() > 1000) {
+                throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "系统繁忙，请稍后再试");
+            }
+        }
+
         String id = UUID.randomUUID().toString();
-        tickets.put(id, new Ticket(p, System.currentTimeMillis() + 30000));
+        tickets.put(id, new Ticket(p, now + 30000));
         return id;
     }
 

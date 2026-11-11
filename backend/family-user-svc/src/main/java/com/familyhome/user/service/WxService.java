@@ -172,16 +172,19 @@ public class WxService {
 
     private synchronized String accessToken() throws Exception {
         long now = System.currentTimeMillis();
-        String token = accessToken;
-        if (token != null && now < accessTokenExpiresAt) return token;
+        // 优先返回 volatile 字段避免重复请求
+        if (accessToken != null && now < accessTokenExpiresAt) return accessToken;
+
         JsonNode res = getJson(wx.getApiBase() + "/cgi-bin/token?grant_type=client_credential&appid="
             + URLEncoder.encode(wx.getAppid(), StandardCharsets.UTF_8)
             + "&secret=" + URLEncoder.encode(wx.getSecret(), StandardCharsets.UTF_8));
         if (!res.hasNonNull("access_token"))
             throw new IllegalStateException("获取 access_token 失败：" + res);
-        accessToken = res.get("access_token").asText();
+
+        String newToken = res.get("access_token").asText();
         accessTokenExpiresAt = now + Duration.ofSeconds(Math.max(60, res.path("expires_in").asInt(7200) - 300)).toMillis();
-        return accessToken;
+        accessToken = newToken;
+        return newToken; // 返回局部变量,避免读取可能被其他线程修改的 volatile 字段
     }
 
     private String jscode2sessionUrl(String code) {

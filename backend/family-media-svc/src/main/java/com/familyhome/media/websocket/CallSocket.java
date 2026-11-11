@@ -41,7 +41,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 public class CallSocket extends TextWebSocketHandler implements WebSocketConfigurer {
     private static final Logger log = LoggerFactory.getLogger(CallSocket.class);
     private static final int MAX_SESSIONS_PER_USER = 5;
-    private static final long HEARTBEAT_TIMEOUT_MS = 75_000L;
+    private static final long HEARTBEAT_TIMEOUT_MS = 45_000L; // 45秒：缩短异常连接占用时间
     private static final int MAX_MESSAGES_PER_MINUTE = 600;
 
     private record Ticket(SessionPrincipal principal, long expiry) {}
@@ -66,6 +66,9 @@ public class CallSocket extends TextWebSocketHandler implements WebSocketConfigu
     private final Map<Long, Set<String>> byUser = new ConcurrentHashMap<>();
     /** userId -> 宽限期；断线后不立即退出通话。 */
     private final Map<Long, PendingLeave> pendingLeave = new ConcurrentHashMap<>();
+    /** Ticket 清理时间窗口，避免每次请求都遍历整个 Map */
+    private volatile long lastTicketCleanupTime = 0;
+    private static final long TICKET_CLEANUP_INTERVAL_MS = 5_000L; // 5秒清理一次
 
     @Autowired private ObjectMapper mapper;
     @Autowired private CallService calls;
@@ -82,10 +85,25 @@ public class CallSocket extends TextWebSocketHandler implements WebSocketConfigu
 
     public String issueTicket(SessionPrincipal principal) {
         if (ticketStore != null) return ticketStore.issue(principal);
-        tickets.entrySet().removeIf(entry -> entry.getValue().expiry() < System.currentTimeMillis());
-        if (tickets.size() > 2000) throw new IllegalStateException("连接过多，请稍后再试");
+
+        long now = System.currentTimeMillis();
+        // 定时清理过期 ticket，避免每次请求都遍历
+        if (now - lastTicketCleanupTime > TICKET_CLEANUP_INTERVAL_MS) {
+            tickets.entrySet().removeIf(entry -> entry.getValue().expiry() < now);
+            lastTicketCleanupTime = now;
+        }
+
+        if (tickets.size() > 2000) {
+            // 强制清理后再检查
+            tickets.entrySet().removeIf(entry -> entry.getValue().expiry() < now);
+            if (tickets.size() > 2000) {
+                throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "系统繁忙，请稍后再试");
+            }
+        }
+
         String id = UUID.randomUUID().toString();
-        tickets.put(id, new Ticket(principal, System.currentTimeMillis() + 30_000));
+        tickets.put(id, new Ticket(principal, now + 30_000));
         return id;
     }
 

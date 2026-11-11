@@ -41,6 +41,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class CallServiceImpl implements CallService {
     private static final Logger log = LoggerFactory.getLogger(CallServiceImpl.class);
     private static final long MEMBERSHIP_TTL_MS = 30_000L;
+    private static final int MAX_MEMBERSHIP_CACHE_SIZE = 10000;
 
     @Autowired
     private CallSessionMapper sessions;
@@ -570,6 +571,11 @@ public class CallServiceImpl implements CallService {
     }
 
     private void cacheMembership(String callId, long userId) {
+        // 缓存大小超限时先清理过期项
+        if (membershipCache.size() >= MAX_MEMBERSHIP_CACHE_SIZE) {
+            long now = System.currentTimeMillis();
+            membershipCache.entrySet().removeIf(entry -> entry.getValue() <= now);
+        }
         membershipCache.put(callId + ":" + userId, System.currentTimeMillis() + MEMBERSHIP_TTL_MS);
     }
 

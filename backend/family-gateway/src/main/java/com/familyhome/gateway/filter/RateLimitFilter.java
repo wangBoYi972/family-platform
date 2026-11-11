@@ -77,7 +77,13 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
             exchange.getResponse().getHeaders().add("X-RateLimit-Remaining", String.valueOf(DEFAULT_LIMIT - count));
 
         } catch (RuntimeException e) {
-            log.error("限流检查失败,放行请求", e);
+            log.error("限流检查失败", e);
+            // Redis 故障时的降级策略：返回 503 而不是放行，防止限流失效被当作 DDoS 入口
+            // 如果允许故障继续服务，应该配置 family.gateway.rate-limit.failopen=true
+            if (!Boolean.parseBoolean(System.getenv("FAMILY_GATEWAY_RATE_LIMIT_FAILOPEN"))) {
+                exchange.getResponse().setStatusCode(HttpStatus.SERVICE_UNAVAILABLE);
+                return exchange.getResponse().setComplete();
+            }
         }
 
         return chain.filter(exchange);

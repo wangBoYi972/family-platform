@@ -29,6 +29,14 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     /**
+     * 判断是否为生产环境
+     */
+    private boolean isProduction() {
+        String env = System.getenv("SPRING_PROFILES_ACTIVE");
+        return env != null && (env.contains("prod") || env.contains("production"));
+    }
+
+    /**
      * 处理参数校验异常(@Valid)
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -51,7 +59,8 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ApiResponse<Void> handleConstraintViolation(ConstraintViolationException ex) {
         log.warn("约束违反: {}", ex.getMessage());
-        return ApiResponse.failure(400, "参数不合法: " + ex.getMessage());
+        // 约束违反通常来自数据库，可能泄露表结构，生产环境返回通用消息
+        return ApiResponse.failure(400, "参数不合法");
     }
 
     /**
@@ -91,7 +100,9 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ApiResponse<Void> handleIllegalArgument(IllegalArgumentException ex) {
         log.warn("非法参数: {}", ex.getMessage());
-        return ApiResponse.failure(400, ex.getMessage());
+        // 避免向客户端泄露内部逻辑，返回通用消息
+        String message = isProduction() ? "请求参数错误" : "请求参数错误: " + ex.getMessage();
+        return ApiResponse.failure(400, message);
     }
 
     /**
@@ -100,8 +111,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalStateException.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ApiResponse<Void> handleIllegalState(IllegalStateException ex) {
-        log.error("非法状态: {}", ex.getMessage(), ex);
-        return ApiResponse.failure(500, "操作失败: " + ex.getMessage());
+        log.error("非法状态", ex);
+        // 避免向客户端泄露内部状态信息
+        String message = isProduction() ? "操作失败" : "操作失败: " + ex.getMessage();
+        return ApiResponse.failure(500, message);
     }
 
     /**
