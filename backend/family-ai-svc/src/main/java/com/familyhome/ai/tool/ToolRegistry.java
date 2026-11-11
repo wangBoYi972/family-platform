@@ -35,7 +35,6 @@ public class ToolRegistry {
     @Autowired
     public ToolRegistry(List<Tool> toolList) {
         this.toolList = toolList;
-        init();
     }
 
     @PostConstruct

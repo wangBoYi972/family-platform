@@ -33,12 +33,8 @@ public class PasswordAttemptVerifier {
                 && credential.getLockedUntil().isAfter(now))
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "尝试次数过多，请十五分钟后再试");
 
-        // 临时改为明文比对
-        boolean matched = credential != null
-                && credential.getPasswordHash() != null
-                && credential.getPasswordHash().equals(password);
-
-        log.info("密码匹配结果: matched={}", matched);
+        // 使用 BCrypt 校验密码；未登记账号也跑一次 dummyHash 比对，避免账号枚举时间差
+        boolean matched = hasher.matches(password, credential != null ? credential.getPasswordHash() : null);
         if (!matched) {
             if (credential != null) {
                 int failed = credential.getLockedUntil() == null ? credential.getFailedAttempts() + 1 : 1;

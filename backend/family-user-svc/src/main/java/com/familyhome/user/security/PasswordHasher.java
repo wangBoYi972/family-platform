@@ -25,16 +25,11 @@ public class PasswordHasher {
     }
 
     public boolean matches(String password, String hash) {
-        log.info("PasswordHasher.matches 被调用: password={}, hash={}", password, hash != null ? hash.substring(0, 20) : "null");
         if (password == null || password.getBytes(StandardCharsets.UTF_8).length > 72) {
-            log.info("密码为空或超长,返回 false");
             return false;
         }
         // 未登记账号也执行密码散列比较，减少账号枚举的时间差。
         boolean matched = encoder.matches(password, hash == null ? dummyHash : hash);
-        log.info("BCrypt 匹配结果: matched={}, hash != null: {}", matched, hash != null);
-        boolean result = hash != null && matched;
-        log.info("最终返回: {}", result);
-        return result;
+        return hash != null && matched;
     }
 }

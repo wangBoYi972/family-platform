@@ -91,7 +91,10 @@ public class FileServiceImpl implements FileService {
                         .replace('\r', '_')
                         .replace('\n', '_');
         if (name.length() > 200) name = name.substring(name.length() - 200);
-        String ext = name.substring(name.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
+        int dotIndex = name.lastIndexOf('.');
+        if (dotIndex <= 0 || dotIndex == name.length() - 1)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "无法识别文件类型，请确保文件名包含扩展名");
+        String ext = name.substring(dotIndex + 1).toLowerCase(Locale.ROOT);
         String mime = MIME.get(ext);
         if (mime == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不支持该文件类型");
         String id = UUID.randomUUID().toString();

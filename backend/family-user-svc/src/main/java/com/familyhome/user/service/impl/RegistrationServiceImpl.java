@@ -19,6 +19,7 @@ import com.familyhome.user.model.InviteCode;
 import com.familyhome.user.model.UserCredential;
 import com.familyhome.user.model.WhitelistEntry;
 import com.familyhome.user.security.InviteCodeGenerator;
+import com.familyhome.user.security.LoginRateLimiter;
 import com.familyhome.user.security.PasswordHasher;
 import com.familyhome.user.security.TokenService;
 import com.familyhome.user.service.RegistrationService;
@@ -26,8 +27,6 @@ import com.familyhome.user.vo.LoginVO;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -47,7 +46,6 @@ public class RegistrationServiceImpl implements RegistrationService {
     private static final Set<String> CLIENTS = Set.of("admin", "family", "archive");
     private static final int HOUSEHOLD_MEMBER_LIMIT = 10;
     private static final int ATTEMPT_LIMIT = 5;
-    private static final long ATTEMPT_WINDOW = 600_000L;
 
     @Autowired private AuthProperties properties;
     @Autowired private InviteCodeMapper inviteCodes;
@@ -60,23 +58,11 @@ public class RegistrationServiceImpl implements RegistrationService {
     @Autowired private TokenService tokens;
     @Autowired private PasswordHasher hasher;
     @Autowired private InviteCodeGenerator generator;
-
-    private final Map<String, Attempt> attempts = new HashMap<>();
-
-    private record Attempt(int count, long until) {}
+    @Autowired private LoginRateLimiter loginRateLimiter;
 
     /** 注册是匿名入口，按手机号限制尝试次数，避免邀请码被批量试错。 */
-    private synchronized void limit(String phone) {
-        long now = System.currentTimeMillis();
-        attempts.entrySet().removeIf(e -> e.getValue().until < now);
-        Attempt old = attempts.get(phone);
-        if (attempts.size() > 5000 || (old != null && old.count >= ATTEMPT_LIMIT))
-            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "尝试次数过多，请十分钟后再试");
-        attempts.put(
-                phone,
-                new Attempt(
-                        old == null ? 1 : old.count + 1,
-                        old == null ? now + ATTEMPT_WINDOW : old.until));
+    private void limit(String phone) {
+        loginRateLimiter.checkAndIncrement("register", phone, ATTEMPT_LIMIT);
     }
 
     @Override

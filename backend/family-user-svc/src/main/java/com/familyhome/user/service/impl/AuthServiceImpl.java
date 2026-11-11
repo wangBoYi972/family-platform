@@ -23,6 +23,7 @@ import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.*;
+import com.familyhome.user.security.LoginRateLimiter;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -47,31 +48,19 @@ public class AuthServiceImpl implements AuthService {
     private Environment environment;
     @Autowired
     private PasswordAttemptVerifier passwordVerifier;
-    private final Map<String, Attempt> attempts = new HashMap<>();
-
-    private record Attempt(int count, long until) {}
-
-    private synchronized void limit(String phone) {
-        long now = System.currentTimeMillis();
-        attempts.entrySet().removeIf(e -> e.getValue().until < now);
-        Attempt old = attempts.get(phone);
-        if (attempts.size() > 1000 || (old != null && old.count >= 10))
-            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "尝试次数过多，请十分钟后再试");
-        attempts.put(
-                phone,
-                new Attempt(old == null ? 1 : old.count + 1, old == null ? now + 600000 : old.until));
-    }
+    @Autowired
+    private LoginRateLimiter loginRateLimiter;
 
     @Override
     @Transactional
     public LoginVO login(LoginDTO request) {
-        limit(request.phone());
+        loginRateLimiter.checkAndIncrement("login", request.phone(), 10);
         String client = request.client() == null ? "family" : request.client();
         if (!Set.of("admin", "family", "archive").contains(client))
             throw new IllegalArgumentException("无效的客户端类型");
         boolean local = Arrays.asList(environment.getActiveProfiles()).contains("local");
         if (!local || !properties.isMockLoginEnabled() || properties.getMockCode().isBlank())
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "测试验证码登录未启用");
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "验证码登录暂未开放，请使用密码登录");
         if (!MessageDigest.isEqual(
                 properties.getMockCode().getBytes(StandardCharsets.UTF_8),
                 request.code().getBytes(StandardCharsets.UTF_8)))

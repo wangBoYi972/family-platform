@@ -105,7 +105,12 @@ public class AiService {
             emitter.accept("{\"type\":\"done\"}");
         } catch (ResponseStatusException e) {
             throw e;
-        } catch (IOException | InterruptedException e) {
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();   // 恢复中断状态，让线程池能正确处理停机信号
+            log.error("AI 对话被中断", e);
+            emitter.accept(event("error", "message", "AI 助手暂时开小差了，请稍后再试"));
+            emitter.accept("{\"type\":\"done\"}");
+        } catch (IOException e) {
             log.error("AI 对话失败", e);
             emitter.accept(event("error", "message", "AI 助手暂时开小差了，请稍后再试"));
             emitter.accept("{\"type\":\"done\"}");
@@ -146,8 +151,8 @@ public class AiService {
                 1. **list_tasks(status?)** - 查询任务清单
                    - 无参数: 全部任务
                    - status="TODO": 待办
-                   - status="DOING": 进行中
-                   - status="DONE": 已完成
+                   - status="IN_PROGRESS": 进行中
+                   - status="COMPLETED": 已完成
                    何时用: 用户问任务、待办、进度
 
                 2. **list_calendar()** - 查询日程纪念日
@@ -316,11 +321,7 @@ public class AiService {
                     msg.put("content", message.path("content").asText(""));
                     msg.set("tool_calls", calls);
                     toolCalls = msg;
-                    // 发送工具调用事件
-                    for (JsonNode call : calls) {
-                        String name = call.path("function").path("name").asText();
-                        emitter.accept(event("tool", "name", name));
-                    }
+                    // 工具事件由主循环统一发送，此处不重复发送
                 }
             }
         }

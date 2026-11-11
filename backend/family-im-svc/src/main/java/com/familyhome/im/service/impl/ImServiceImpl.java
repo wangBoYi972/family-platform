@@ -291,9 +291,9 @@ public class ImServiceImpl implements ImService {
                 audience(c) == null
                     ? memberCache.getMembers(bearer, sender.householdId()).stream()
                         .map(mm -> mm.id())
-                        .filter(id -> id != sender.userId())
+                        .filter(id -> !id.equals(sender.userId()))
                         .toList()
-                    : audience(c).stream().filter(id -> id != sender.userId()).toList();
+                    : audience(c).stream().filter(id -> !id.equals(sender.userId())).toList();
             Map<String, Object> data = Map.of("sender", sender.userId(), "preview", preview(m));
             for (Long uid : recipients) {
                 if (registry.isUserOnline(uid)) continue;
@@ -313,11 +313,11 @@ public class ImServiceImpl implements ImService {
     @Transactional
     public void read(SessionPrincipal p, String id, MessageReadDTO i) {
         Conversation c = find(p, id);
-        if (messages.selectCount(
+        if (!Long.valueOf(1L).equals(messages.selectCount(
             new LambdaQueryWrapper<ChatMessage>()
                 .eq(ChatMessage::getId, i.messageId())
-                .eq(ChatMessage::getConversationId, id))
-            != 1) throw new IllegalArgumentException("消息 ID 无效");
+                .eq(ChatMessage::getConversationId, id))))
+            throw new IllegalArgumentException("消息 ID 无效");
         try {
             receipts.insert(id, p.userId());
         } catch (DuplicateKeyException ignored) {

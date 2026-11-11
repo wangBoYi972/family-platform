@@ -84,16 +84,18 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
     }
 
     private String getClientIp(ServerWebExchange exchange) {
-        String ip = exchange.getRequest().getHeaders().getFirst("X-Forwarded-For");
-        if (ip != null && !ip.isEmpty()) {
-            return ip.split(",")[0].trim();
+        // 优先取 X-Real-IP（由受信任的反向代理设置，不可被客户端注入）
+        String realIp = exchange.getRequest().getHeaders().getFirst("X-Real-IP");
+        if (realIp != null && !realIp.isBlank()) {
+            return realIp.trim();
         }
-
-        ip = exchange.getRequest().getHeaders().getFirst("X-Real-IP");
-        if (ip != null && !ip.isEmpty()) {
-            return ip;
+        // X-Forwarded-For 取最后一个 IP：链路末端最靠近真实网络入口，客户端伪造的值在最左侧，
+        // 攻击者无法控制代理在链路末尾追加的地址。
+        String xff = exchange.getRequest().getHeaders().getFirst("X-Forwarded-For");
+        if (xff != null && !xff.isBlank()) {
+            String[] parts = xff.split(",");
+            return parts[parts.length - 1].trim();
         }
-
         return Objects.requireNonNull(exchange.getRequest().getRemoteAddress())
                 .getAddress().getHostAddress();
     }

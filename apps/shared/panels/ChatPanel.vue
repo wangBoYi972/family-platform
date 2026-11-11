@@ -96,8 +96,8 @@ async function sendAi(text) {
   aiThinking.value = true;
   try {
     await aiChat({
-      // 后端只认最近 12 轮，这里同步裁剪，别把 40 条全发上去
-      messages: history.slice(-13),
+      // 后端保留最近 20 条消息历史，这里同步裁剪，别把全量记录都发上去
+      messages: history.slice(-20),
       onTool: name => { reply.tool = name; },
       onDelta: text2 => { reply.body += text2; toBottom(); }
     });
@@ -326,7 +326,9 @@ function receive(frame) {
   }
   if (frame.type === "message.deleted") {
     if (String(frame.conversationId) === active.value) markDeleted(frame.messageId);
-    else loadConversations().catch(() => {});
+    // 不在当前会话：列表预览不展示正文，刷新一次拿未读数即可。
+    // 在当前会话：气泡已就地清空，但左侧会话列表的「最后一条消息」预览仍是被撤回的原文，也需刷新。
+    loadConversations().catch(() => {});
     return;
   }
   if (!frame.messageId) return;
@@ -480,10 +482,10 @@ async function openFile(item) {
     fileUrls.value = { ...fileUrls.value, [id]: path };
     if (typeof document !== "undefined") {
       // H5：tempFilePath 是 blob URL，<a download> 即可保存
-      const anchor = document.createElement("a");
-      anchor.href = path;
-      anchor.download = fileMeta.value[id]?.name || "family-file";
-      anchor.click();
+      const downloadLink = document.createElement("a");
+      downloadLink.href = path;
+      downloadLink.download = fileMeta.value[id]?.name || "family-file";
+      downloadLink.click();
     } else {
       uni.openDocument({
         filePath: path,

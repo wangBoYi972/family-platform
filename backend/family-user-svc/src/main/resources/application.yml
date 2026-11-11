@@ -5,6 +5,12 @@ server:
 spring:
   application:
     name: family-user-svc
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
   datasource:
     url: ${FAMILY_USER_DB_URL:jdbc:mysql://127.0.0.1:3306/family_user?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
     username: ${FAMILY_USER_DB_USERNAME:family_app}
