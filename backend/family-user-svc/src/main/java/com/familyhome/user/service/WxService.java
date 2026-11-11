@@ -170,7 +170,7 @@ public class WxService {
         if (!wx.isEnabled()) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "微信能力未配置");
     }
 
-    private String accessToken() throws Exception {
+    private synchronized String accessToken() throws Exception {
         long now = System.currentTimeMillis();
         String token = accessToken;
         if (token != null && now < accessTokenExpiresAt) return token;

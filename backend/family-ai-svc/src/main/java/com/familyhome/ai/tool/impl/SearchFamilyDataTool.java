@@ -80,10 +80,10 @@ public class SearchFamilyDataTool implements Tool {
 
             // 并发查询 7 个数据源
             CompletableFuture<String> tasks = CompletableFuture.supplyAsync(
-                    () -> safeCall(() -> contentClient.searchDynamics(bearer, keyword, 1, 5)),
+                    () -> safeCall(() -> contentClient.searchTasks(bearer, keyword, 1, 5)),
                     executor);
             CompletableFuture<String> calendar = CompletableFuture.supplyAsync(
-                    () -> safeCall(() -> contentClient.listCalendar(bearer, 1, 5)),
+                    () -> safeCall(() -> contentClient.searchCalendar(bearer, keyword, 1, 5)),
                     executor);
             CompletableFuture<String> dynamics = CompletableFuture.supplyAsync(
                     () -> safeCall(() -> contentClient.searchDynamics(bearer, keyword, 1, 5)),
@@ -133,7 +133,17 @@ public class SearchFamilyDataTool implements Tool {
         try {
             return call.get();
         } catch (FeignException e) {
-            return "{\"error\":\"" + e.getMessage().replace("\"", "\\\"") + "\"}";
+            // 完整转义：\ " / \b \f \n \r \t 以及其他控制字符
+            String msg = e.getMessage();
+            if (msg == null) msg = "";
+            msg = msg.replace("\\", "\\\\")     // \ 必须最先处理
+                    .replace("\"", "\\\"")
+                    .replace("\b", "\\b")
+                    .replace("\f", "\\f")
+                    .replace("\n", "\\n")
+                    .replace("\r", "\\r")
+                    .replace("\t", "\\t");
+            return "{\"error\":\"" + msg + "\"}";
         }
     }
 }

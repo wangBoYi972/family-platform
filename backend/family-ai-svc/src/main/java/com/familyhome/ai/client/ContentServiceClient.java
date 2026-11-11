@@ -37,6 +37,17 @@ public interface ContentServiceClient {
     );
 
     /**
+     * 按关键字搜索任务。
+     */
+    @GetMapping(value = "/api/tasks", produces = "application/json")
+    String searchTasks(
+            @RequestHeader("Authorization") String bearer,
+            @RequestParam String keyword,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "5") int size
+    );
+
+    /**
      * 查询日程和纪念日。
      */
     @GetMapping(value = "/api/calendar", produces = "application/json")
@@ -44,6 +55,17 @@ public interface ContentServiceClient {
             @RequestHeader("Authorization") String bearer,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size
+    );
+
+    /**
+     * 按关键字搜索日程。
+     */
+    @GetMapping(value = "/api/calendar", produces = "application/json")
+    String searchCalendar(
+            @RequestHeader("Authorization") String bearer,
+            @RequestParam String keyword,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "5") int size
     );
 
     /**

@@ -48,8 +48,8 @@ public class ListTasksTool implements Tool {
                 "查询本家庭的任务清单（按时间倒序，最多 20 条）。用于回答「有什么任务」「谁还没完成」。",
                 ToolDefinition.ParametersSpec.object(
                         Map.of("status", ToolDefinition.PropertySpec.stringEnum(
-                                "按状态筛选：TODO 待办 / DOING 进行中 / DONE 已完成；不传返回全部",
-                                "TODO", "DOING", "DONE"
+                                "按状态筛选：TODO 待办 / IN_PROGRESS 进行中 / COMPLETED 已完成；不传返回全部",
+                                "TODO", "IN_PROGRESS", "COMPLETED"
                         ))
                 )
         );

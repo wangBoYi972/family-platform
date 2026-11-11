@@ -26,8 +26,18 @@ public class ContentServiceClientFallback implements FallbackFactory<ContentServ
             }
 
             @Override
+            public String searchTasks(String bearer, String keyword, int page, int size) {
+                return handleError("搜索任务", cause);
+            }
+
+            @Override
             public String listCalendar(String bearer, int page, int size) {
                 return handleError("查询日程", cause);
+            }
+
+            @Override
+            public String searchCalendar(String bearer, String keyword, int page, int size) {
+                return handleError("搜索日程", cause);
             }
 
             @Override

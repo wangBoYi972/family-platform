@@ -38,17 +38,10 @@ public class AiConfigStore {
     /** null 表示管理端没保存过，此时退回环境变量。 */
     private volatile Setting stored;
 
-    public AiConfigStore(AiProperties properties) {
-        this.json = new ObjectMapper();
-        this.properties = properties;
-        init();
-    }
-
     @Autowired
     public AiConfigStore(ObjectMapper json, AiProperties properties) {
         this.json = json;
         this.properties = properties;
-        init();
     }
 
     @PostConstruct

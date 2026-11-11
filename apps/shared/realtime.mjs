@@ -20,13 +20,13 @@ export function createRefreshGate({
   let pending = 0;
   let topics = new Set();
 
-  function fire() {
+  function fire(force) {
     timer = null;
     const count = pending;
     const events = topics;
     pending = 0;
     topics = new Set();
-    if (count) onFlush(count, events);
+    if (count || force) onFlush(count, events);
   }
 
   return {
@@ -37,10 +37,10 @@ export function createRefreshGate({
       if (timer) cancel(timer);
       timer = schedule(fire, delay);
     },
-    /** 立刻兑现（例如标签页重新可见时），不等窗口期。 */
+    /** 立刻兑现（例如标签页重新可见或断线重连时），不等窗口期；即使无积压也强制触发一次全量刷新。 */
     flushNow() {
       if (timer) cancel(timer);
-      fire();
+      fire(true);
     },
     dispose() {
       if (timer) cancel(timer);
