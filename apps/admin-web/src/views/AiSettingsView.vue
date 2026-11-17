@@ -57,17 +57,8 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="app-shell">
-    <header class="topbar">
-      <div class="brand"><strong>AI 家庭助手</strong></div>
-      <div class="topbar-actions">
-        <el-button text @click="load">刷新</el-button>
-        <el-button text @click="$emit('navigate', '任务')">返回工作台</el-button>
-      </div>
-    </header>
-
-    <main class="workspace">
-      <section class="content" v-loading="loading">
+  <section class="content" v-loading="loading">
+        <div class="page-actions"><el-button text @click="load">刷新</el-button></div>
         <div class="page-heading">
           <div>
             <p class="eyebrow">智能客服</p>
@@ -121,22 +112,17 @@ onMounted(load);
             </el-form-item>
           </el-form>
         </el-card>
-      </section>
-    </main>
-  </div>
+  </section>
 </template>
 
 <style scoped>
-.app-shell { min-height: 100vh; background: var(--family-bg, #faf7f4); }
-.topbar { display: flex; align-items: center; justify-content: space-between; padding: 16px 28px; border-bottom: 1px solid var(--c-line, #eee); background: #fff; }
-.topbar-actions { display: flex; gap: 8px; }
-.workspace { display: block; }
-.content { max-width: 860px; margin: 0 auto; padding: 28px 20px 60px; }
+.content { max-width: 860px; }
+.page-actions { display: flex; justify-content: flex-end; }
 .page-heading { margin-bottom: 20px; }
-.eyebrow { color: var(--c-muted, #999); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; margin: 0 0 6px; }
-h1 { margin: 0 0 8px; font-size: 24px; }
-.mf-rule { width: 48px; height: 2px; background: var(--c-primary, #c4795a); margin-bottom: 12px; }
+.eyebrow { color: var(--c-primary); font-family: var(--font-display); font-size: 13px; letter-spacing: .16em; margin: 0 0 6px; }
+h1 { margin: 0 0 8px; font-size: 26px; font-family: var(--font-display); }
+.mf-rule { width: 36px; height: 2px; background: var(--c-primary); margin-bottom: 12px; border-radius: 0; }
 .hint { color: var(--c-muted, #8a8a8a); font-size: 12px; line-height: 1.6; margin: 6px 0 0; }
-.panel { margin-bottom: 18px; border-radius: 14px; }
+.panel { margin-bottom: 18px; border-radius: 4px; border: 1px solid rgba(58, 52, 46, 0.16); box-shadow: none; }
 .card-head { display: flex; align-items: center; justify-content: space-between; }
 </style>

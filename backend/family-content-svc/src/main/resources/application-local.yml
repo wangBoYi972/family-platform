@@ -7,6 +7,9 @@ spring:
     password: root
   flyway:
     enabled: false
+  rabbitmq:
+    username: guest
+    password: guest
   cloud:
     nacos:
       discovery:

@@ -19,3 +19,4 @@ scrape_configs:
           - "family-archive-svc:8088"
           - "family-im-svc:8089"
           - "family-media-svc:8090"
+          - "family-ai-svc:8091"

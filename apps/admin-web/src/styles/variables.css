@@ -1,6 +1,6 @@
 /* ==========================================================================
-   家庭综合平台 · 管理端设计语言 v2
-   Warm Morandi + Soft Glass + Purposeful Motion
+   家庭综合平台 · 管理端设计语言
+   家庭簿：纸面、朱砂印、细线。按钮是实色方章，不再用玻璃和渐变胶囊。
    ========================================================================== */
 
 :root {
@@ -10,16 +10,16 @@
   --c-surface: #ffffff;
   --c-surface-2: #fbf7f1;
 
-  /* —— 玻璃层 —— */
-  --c-glass: rgba(255, 255, 255, 0.72);
-  --c-glass-2: rgba(255, 255, 255, 0.5);
-  --c-glass-line: rgba(255, 255, 255, 0.72);
+  /* —— 纸面（沿用旧变量名，避免各页改选择器）—— */
+  --c-glass: #fffdf8;
+  --c-glass-2: #fbf7f1;
+  --c-glass-line: rgba(58, 52, 46, 0.16);
 
-  /* —— 主色：暖陶土 —— */
-  --c-primary: #c4795a;
-  --c-primary-deep: #a6603f;
-  --c-primary-soft: #f4e3d8;
-  --c-primary-tint: rgba(196, 121, 90, 0.12);
+  /* —— 主色：朱砂，和登录页印章同一支墨 —— */
+  --c-primary: #b4543a;
+  --c-primary-deep: #8d3a2a;
+  --c-primary-soft: #f6e6df;
+  --c-primary-tint: rgba(180, 84, 58, 0.12);
 
   /* —— 辅助色：莫兰迪四色 —— */
   --c-sky: #7e9ab0;
@@ -44,20 +44,19 @@
   --c-line: rgba(58, 52, 46, 0.1);
   --c-line-soft: rgba(58, 52, 46, 0.055);
 
-  /* —— 圆角 —— */
-  --r-xs: 10px;
-  --r-sm: 14px;
-  --r-md: 18px;
-  --r-lg: 24px;
-  --r-xl: 32px;
-  --r-pill: 999px;
+  /* —— 圆角：账本裁边，不用胶囊 —— */
+  --r-xs: 2px;
+  --r-sm: 3px;
+  --r-md: 4px;
+  --r-lg: 6px;
+  --r-xl: 8px;
+  --r-pill: 3px;
 
-  /* —— 阴影 —— */
-  --sh-1: 0 1px 2px rgba(58, 52, 46, 0.05), 0 2px 6px rgba(58, 52, 46, 0.04);
-  --sh-2: 0 2px 4px rgba(58, 52, 46, 0.05), 0 10px 24px -8px rgba(58, 52, 46, 0.14);
-  --sh-3: 0 4px 10px rgba(58, 52, 46, 0.07), 0 22px 44px -14px rgba(58, 52, 46, 0.22);
-  --sh-edge: inset 0 0 0 1px rgba(255, 255, 255, 0.55),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  /* —— 阴影：纸页压一层，不打彩色光晕 —— */
+  --sh-1: 0 1px 0 rgba(58, 52, 46, 0.05);
+  --sh-2: 0 1px 0 rgba(58, 52, 46, 0.06), 0 10px 24px -16px rgba(58, 52, 46, 0.18);
+  --sh-3: 0 16px 36px -20px rgba(58, 52, 46, 0.28);
+  --sh-edge: none;
 
   /* —— 动效 —— */
   --e-out: cubic-bezier(0.22, 0.61, 0.36, 1);
@@ -76,20 +75,20 @@
   --family-surface: var(--c-surface-2);
 
   /* —— Element Plus 主题对齐 —— */
-  --el-color-primary: #c4795a;
-  --el-color-primary-light-3: #d69c83;
-  --el-color-primary-light-5: #e0b39f;
-  --el-color-primary-light-7: #eacbbb;
-  --el-color-primary-light-8: #f0d8cc;
-  --el-color-primary-light-9: #f6e6de;
-  --el-color-primary-dark-2: #a6603f;
+  --el-color-primary: #b4543a;
+  --el-color-primary-light-3: #c87a64;
+  --el-color-primary-light-5: #d9a094;
+  --el-color-primary-light-7: #e8c6bc;
+  --el-color-primary-light-8: #f0d6ce;
+  --el-color-primary-light-9: #f7ebe6;
+  --el-color-primary-dark-2: #8d3a2a;
   --el-color-danger: #b96a5b;
   --el-color-success: #7d9b85;
   --el-color-warning: #cfa769;
   --el-color-error: #b96a5b;
-  --el-border-radius-base: 12px;
-  --el-border-radius-small: 10px;
-  --el-border-radius-round: 999px;
+  --el-border-radius-base: 4px;
+  --el-border-radius-small: 3px;
+  --el-border-radius-round: 4px;
   --el-border-color: var(--c-line);
   --el-border-color-light: var(--c-line);
   --el-border-color-lighter: var(--c-line-soft);
@@ -98,7 +97,8 @@
   --el-text-color-secondary: var(--c-muted);
   --el-fill-color-blank: var(--c-surface);
   --el-bg-color: var(--c-surface-2);
-  --el-font-family: "PingFang SC", "Microsoft YaHei", Inter, system-ui, sans-serif;
+  --el-font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --font-display: "KaiTi", "Kaiti SC", "STKaiti", "Songti SC", serif;
 }
 
 * { box-sizing: border-box; }
@@ -106,17 +106,17 @@
 body {
   margin: 0;
   color: var(--c-ink);
-  background-color: var(--c-bg);
-  background-image: radial-gradient(
-      900px 620px at 6% -8%,
-      rgba(196, 121, 90, 0.22),
-      transparent 62%
-    ),
-    radial-gradient(760px 540px at 100% 2%, rgba(126, 154, 176, 0.24), transparent 60%),
-    radial-gradient(900px 700px at 52% 112%, rgba(140, 163, 148, 0.2), transparent 62%);
+  background-color: #f3ece3;
+  background-image: radial-gradient(rgba(58, 52, 46, 0.075) 1px, transparent 1.35px);
+  background-size: 22px 22px;
   background-attachment: fixed;
   font-family: var(--el-font-family);
   -webkit-font-smoothing: antialiased;
+}
+
+h1, h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
 }
 
 /* ============================ 动效 ============================ */
@@ -154,7 +154,7 @@ body {
 }
 @keyframes mf-rule {
   from { width: 0; opacity: 0; }
-  to { width: 56px; opacity: 1; }
+  to { width: 36px; opacity: 1; }
 }
 @keyframes mf-breathe {
   0%, 100% { opacity: 0.55; transform: scale(1); }
@@ -176,41 +176,29 @@ body {
   animation-delay: calc(var(--i, 0) * 70ms);
 }
 
-/* 玻璃卡 */
+/* 纸卡片：白纸加一道墨线，没有玻璃高光 */
 .mf-card {
   position: relative;
   background: var(--c-glass);
-  -webkit-backdrop-filter: blur(20px) saturate(1.5);
-  backdrop-filter: blur(20px) saturate(1.5);
   border: 1px solid var(--c-glass-line);
   border-radius: var(--r-lg);
-  box-shadow: var(--sh-2), var(--sh-edge);
+  box-shadow: var(--sh-1);
   overflow: hidden;
 }
 .mf-card--flat {
   background: var(--c-surface);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
 }
 .mf-card::after {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95), transparent);
-  pointer-events: none;
+  content: none;
 }
 
 /* 按压 / 抬升 */
 .mf-press {
-  transition: transform var(--t-fast) var(--e-spring), box-shadow var(--t) var(--e-out);
+  transition: transform var(--t-fast) var(--e-out);
 }
-.mf-press:active { transform: scale(0.965); }
-.mf-lift { transition: transform var(--t) var(--e-out), box-shadow var(--t) var(--e-out); }
-.mf-lift:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--sh-3), var(--sh-edge);
-}
+.mf-press:active { transform: translateY(1px); }
+.mf-lift { transition: border-color var(--t) var(--e-out); }
+.mf-lift:hover { border-color: rgba(58, 52, 46, 0.32); }
 
 /* 骨架屏 */
 .mf-skeleton {
@@ -227,31 +215,55 @@ body {
 
 /* 标题下渐变短线 */
 .mf-rule {
-  width: 56px;
-  height: 4px;
-  margin-top: 14px;
-  border-radius: 3px;
-  background: linear-gradient(90deg, var(--c-primary), var(--c-sand));
-  animation: mf-rule 620ms var(--e-out) both;
+  width: 36px;
+  height: 2px;
+  margin-top: 12px;
+  border-radius: 0;
+  background: var(--c-primary);
+  animation: mf-rule 420ms var(--e-out) both;
 }
 
 /* ============================ Element Plus 微调 ============================ */
 
 .el-button {
   font-weight: 500;
-  transition: transform var(--t-fast) var(--e-spring), box-shadow var(--t) var(--e-out),
-    background-color var(--t) var(--e-out), border-color var(--t) var(--e-out);
+  letter-spacing: 0.06em;
+  border-radius: 4px;
+  transition: background-color var(--t) var(--e-out), border-color var(--t) var(--e-out),
+    color var(--t) var(--e-out), transform var(--t-fast) var(--e-out);
 }
-.el-button:active:not(.is-disabled) { transform: scale(0.965); }
+.el-button:active:not(.is-disabled):not(.is-text) { transform: translateY(1px); }
+.el-button--default {
+  --el-button-bg-color: #fffdf8;
+  --el-button-border-color: rgba(58, 52, 46, 0.28);
+  --el-button-text-color: var(--c-ink);
+  --el-button-hover-bg-color: #f6efe6;
+  --el-button-hover-border-color: rgba(58, 52, 46, 0.45);
+  --el-button-hover-text-color: var(--c-ink);
+}
 .el-button--primary {
-  border: 0;
-  background: linear-gradient(135deg, #cd8465 0%, var(--c-primary) 55%, #b26a4c 100%);
-  box-shadow: 0 2px 6px rgba(166, 96, 63, 0.24), 0 12px 26px -10px rgba(166, 96, 63, 0.55);
+  --el-button-bg-color: var(--c-primary-deep);
+  --el-button-border-color: #6e2b20;
+  --el-button-text-color: #fffdf8;
+  --el-button-hover-bg-color: #7a3123;
+  --el-button-hover-border-color: #5c2418;
+  --el-button-hover-text-color: #fffdf8;
+  border: 1px solid #6e2b20;
+  background: var(--c-primary-deep);
+  box-shadow: none;
 }
 .el-button--primary:hover,
 .el-button--primary:focus {
-  background: linear-gradient(135deg, #d48d6e 0%, #c98363 55%, #bb7355 100%);
-  box-shadow: 0 3px 8px rgba(166, 96, 63, 0.3), 0 16px 32px -10px rgba(166, 96, 63, 0.62);
+  background: #7a3123;
+  border-color: #5c2418;
+  box-shadow: none;
+}
+.el-button.is-text {
+  letter-spacing: 0.02em;
+  border-radius: 2px;
+}
+.el-button.is-text:hover {
+  background: var(--c-primary-tint);
 }
 
 .el-input__wrapper,
@@ -262,7 +274,7 @@ body {
   transition: box-shadow var(--t) var(--e-out), background-color var(--t) var(--e-out);
 }
 .el-input__wrapper:hover,
-.el-select__wrapper:hover { box-shadow: 0 0 0 1px rgba(196, 121, 90, 0.45) inset; }
+.el-select__wrapper:hover { box-shadow: 0 0 0 1px rgba(141, 58, 42, 0.45) inset; }
 .el-input__wrapper.is-focus,
 .el-select__wrapper.is-focused {
   box-shadow: 0 0 0 1px var(--c-primary) inset, 0 0 0 4px var(--c-primary-tint) !important;
@@ -270,10 +282,20 @@ body {
 
 .el-table {
   --el-table-border-color: var(--c-line);
-  --el-table-header-bg-color: transparent;
-  border-radius: var(--r-lg);
+  --el-table-header-bg-color: #f6efe6;
+  --el-table-bg-color: #fffdf8;
+  --el-table-tr-bg-color: #fffdf8;
+  border: 1px solid rgba(58, 52, 46, 0.12);
+  border-radius: 4px;
   overflow: hidden;
-  background: transparent;
+  background: #fffdf8;
+}
+.el-card {
+  --el-card-bg-color: #fffdf8;
+  border: 1px solid rgba(58, 52, 46, 0.16);
+  border-radius: 4px;
+  box-shadow: none;
+  background: #fffdf8;
 }
 .el-table th.el-table__cell {
   background: transparent;
@@ -286,23 +308,24 @@ body {
   transition: background-color var(--t) var(--e-out);
 }
 .el-table__row:hover > td.el-table__cell {
-  background: rgba(196, 121, 90, 0.06) !important;
+  background: rgba(180, 84, 58, 0.05) !important;
 }
 
 .el-dialog {
-  border-radius: var(--r-xl) !important;
+  border-radius: 6px !important;
   overflow: hidden;
-  box-shadow: 0 30px 80px -24px rgba(58, 52, 46, 0.5) !important;
+  border: 1px solid rgba(58, 52, 46, 0.16);
+  box-shadow: 0 18px 40px -22px rgba(58, 52, 46, 0.45) !important;
 }
 .el-dialog__header { padding: 24px 28px 8px; }
 .el-dialog__body { padding: 12px 28px 24px; }
 .el-dialog__footer { padding: 0 28px 24px; }
 
 .el-tag {
-  border-radius: var(--r-pill);
-  border: 0;
+  border-radius: 2px;
   font-weight: 500;
-  padding: 0 10px;
+  padding: 0 8px;
+  letter-spacing: 0.04em;
 }
 
 .el-message {

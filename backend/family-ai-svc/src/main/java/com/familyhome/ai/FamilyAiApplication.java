@@ -1,6 +1,7 @@
 package com.familyhome.ai;
 
 import com.familyhome.security.ServiceSecurity;
+import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -19,6 +20,7 @@ import com.familyhome.ai.config.AiProperties;
  * @since 1.0.0
  */
 @SpringBootApplication
+@MapperScan("com.familyhome.ai.mapper")
 @EnableConfigurationProperties(AiProperties.class)
 @EnableFeignClients
 @Import(ServiceSecurity.class)

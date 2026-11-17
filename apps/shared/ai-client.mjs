@@ -5,6 +5,29 @@
 // 分片边界不保证落在事件边界上，所以要按 \n\n 切并缓存残包（parseSseBuffer 抽成纯函数，可单测）。
 // 运行时不支持 chunked（老基础库）时降级：success 一次性拿到全文，整段解析，只是没有打字机效果。
 
+function usableTurn(item) {
+  return !!item
+    && (item.role === "user" || item.role === "assistant")
+    && typeof item.content === "string"
+    && item.content.trim().length > 0;
+}
+
+/**
+ * 决定打开小助手时展示哪份历史。
+ * 服务端有记录就以服务端为准；服务端明确是空的、本机还有升级前的旧记录，才需要导入一次。
+ * remote 不是数组表示这次没问到服务端（断网），只展示本机缓存，不要误导入。
+ */
+export function resolveAiHistory(remote, local) {
+  const cached = (Array.isArray(local) ? local : []).filter(usableTurn).slice(-40)
+    .map(item => ({ role: item.role, content: item.content, createdAt: item.createdAt || "" }));
+  if (!Array.isArray(remote)) return { history: cached, shouldImport: false };
+  const server = remote.filter(usableTurn).slice(-40)
+    .map(item => ({ role: item.role, content: item.content, createdAt: item.createdAt || "" }));
+  if (server.length) return { history: server, shouldImport: false };
+  if (cached.length) return { history: cached, shouldImport: true };
+  return { history: [], shouldImport: false };
+}
+
 /** 解析一段 SSE 文本缓冲：返回完整事件数组与剩下的残包。 */
 export function parseSseBuffer(buffer) {
   const events = [];
@@ -32,13 +55,13 @@ export function createAiClient({ uni, baseUrl, storageKey = "family_access_token
    * - onDelta(text)：回答增量
    * 返回 Promise，结束时 resolve（error 事件会 reject）。
    */
-  function streamChat({ messages, onTool = () => {}, onDelta = () => {} }) {
+  function streamChat({ messages, clientId, onTool = () => {}, onDelta = () => {} }) {
     return new Promise((resolve, reject) => {
       const task = uni.request({
         url: baseUrl + "/ai/chat",
         method: "POST",
         enableChunked: true,
-        data: { messages },
+        data: clientId ? { messages, clientId } : { messages },
         header: {
           "Content-Type": "application/json",
           Authorization: "Bearer " + uni.getStorageSync(storageKey)

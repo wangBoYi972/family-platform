@@ -613,16 +613,11 @@ defineExpose({ openDial, openDialWith });
   flex-direction: column;
   gap: 14px;
   padding: 20px;
-  border-radius: 24px;
-  background: rgba(255, 252, 248, 0.96);
-  border: 1px solid var(--c-line);
-  box-shadow: 0 24px 60px rgba(45, 36, 30, 0.28);
+  border-radius: 6px;
+  background: #fffdf8;
+  border: 1px solid rgba(58, 52, 46, 0.18);
+  box-shadow: 0 18px 40px -20px rgba(45, 36, 30, 0.4);
   box-sizing: border-box;
-}
-@supports (backdrop-filter: blur(20px)) {
-  .call-card {
-    backdrop-filter: blur(20px);
-  }
 }
 .head {
   display: flex;
@@ -653,7 +648,7 @@ defineExpose({ openDial, openDialWith });
   font-size: 11px;
   color: var(--c-primary);
   background: var(--c-primary-soft);
-  border-radius: 999px;
+  border-radius: 3px;
   padding: 4px 10px;
 }
 .pick-head {
@@ -697,7 +692,7 @@ defineExpose({ openDial, openDialWith });
   justify-content: center;
   color: #fff;
   font-size: 15px;
-  background: linear-gradient(135deg, var(--c-primary), var(--c-primary-deep));
+  background: var(--c-primary-deep);
   flex-shrink: 0;
 }
 .avatar.lg {
@@ -759,7 +754,7 @@ defineExpose({ openDial, openDialWith });
   border: 1px solid var(--c-line);
 }
 .primary {
-  background: linear-gradient(135deg, var(--c-primary), var(--c-primary-deep));
+  background: var(--c-primary-deep);
   color: #fff;
 }
 .incoming {
@@ -804,10 +799,10 @@ defineExpose({ openDial, openDialWith });
   padding: 0;
 }
 .danger-round {
-  background: linear-gradient(135deg, #c9705f, #a8543f);
+  background: #a8543f;
 }
 .accept-round {
-  background: linear-gradient(135deg, #86a894, #5f8772);
+  background: #5f8772;
 }
 .frame {
   display: grid;
@@ -933,7 +928,7 @@ defineExpose({ openDial, openDialWith });
   border-color: rgba(185, 106, 91, 0.35);
 }
 .ctrl.hangup .ctrl-icon {
-  background: linear-gradient(135deg, #c9705f, #a8543f);
+  background: #a8543f;
   color: #fff;
   border-color: transparent;
 }

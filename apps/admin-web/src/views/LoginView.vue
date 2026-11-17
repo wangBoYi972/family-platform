@@ -312,7 +312,7 @@ async function submitRegister() {
   margin-top: 8px;
   font-size: 15px;
   letter-spacing: 0.2em;
-  border-radius: 8px;
+  border-radius: 4px;
 }
 .page--right > small {
   display: block;

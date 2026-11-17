@@ -1,5 +1,17 @@
 server:
   address: 127.0.0.1
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/family_ai?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+  # 这个服务以前没有库。本地也跑 Flyway，否则历史表不存在，一问就 500。
+  flyway:
+    enabled: true
+  cloud:
+    nacos:
+      discovery:
+        enabled: false
 # ServiceSecurity 装配的 Feign（UserFeignClient 等）需要显式 url，空 url 会让上下文起不来。
 family:
   auth:

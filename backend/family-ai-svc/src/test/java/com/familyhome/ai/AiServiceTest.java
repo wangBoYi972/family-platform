@@ -112,7 +112,7 @@ class AiServiceTest {
     void throws503WhenDisabled() {
         AiProperties properties = new AiProperties(false, null, null, null, 3,
                 null, null, null, null, tempConfig());
-        AiService service = new AiService(properties, new AiConfigStore(properties), mockRegistry());
+        AiService service = new AiService(properties, new AiConfigStore(json, properties), mockRegistry());
         assertThatThrownBy(() -> run(service, "测试"))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("503");
@@ -129,7 +129,7 @@ class AiServiceTest {
     }
 
     @Test
-    @DisplayName("对话历史超长时只保留最近 12 轮")
+    @DisplayName("对话历史超长时只保留最近 20 条，再加一条系统提示")
     void truncatesHistoryToLimit() {
         List<String> bodies = new CopyOnWriteArrayList<>();
         fake.createContext("/chat/completions", ex -> {
@@ -138,20 +138,20 @@ class AiServiceTest {
         });
         AiService service = service(3);
         List<ChatRequest.Message> history = new ArrayList<>();
-        for (int i = 0; i < 20; i++) {
+        for (int i = 0; i < 25; i++) {
             history.add(new ChatRequest.Message("user", "消息" + i));
         }
         service.chat(history, "Bearer test", e -> {});
         JsonNode body = json(bodies.get(0));
         int sent = body.path("messages").size();
-        assertThat(sent).isLessThanOrEqualTo(13); // system + 最近 12 条
+        assertThat(sent).isEqualTo(21); // system + 最近 20 条
     }
 
     // ---- 脚手架 ----
 
     private AiService service(int maxToolRounds) {
         AiProperties properties = properties(true, "test-key", maxToolRounds);
-        return new AiService(properties, new AiConfigStore(properties), mockRegistry());
+        return new AiService(properties, new AiConfigStore(json, properties), mockRegistry());
     }
 
     private ToolRegistry mockRegistry() {

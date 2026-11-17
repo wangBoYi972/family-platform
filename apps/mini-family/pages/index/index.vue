@@ -30,7 +30,7 @@ async function load() {
   finally { if (sequence === loadSequence) loading.value = false; }
 }
 function clearSession() {
-  loadSequence++; uni.removeStorageSync("family_access_token"); token.value = "";
+  loadSequence++; uni.removeStorageSync("family_access_token"); uni.removeStorageSync("family_ai_history"); token.value = "";
   tasks.value = []; entries.value = []; changingPassword.value = false;
   currentPassword.value = ""; newPassword.value = ""; confirmation.value = "";
 }

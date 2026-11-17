@@ -23,7 +23,7 @@ public interface ContentServiceClient {
      * 查询任务列表。
      *
      * @param bearer 用户 token
-     * @param status 状态筛选（可选）：TODO / DOING / DONE
+     * @param status 状态筛选（可选）：TODO / IN_PROGRESS / COMPLETED
      * @param page 页码
      * @param size 每页数量
      * @return 下游返回的原始 JSON 字符串

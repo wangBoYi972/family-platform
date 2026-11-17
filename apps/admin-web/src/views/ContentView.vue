@@ -3,6 +3,8 @@ import { onMounted, onUnmounted, ref, computed, watch } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { listMembers } from "../api/member";
 import { listArchives, listEntries, createEntry, updateEntry, deleteEntry, archiveDetail } from "../api/entry";
+import { dayCaption } from "@shared/calendar-marks.mjs";
+import MonthBoard from "../components/MonthBoard.vue";
 const props = defineProps({ kind: { type: String, required: true } });
 const emit = defineEmits(["navigate"]);
 const loading = ref(false), rows = ref([]), dialogVisible = ref(false), saving = ref(false);
@@ -112,19 +114,24 @@ async function remove(row) {
   } catch (error) { if (error !== "cancel" && error !== "close") ElMessage.error(error.message || "删除失败"); }
   finally { deleting.value.delete(row.id); }
 }
+function dateLine(iso) {
+  if (!iso) return "未设置日期";
+  return `${iso} · ${dayCaption(iso)}`;
+}
 onMounted(() => load());
 onUnmounted(() => { sequence++; detailSequence++; clearTimeout(keywordTimer); });
 </script>
 <template>
 <section class="content-page">
   <div class="page-heading"><div><p class="eyebrow">{{ config.eyebrow }}</p><h1>{{ config.title }}</h1><p class="subtitle">{{ config.description }}</p></div><div class="page-actions"><el-button text :disabled="saving" @click="emit('navigate','任务')">返回工作台</el-button><el-button :disabled="loading" @click="load()">刷新</el-button><el-button v-if="!isMembers" type="primary" @click="openCreate">新建</el-button></div></div>
+  <MonthBoard v-if="props.kind === 'calendar'" />
   <el-input v-model="keyword" class="search" placeholder="按名称搜索" aria-label="按名称搜索" clearable />
   <el-alert v-if="loadError" :title="loadError" type="error" :closable="false" show-icon />
   <div class="content-list" v-loading="loading">
     <div v-for="row in filteredRows" :key="row.id || row.phone" class="content-row">
       <div class="row-main">
         <strong>{{ row.displayName || row.title }}</strong>
-        <span v-if="props.kind === 'calendar'" class="event-date">{{ row.eventDate || '未设置日期' }} · {{ row.yearly ? '每年纪念日' : '单次日程' }}</span>
+        <span v-if="props.kind === 'calendar'" class="event-date">{{ dateLine(row.eventDate) }} · {{ row.yearly ? '每年纪念日' : '单次日程' }}</span>
         <span>{{ row.body || categoryLabel[row.category] || (row.role === 'ADMIN' ? '管理员' : '') || visibilityLabel[row.visibility] }}</span>
       </div>
       <el-tag v-if="row.pinned" type="warning" effect="plain">置顶</el-tag>
@@ -155,9 +162,8 @@ onUnmounted(() => { sequence++; detailSequence++; clearTimeout(keywordTimer); })
     <template #footer><el-button :disabled="saving" @click="dialogVisible = false">取消</el-button><el-button type="primary" :loading="saving" :disabled="saving" @click="submit">保存</el-button></template>
   </el-dialog>
   <el-dialog v-model="detailVisible" title="记录详情" width="min(620px, 94vw)" @closed="detail = null; detailSequence++">
-    <div v-loading="detailLoading" class="detail"><template v-if="detail"><h2>{{ detail.title }}</h2><p v-if="detail.eventDate">日期：{{ detail.eventDate }}{{ detail.yearly ? ' · 每年纪念日' : '' }}</p><p class="detail-body">{{ detail.body || '暂无正文' }}</p></template></div>
+    <div v-loading="detailLoading" class="detail"><template v-if="detail"><h2>{{ detail.title }}</h2><p v-if="detail.eventDate">日期：{{ dateLine(detail.eventDate) }}{{ detail.yearly ? ' · 每年纪念日' : '' }}</p><p class="detail-body">{{ detail.body || '暂无正文' }}</p></template></div>
   </el-dialog>
 </section>
 </template>
-<style scoped>.content-page{padding:44px 56px 64px;max-width:1440px;margin:auto;animation:mf-fade 320ms var(--e-out) both}.page-heading{display:flex;justify-content:space-between;gap:20px}.page-actions,.row-actions{display:flex;gap:8px;align-items:center;flex-shrink:0}.content-list{margin-top:26px;display:flex;flex-direction:column;gap:12px}.content-row{display:flex;align-items:center;gap:16px;padding:18px 22px;border-radius:var(--r-lg);background:var(--c-glass);-webkit-backdrop-filter:blur(16px) saturate(1.4);backdrop-filter:blur(16px) saturate(1.4);border:1px solid var(--c-glass-line);box-shadow:var(--sh-1);transition:transform var(--t) var(--e-out),box-shadow var(--t) var(--e-out);animation:mf-rise 420ms var(--e-out) both}.content-row:hover{transform:translateY(-2px);box-shadow:var(--sh-2),var(--sh-edge)}
-.content-row:nth-child(1){animation-delay:20ms}.content-row:nth-child(2){animation-delay:50ms}.content-row:nth-child(3){animation-delay:80ms}.content-row:nth-child(4){animation-delay:110ms}.content-row:nth-child(5){animation-delay:140ms}.content-row:nth-child(6){animation-delay:170ms}.content-row:nth-child(7){animation-delay:200ms}.content-row:nth-child(n+8){animation-delay:230ms}.row-main{display:grid;gap:6px;flex:1;min-width:0}.row-main strong{font-weight:600;overflow-wrap:anywhere}.row-main span{color:var(--family-muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row-main .event-date{color:var(--family-primary);font-weight:500}.search{margin:24px 0 16px;max-width:400px}.pager{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:24px}.pager-note{color:var(--family-muted);font-size:13px}.form-note{width:100%;color:var(--family-muted);font-size:12px}.detail{min-height:80px}.detail-body{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7}@media(max-width:960px){.content-page{padding:40px 24px}.page-heading{flex-direction:column}.page-actions{flex-wrap:wrap}.content-row{flex-wrap:wrap}.row-main{flex-basis:65%}.row-actions{width:100%}}</style>
+<style scoped>.content-page{max-width:980px}.page-heading{display:flex;justify-content:space-between;gap:20px}.page-actions,.row-actions{display:flex;gap:8px;align-items:center;flex-shrink:0}.content-list{margin-top:26px;display:flex;flex-direction:column;gap:12px}.content-row{display:flex;align-items:center;gap:16px;padding:16px 18px;border-radius:4px;background:#fffdf8;border:1px solid rgba(58,52,46,.14)}.content-row:hover{border-color:rgba(58,52,46,.32)}.row-main{display:grid;gap:6px;flex:1;min-width:0}.row-main strong{font-weight:600;overflow-wrap:anywhere}.row-main span{color:var(--family-muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row-main .event-date{color:var(--family-primary);font-weight:500;white-space:normal}.search{margin:24px 0 16px;max-width:400px}.pager{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:24px}.pager-note{color:var(--family-muted);font-size:13px}.form-note{width:100%;color:var(--family-muted);font-size:12px}.detail{min-height:80px}.detail-body{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7}@media(max-width:960px){.content-page{padding:40px 24px}.page-heading{flex-direction:column}.page-actions{flex-wrap:wrap}.content-row{flex-wrap:wrap}.row-main{flex-basis:65%}.row-actions{width:100%}}</style>

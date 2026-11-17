@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseSseBuffer } from "./ai-client.mjs";
+import { parseSseBuffer, resolveAiHistory } from "./ai-client.mjs";
 
 test("完整事件一次解析：delta/tool/done 各归其位", () => {
   const text = [
@@ -43,6 +43,28 @@ test("非 data 行与 [DONE] 哨兵被忽略", () => {
   const { events } = parseSseBuffer(text);
   assert.equal(events.length, 1);
   assert.equal(events[0].type, "done");
+});
+
+test("服务端有历史就用服务端，空库才把本机旧记录标成待导入", () => {
+  const local = [{ role: "user", content: "旧问题" }, { role: "system", content: "丢掉" }];
+  const remote = [{ role: "assistant", content: "新回答", createdAt: "2026-11-16T08:00:00" }];
+  const fromServer = resolveAiHistory(remote, local);
+  assert.equal(fromServer.shouldImport, false);
+  assert.equal(fromServer.history.length, 1);
+  assert.equal(fromServer.history[0].content, "新回答");
+
+  const pending = resolveAiHistory([], local);
+  assert.equal(pending.shouldImport, true);
+  assert.deepEqual(pending.history.map(item => item.content), ["旧问题"]);
+
+  const offline = resolveAiHistory(null, local);
+  assert.equal(offline.shouldImport, false);
+  assert.equal(offline.history[0].content, "旧问题");
+
+  // 本机没有当前账号的缓存时，空库也不该导入（换账号后常见）
+  const emptyLocal = resolveAiHistory([], []);
+  assert.equal(emptyLocal.shouldImport, false);
+  assert.deepEqual(emptyLocal.history, []);
 });
 
 test("坏 JSON 丢弃不炸整段流", () => {

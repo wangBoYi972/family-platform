@@ -83,10 +83,10 @@ class AiAdminControllerTest {
     void savedSettingsSurviveRestart() throws Exception {
         Path file = tempConfig();
         AiProperties properties = properties(file, "sk-env-key");
-        AiConfigStore first = new AiConfigStore(properties);
+        AiConfigStore first = open(properties);
         first.save(true, "sk-ws-persisted-7777");
 
-        AiConfigStore reopened = new AiConfigStore(properties);
+        AiConfigStore reopened = open(properties);
 
         assertThat(reopened.effective().usable()).isTrue();
         assertThat(AiConfigStore.mask(reopened.effective().apiKey())).isEqualTo("sk-****7777");
@@ -98,7 +98,7 @@ class AiAdminControllerTest {
     void fallsBackToEnvironment() throws Exception {
         AiProperties properties = properties(tempConfig(), "sk-env-key");
 
-        AiConfigStore.Effective effective = new AiConfigStore(properties).effective();
+        AiConfigStore.Effective effective = open(properties).effective();
 
         assertThat(effective.source()).isEqualTo("env");
         assertThat(effective.usable()).isTrue();
@@ -110,7 +110,7 @@ class AiAdminControllerTest {
         Path file = tempConfig();
         AiProperties properties = properties(file, "");
         AiAdminController controller = new AiAdminController();
-        setField(controller, "config", new AiConfigStore(properties));
+        setField(controller, "config", open(properties));
         setField(controller, "properties", properties);
         return controller;
     }
@@ -120,6 +120,13 @@ class AiAdminControllerTest {
         Path file = Files.createTempFile("ai-admin-test", ".json");
         Files.deleteIfExists(file);
         return file;
+    }
+
+    /** 手动 new 不会走 @PostConstruct，要自己 init，否则落盘路径是空的。 */
+    private AiConfigStore open(AiProperties properties) {
+        AiConfigStore store = new AiConfigStore(json, properties);
+        store.init();
+        return store;
     }
 
     private AiProperties properties(Path configFile, String envKey) {

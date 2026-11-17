@@ -121,14 +121,14 @@ defineExpose({ load });
 .countdown-list{display:flex;gap:10px;flex-wrap:wrap}
 .countdown{display:flex;align-items:center;gap:9px;padding:7px 12px 7px 7px;margin:0 -4px;border-radius:var(--r-pill);cursor:pointer;transition:transform var(--t-fast) var(--e-spring)}
 .countdown:active{transform:scale(.95);background:rgba(196,121,90,.08)}
-.days{background:linear-gradient(135deg,#cd8465,var(--c-primary));color:#fff;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:650;flex-shrink:0;box-shadow:0 4px 12px -5px rgba(166,96,63,.8)}
+.days{background:var(--c-primary-deep);color:#fffdf8;border-radius:2px;padding:4px 8px;font-size:11px;font-weight:650;flex-shrink:0}
 .countdown-title{font-size:12px;font-weight:560;color:var(--c-ink);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* 数据卡 */
 .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 .metric{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:16px 8px;text-align:center;border-radius:16px;cursor:pointer}
 .metric .figure{font-size:22px}
-.metric::before{content:'';position:absolute;left:50%;top:0;width:34px;height:3px;margin-left:-17px;border-radius:2px;background:linear-gradient(90deg,var(--c-primary),var(--c-sand));opacity:0;transition:opacity var(--t) var(--e-out)}
+.metric::before{content:'';position:absolute;left:50%;top:0;width:34px;height:3px;margin-left:-17px;border-radius:2px;background:var(--c-primary);opacity:0;transition:opacity var(--t) var(--e-out)}
 .metric:hover::before{opacity:1}
 
 /* 状态 */

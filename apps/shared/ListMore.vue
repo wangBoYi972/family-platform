@@ -26,7 +26,7 @@ const emit = defineEmits(["more"]);
 
 <style scoped>
 .list-more{display:flex;flex-direction:column;align-items:center;gap:12rpx;padding:24rpx 0 8rpx}
-.list-more-button{margin:0;padding:0 40rpx;height:64rpx;line-height:64rpx;border-radius:999rpx;font-size:24rpx;background:var(--c-surface-2,#f4efe8);color:var(--family-text,#3a342e);border:1px solid var(--c-line,#e6ded3)}
+.list-more-button{margin:0;padding:0 40rpx;height:64rpx;line-height:64rpx;border-radius:8rpx;font-size:24rpx;background:var(--c-surface-2,#f4efe8);color:var(--family-text,#3a342e);border:1px solid var(--c-line,#e6ded3)}
 .list-more-end,.list-more-error{font-size:22rpx;color:var(--family-muted,#8b8177)}
 .list-more-error{color:var(--c-danger,#b96a5b)}
 </style>

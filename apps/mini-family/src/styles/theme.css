@@ -1,7 +1,6 @@
 /* ==========================================================================
-   家庭空间 · 设计语言 v2
-   Warm Morandi + Soft Glass + Purposeful Motion
-   —— 所有组件共用同一套 token，禁止再写硬编码色值 ——
+   家庭空间 · 设计语言
+   家庭簿：纸面、朱砂印、细线。按钮是实色方章，不再用玻璃和渐变胶囊。
    ========================================================================== */
 
 :root,
@@ -12,16 +11,16 @@ page {
   --c-surface: #ffffff;
   --c-surface-2: #fbf7f1;
 
-  /* —— 玻璃层 —— */
-  --c-glass: rgba(255, 255, 255, 0.72);
-  --c-glass-2: rgba(255, 255, 255, 0.5);
-  --c-glass-line: rgba(255, 255, 255, 0.7);
+  /* —— 纸面（沿用旧变量名）—— */
+  --c-glass: #fffdf8;
+  --c-glass-2: #fbf7f1;
+  --c-glass-line: rgba(58, 52, 46, 0.16);
 
-  /* —— 主色：暖陶土 —— */
-  --c-primary: #c4795a;
-  --c-primary-deep: #a6603f;
-  --c-primary-soft: #f4e3d8;
-  --c-primary-tint: rgba(196, 121, 90, 0.12);
+  /* —— 主色：朱砂 —— */
+  --c-primary: #b4543a;
+  --c-primary-deep: #8d3a2a;
+  --c-primary-soft: #f6e6df;
+  --c-primary-tint: rgba(180, 84, 58, 0.12);
 
   /* —— 辅助色：莫兰迪四色 —— */
   --c-sky: #7e9ab0;
@@ -46,19 +45,19 @@ page {
   --c-line: rgba(58, 52, 46, 0.1);
   --c-line-soft: rgba(58, 52, 46, 0.055);
 
-  /* —— 圆角 —— */
-  --r-xs: 10px;
-  --r-sm: 14px;
-  --r-md: 18px;
-  --r-lg: 24px;
-  --r-xl: 32px;
-  --r-pill: 999px;
+  /* —— 圆角：账本裁边 —— */
+  --r-xs: 2px;
+  --r-sm: 3px;
+  --r-md: 4px;
+  --r-lg: 6px;
+  --r-xl: 8px;
+  --r-pill: 3px;
 
-  /* —— 阴影（带高光描边，模拟顶部打光）—— */
-  --sh-1: 0 1px 2px rgba(58, 52, 46, 0.05), 0 2px 6px rgba(58, 52, 46, 0.04);
-  --sh-2: 0 2px 4px rgba(58, 52, 46, 0.05), 0 10px 24px -8px rgba(58, 52, 46, 0.14);
-  --sh-3: 0 4px 10px rgba(58, 52, 46, 0.07), 0 22px 44px -14px rgba(58, 52, 46, 0.22);
-  --sh-edge: inset 0 0 0 1px rgba(255, 255, 255, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  /* —— 阴影：纸页压一层 —— */
+  --sh-1: 0 1px 0 rgba(58, 52, 46, 0.05);
+  --sh-2: 0 1px 0 rgba(58, 52, 46, 0.06), 0 10px 24px -16px rgba(58, 52, 46, 0.18);
+  --sh-3: 0 16px 36px -20px rgba(58, 52, 46, 0.28);
+  --sh-edge: none;
 
   /* —— 动效曲线 —— */
   --e-out: cubic-bezier(0.22, 0.61, 0.36, 1);
@@ -78,12 +77,13 @@ page {
   --family-primary-soft: var(--c-primary-soft);
 }
 
-/* —— 页面底：暖奶油 + 三团缓慢漂移的光晕 —— */
+/* —— 页面底：手账点阵，不再铺彩色光晕 —— */
 page {
-  background: var(--c-bg);
+  background-color: #f3ece3;
+  background-image: radial-gradient(rgba(58, 52, 46, 0.075) 1px, transparent 1.35px);
+  background-size: 22px 22px;
   color: var(--c-ink);
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI",
-    "Microsoft YaHei", sans-serif;
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -182,37 +182,20 @@ page {
 
 /* ============================ 通用件 ============================ */
 
-/* 玻璃卡：所有卡片的统一皮肤 */
+/* 纸卡片 */
 .mf-card {
   position: relative;
   background: var(--c-glass);
-  -webkit-backdrop-filter: blur(20px) saturate(1.5);
-  backdrop-filter: blur(20px) saturate(1.5);
   border: 1px solid var(--c-glass-line);
   border-radius: var(--r-lg);
-  box-shadow: var(--sh-2), var(--sh-edge);
+  box-shadow: var(--sh-1);
   overflow: hidden;
-  transition: box-shadow var(--t) var(--e-out), transform var(--t) var(--e-out);
 }
 .mf-card--flat {
   background: var(--c-surface);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
 }
-
-/* 卡片顶部一道极细的高光，像玻璃边缘的反光 */
 .mf-card::after {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.95),
-    transparent
-  );
-  pointer-events: none;
+  content: none;
 }
 
 /* 入场编排：父级给子元素依次加 --i，就能瀑布式淡入 */
@@ -236,15 +219,12 @@ page {
     box-shadow var(--t) var(--e-out), background var(--t) var(--e-out);
 }
 .mf-press:active {
-  transform: scale(0.965);
-  box-shadow: var(--sh-1);
+  transform: translateY(1px);
 }
 
-/* hover 抬升（桌面 H5 才生效） */
 @media (hover: hover) {
   .mf-lift:hover {
-    transform: translateY(-3px);
-    box-shadow: var(--sh-3), var(--sh-edge);
+    border-color: rgba(58, 52, 46, 0.32);
   }
 }
 
@@ -287,7 +267,7 @@ page {
   color: var(--c-ink-2);
 }
 
-/* 主按钮：暖陶渐变 + 光晕 */
+/* 主按钮：朱砂实色，像盖在纸上的方章 */
 .mf-btn {
   display: inline-flex;
   align-items: center;
@@ -295,44 +275,25 @@ page {
   gap: 8px;
   min-height: 46px;
   padding: 0 22px;
-  border: 0;
-  border-radius: var(--r-pill);
-  font-size: 14px;
+  border: 1px solid #6e2b20;
+  border-radius: 4px;
+  font-size: 15px;
   font-weight: 600;
-  color: #fff;
-  background: linear-gradient(135deg, #cd8465 0%, var(--c-primary) 55%, #b26a4c 100%);
-  box-shadow: 0 2px 6px rgba(166, 96, 63, 0.24),
-    0 12px 26px -10px rgba(166, 96, 63, 0.55);
-  transition: transform var(--t-fast) var(--e-spring), box-shadow var(--t) var(--e-out),
-    filter var(--t) var(--e-out);
+  letter-spacing: 0.12em;
+  color: #fffdf8;
+  background: var(--c-primary-deep);
+  box-shadow: none;
+  transition: background var(--t) var(--e-out), transform var(--t-fast) var(--e-out);
 }
 .mf-btn:active {
-  transform: scale(0.96);
-  box-shadow: 0 1px 3px rgba(166, 96, 63, 0.22);
+  transform: translateY(1px);
+  background: #7a3123;
 }
 .mf-btn[disabled] {
-  filter: grayscale(0.4) opacity(0.55);
-}
-/* 按钮上一道扫过的高光 */
-.mf-btn--shine {
-  position: relative;
-  overflow: hidden;
+  opacity: 0.5;
 }
 .mf-btn--shine::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: -60%;
-  width: 45%;
-  height: 100%;
-  background: linear-gradient(
-    100deg,
-    transparent,
-    rgba(255, 255, 255, 0.55),
-    transparent
-  );
-  transform: skewX(-18deg);
-  animation: mf-sweep 3.6s var(--e-io) infinite;
+  content: none;
 }
 @keyframes mf-sweep {
   0%,
@@ -431,25 +392,29 @@ page {
 }
 
 /* ============================ 按钮基线 ============================ */
-/* uni 默认按钮是灰底方角大按钮，统一重置为暖色胶囊；各面板的局部样式可再覆盖 */
+/* uni 默认按钮改成纸面细线钮；主操作加 .primary 或 .mf-btn */
 button {
   margin: 0;
-  padding: 0 30rpx;
-  /* min-height 而非固定 height：快捷入口/底部导航等「图标+文字」多行按钮需要自然撑高，固定高度会配合 uni-button 的 overflow:hidden 裁掉文字 */
+  padding: 0 28rpx;
   min-height: 64rpx;
   line-height: 64rpx;
-  font-size: 25rpx;
+  font-size: 26rpx;
   font-weight: 500;
-  color: var(--c-primary);
-  background: var(--c-primary-soft);
-  border: none;
-  border-radius: 999rpx;
+  letter-spacing: 0.06em;
+  color: var(--c-ink);
+  background: #fffdf8;
+  border: 1px solid rgba(58, 52, 46, 0.22);
+  border-radius: 8rpx;
   box-sizing: border-box;
-  transition: transform .12s var(--e-spring), box-shadow .2s ease;
 }
 button::after { border: none; }
-button:active { transform: scale(.94); }
-button[disabled] { opacity: .55; color: var(--c-primary); background: var(--c-primary-soft); }
+button:active { transform: translateY(1px); }
+button[disabled] { opacity: .5; }
+button.primary {
+  color: #fffdf8;
+  background: var(--c-primary-deep);
+  border-color: #6e2b20;
+}
 
 /* ============================ 无障碍 ============================ */
 /* 系统开启「减弱动态效果」时，去掉位移类动画，只留透明度 */

@@ -18,7 +18,7 @@ import java.util.Map;
 /**
  * 查询任务清单工具。
  *
- * <p>支持按状态筛选（TODO / DOING / DONE），默认返回全部。
+ * <p>支持按状态筛选（TODO / IN_PROGRESS / COMPLETED），默认返回全部。
  *
  * @author family-platform
  */

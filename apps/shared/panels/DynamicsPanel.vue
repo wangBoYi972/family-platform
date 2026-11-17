@@ -202,7 +202,7 @@ onUnmounted(() => clearTimeout(keywordTimer));
 .images{display:flex;flex-wrap:wrap;gap:12rpx}
 .img{width:200rpx;height:200rpx;border-radius:14rpx;background:var(--c-surface-2)}
 .row-foot{display:flex;align-items:center;justify-content:space-between;gap:16rpx;border-top:1px solid var(--c-surface-2);padding-top:16rpx;margin-top:4rpx}
-.like{display:inline-flex;align-items:center;gap:8rpx;padding:10rpx 26rpx;border-radius:999rpx;background:var(--c-primary-soft);color:var(--c-primary);font-size:24rpx;transition:transform .12s var(--e-spring, ease)}
+.like{display:inline-flex;align-items:center;gap:8rpx;padding:10rpx 26rpx;border-radius:8rpx;background:var(--c-primary-soft);color:var(--c-primary);font-size:24rpx;transition:transform .12s var(--e-spring, ease)}
 .like:active{transform:scale(.92)}
 .like-icon{font-size:24rpx;line-height:1}
 .row-meta{color:var(--family-muted);font-size:24rpx}

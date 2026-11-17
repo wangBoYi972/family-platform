@@ -196,6 +196,31 @@ services:
       - rabbitmq
       - coturn
 
+  family-ai-svc:
+    build:
+      context: ..
+      dockerfile: backend/family-ai-svc/Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      NACOS_SERVER_ADDR: nacos:8848
+      FAMILY_AI_DB_URL: jdbc:mysql://mysql:3306/family_ai?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+      FAMILY_AI_DB_USERNAME: family_app
+      FAMILY_AI_DB_PASSWORD: ${MYSQL_APP_PASSWORD:?}
+      FAMILY_JWT_SECRET: ${FAMILY_JWT_SECRET:?}
+      FAMILY_AI_ENABLED: ${FAMILY_AI_ENABLED:-false}
+      FAMILY_AI_API_KEY: ${FAMILY_AI_API_KEY:-}
+      FAMILY_AI_CONTENT_URL: http://family-content-svc:8082
+      FAMILY_AI_FILE_URL: http://family-file-svc:8087
+      FAMILY_AI_ARCHIVE_URL: http://family-archive-svc:8088
+      FAMILY_AI_USER_URL: http://family-user-svc:8081
+    depends_on:
+      - nacos
+      - mysql
+      - family-user-svc
+      - family-content-svc
+      - family-file-svc
+      - family-archive-svc
+
   # NAT 穿透兜底。P2P 直连失败（对称型 NAT、移动网络）时媒体经 TURN 中继。
   # 使用 host 网络：UDP 中继端口段无法用 docker 端口映射高效覆盖，宿主即 coturn 所在机。
   coturn:
@@ -232,6 +257,7 @@ services:
       - family-archive-svc
       - family-im-svc
       - family-media-svc
+      - family-ai-svc
 
   grafana:
     image: grafana/grafana:11.1.0

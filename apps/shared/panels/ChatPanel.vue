@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { request, upload, loadImageUrl, loadAudioUrl, loadFileUrl, aiChat } from "@app/utils/request";
+import { resolveAiHistory } from "@shared/ai-client.mjs";
 import { sumUnread } from "@shared/unread.mjs";
 import { mergeReceipt, readMemberIds } from "@shared/receipts.mjs";
 import { requestNotify, TEMPLATE_KEYS } from "@shared/wx-notify.mjs";
@@ -40,9 +41,10 @@ const lastMessageId = computed(() => messages.value.reduce((max, item) => Math.m
 const hasGroup = computed(() => conversations.value.some(item => item.kind === "GROUP"));
 
 /**
- * AI 家庭助手：会话列表固定置顶的一个特殊会话。不入 IM 消息库——
- * 历史按设备存本地（family_ai_history），发送走 /ai/chat 流式接口。
- * AI 能用当前用户身份查任务/日程/档案，回答的是「你家里的事」。
+ * AI 家庭助手：会话列表固定置顶的一个特殊会话。不入 IM 消息库。
+ * 历史以服务端为准（换设备还能接着看）；本机 family_ai_history 只做断网缓存，
+ * 以及把升级前只存在这台设备上的旧记录补传一次。发送仍走 /ai/chat 流式接口。
+ * 缓存带 ownerId：换账号绝不能把上一份对话补进新账号。
  */
 const AI_ID = "ai-assistant";
 const AI_HISTORY_KEY = "family_ai_history";
@@ -61,19 +63,55 @@ const displayConversations = computed(() => [
   ...conversations.value
 ]);
 function isAi() { return active.value === AI_ID; }
-function aiHistory() { return uni.getStorageSync(AI_HISTORY_KEY) || []; }
-function saveAiHistory(list) { uni.setStorageSync(AI_HISTORY_KEY, list.slice(-40)); }
+function aiBusy() { return aiThinking.value || (isAi() && loading.value); }
 
-/** 进入 AI 会话：把本地历史转成与 IM 消息同构的对象，渲染层零分支。 */
-function loadAiHistory() {
+/** 只读当前登录用户自己的本机缓存；旧版裸数组、别人的包一律丢掉，绝不拿去补传。 */
+function aiHistory() {
+  const ownerId = session.value?.userId;
+  if (ownerId == null || ownerId === "") return [];
+  const raw = uni.getStorageSync(AI_HISTORY_KEY);
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    uni.removeStorageSync(AI_HISTORY_KEY);
+    return [];
+  }
+  if (String(raw.ownerId) !== String(ownerId) || !Array.isArray(raw.messages)) return [];
+  return raw.messages;
+}
+function saveAiHistory(list) {
+  const ownerId = session.value?.userId;
+  if (ownerId == null || ownerId === "") return;
+  uni.setStorageSync(AI_HISTORY_KEY, {
+    ownerId: String(ownerId),
+    messages: list.slice(-40)
+  });
+}
+
+/** 进入 AI 会话：优先拉服务端历史；库是空的才把本机旧记录补传一次。 */
+async function loadAiHistory() {
+  const gen = generation;
   aiSeq = 0;
-  const history = aiHistory();
+  let remote = null;
+  try { remote = await request("/ai/history"); } catch { remote = null; }
+  if (gen !== generation || active.value !== AI_ID) return;
+  let { history, shouldImport } = resolveAiHistory(remote, aiHistory());
+  if (shouldImport) {
+    try {
+      const imported = await request("/ai/history/import", {
+        method: "POST",
+        data: { messages: history.map(item => ({ role: item.role, content: item.content })) }
+      });
+      if (gen !== generation || active.value !== AI_ID) return;
+      history = resolveAiHistory(imported, history).history;
+    } catch { /* 补传失败仍展示本机记录，下次打开再试 */ }
+  }
+  saveAiHistory(history.map(item => ({ role: item.role, content: item.content })));
   messages.value = history.map(item => ({
     id: "ai-" + (++aiSeq),
     senderId: item.role === "user" ? session.value?.userId : "ai",
     kind: "TEXT",
     body: item.content,
-    createdAt: ""
+    createdAt: item.createdAt || ""
   }));
   // 首次进入给一句开场白（不落历史，只是展示层引导）
   if (!history.length) {
@@ -86,6 +124,8 @@ function loadAiHistory() {
 }
 
 async function sendAi(text) {
+  aiThinking.value = true;
+  const clientId = uuid();
   const history = aiHistory();
   history.push({ role: "user", content: text });
   // 提问立刻落盘：模型报错或流中断时回答存不下来，但这句提问不该跟着一起丢
@@ -93,11 +133,11 @@ async function sendAi(text) {
   const reply = { id: "ai-" + (++aiSeq), senderId: "ai", kind: "TEXT", body: "", createdAt: new Date().toISOString(), streaming: true, tool: "" };
   messages.value.push(reply);
   await toBottom();
-  aiThinking.value = true;
   try {
     await aiChat({
       // 后端保留最近 20 条消息历史，这里同步裁剪，别把全量记录都发上去
       messages: history.slice(-20),
+      clientId,
       onTool: name => { reply.tool = name; },
       onDelta: text2 => { reply.body += text2; toBottom(); }
     });
@@ -363,11 +403,13 @@ async function select(item) {
   receipts.value = [];
   hasEarlier.value = false;
   anchor.value = "";
-  // AI 会话没有 IM 消息库，也不需要轮询——历史在本地，回答是流式推送
+  // AI 会话不走 IM 轮询。历史从服务端拉，回答是流式推送。
   if (item.id === AI_ID) {
     stopPolling();
-    loading.value = false;
-    loadAiHistory();
+    loading.value = true;
+    loadAiHistory().finally(() => {
+      if (active.value === AI_ID) loading.value = false;
+    });
     return;
   }
   loading.value = true;
@@ -403,6 +445,8 @@ async function sendText() {
   const text = draft.value.trim();
   if (!text || sending.value || !active.value) return;
   if (isAi()) {
+    // 历史还在加载时不能发：否则新提问会先入库，加载结束发现库非空就放弃本机旧历史
+    if (loading.value || aiThinking.value) return;
     // AI 会话：本地直接上屏提问，回答流式填充占位气泡
     draft.value = "";
     messages.value.push({ id: "ai-" + (++aiSeq), senderId: session.value?.userId, kind: "TEXT", body: text, createdAt: new Date().toISOString() });
@@ -715,10 +759,10 @@ defineExpose({ load, receive });
               @mouseup="finishRecord"
               @mouseleave="cancelRecord"
             >{{ recording ? "松开 发送" : "🎙" }}</button>
-            <input v-model="draft" class="input" maxlength="4000" :placeholder="isAi() ? '问问家庭小助手：这周有什么任务？' : '说点什么给家人…'" :disabled="sending || aiThinking" @confirm="sendText" />
+            <input v-model="draft" class="input" maxlength="4000" :placeholder="isAi() ? '问问家庭小助手：这周有什么任务？' : '说点什么给家人…'" :disabled="sending || aiBusy()" @confirm="sendText" />
             <button v-if="!isAi()" size="mini" :disabled="sending" @click="sendImage">图片</button>
             <button v-if="!isAi()" size="mini" :disabled="sending" @click="sendFile">文件</button>
-            <button class="primary" size="mini" :loading="sending || aiThinking" :disabled="sending || aiThinking" @click="sendText">发送</button>
+            <button class="primary" size="mini" :loading="sending || aiBusy()" :disabled="sending || aiBusy()" @click="sendText">发送</button>
           </view>
         </view>
       </view>
@@ -730,8 +774,7 @@ defineExpose({ load, receive });
 .chat{display:flex;flex-direction:column}
 .chat-frame{display:grid;grid-template-columns:280px 1fr;gap:18px}
 .sidebar,.room,.messages,.composer{display:flex;flex-direction:column}
-.sidebar,.room{background:rgba(255,252,248,.82);border:1px solid var(--c-line);border-radius:22px;padding:18px;box-shadow:0 6px 24px rgba(58,52,46,.06)}
-@supports (backdrop-filter: blur(18px)){.sidebar,.room{background:rgba(255,252,248,.62);backdrop-filter:blur(18px)}}
+.sidebar,.room{background:#fffdf8;border:1px solid rgba(58,52,46,.16);border-radius:6px;padding:18px}
 .sidebar{gap:14px;max-height:560px;overflow:auto}
 .sidebar-head,.room-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
 .room-head-title{flex:1;min-width:0}
@@ -742,12 +785,12 @@ defineExpose({ load, receive });
 .hint{display:block;font-size:11px;color:var(--c-muted);margin-top:6px;line-height:1.8}
 .earlier{display:flex;justify-content:center;padding:10px 0}
 .sidebar-head button{margin:0;font-size:11px}
-.call-btn{margin:0;font-size:11px;background:linear-gradient(135deg,var(--c-primary),var(--c-primary-deep,#a6603f));color:#fff;border-radius:11px;box-shadow:0 2px 8px rgba(166,96,63,.22)}
+.call-btn{margin:0;font-size:11px;background:var(--c-primary-deep);color:#fffdf8;border-radius:3px;border-color:#6e2b20}
 .conv-list{display:flex;flex-direction:column;gap:8px}
-.conv{display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;background:var(--c-surface-2)}
-.conv.active{background:var(--c-primary-soft);border:1px solid rgba(196,121,90,.35);box-shadow:0 2px 10px rgba(196,121,90,.12)}
-.conv-avatar{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--c-primary),var(--c-primary-deep,#a6603f));color:#fff;text-align:center;line-height:40px;font-size:15px;flex-shrink:0;box-shadow:0 2px 8px rgba(196,121,90,.35)}
-.conv-avatar.ai{background:linear-gradient(135deg,#eef0ff,#e4e0ff);box-shadow:0 2px 8px rgba(91,110,232,.2);padding:4px;overflow:hidden}
+.conv{display:flex;align-items:center;gap:12px;padding:12px;border-radius:4px;background:var(--c-surface-2)}
+.conv.active{background:var(--c-primary-soft);border:1px solid rgba(141,58,42,.28)}
+.conv-avatar{width:40px;height:40px;border-radius:4px;background:var(--c-primary-deep);color:#fffdf8;text-align:center;line-height:40px;font-size:15px;flex-shrink:0}
+.conv-avatar.ai{background:#f4efe8;box-shadow:none;padding:4px;overflow:hidden}
 .conv-avatar-img{width:100%;height:100%;border-radius:50%}
 .tool-hint{font-size:11px;color:var(--c-muted);font-style:italic}
 .cursor{animation:blink 1s step-start infinite}
@@ -759,8 +802,8 @@ defineExpose({ load, receive });
 .conv-meta{font-size:11px;color:var(--c-muted)}
 .sidebar-foot{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--c-surface-2);padding-top:14px}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
-.chips button{margin:0;font-size:11px;background:var(--c-primary-soft);color:var(--c-primary);border-radius:11px}
-.primary,.primary.block{background:linear-gradient(135deg,var(--c-primary),var(--c-primary-deep,#a6603f));color:#fff;font-size:12px;margin:0;border-radius:12px;box-shadow:0 2px 8px rgba(166,96,63,.25)}
+.chips button{margin:0;font-size:11px;background:#fffdf8;color:var(--c-ink);border-radius:3px;border:1px solid rgba(58,52,46,.18)}
+.primary,.primary.block{background:var(--c-primary-deep);color:#fffdf8;font-size:12px;margin:0;border-radius:3px;border-color:#6e2b20}
 .block{width:100%;height:38px;line-height:38px}
 .room{min-height:420px}
 .room-body{flex:1;display:flex;flex-direction:column;gap:12px;min-height:0}
@@ -769,7 +812,7 @@ defineExpose({ load, receive });
 .row{display:flex}
 .row.own{justify-content:flex-end}
 .bubble{max-width:78%;background:#fff;border:1px solid var(--c-line);border-radius:16px 16px 16px 6px;padding:10px 14px;display:flex;flex-direction:column;gap:4px;box-shadow:0 1px 6px rgba(58,52,46,.05)}
-.row.own .bubble{background:linear-gradient(135deg,var(--c-primary),var(--c-primary-deep,#a6603f));border-color:transparent;border-radius:16px 16px 6px 16px;color:#fff;box-shadow:0 3px 10px rgba(166,96,63,.28)}
+.row.own .bubble{background:var(--c-primary-deep);border-color:transparent;border-radius:4px 4px 2px 4px;color:#fffdf8}
 .row.own .bubble .sender,.row.own .bubble .time{color:rgba(255,255,255,.75)}
 .sender{font-size:11px;color:var(--c-ink-2)}
 .body{font-size:14px;line-height:1.7;overflow-wrap:anywhere}

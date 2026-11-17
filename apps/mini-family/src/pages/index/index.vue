@@ -212,6 +212,8 @@ async function signUp() {
 
 function clearSession() {
   uni.removeStorageSync("family_access_token");
+  // 助手本机缓存带上一账号对话；只清 token 会让下一账号空库补传时误导入
+  uni.removeStorageSync("family_ai_history");
   token.value = "";
   changingPassword.value = false;
   currentPassword.value = "";
@@ -276,7 +278,7 @@ async function changePassword() {
         <input v-model="phone" class="input" type="number" maxlength="11" placeholder="请输入手机号"/>
         <text class="field-label">账号密码</text>
         <input v-model="password" class="input" maxlength="64" password placeholder="请输入密码" @confirm="signIn"/>
-        <button class="mf-btn mf-btn--shine login-button" :loading="submitting" :disabled="submitting" @click="signIn">进入家庭空间 →</button>
+        <button class="mf-btn login-button" :loading="submitting" :disabled="submitting" @click="signIn">进入家庭空间</button>
         <text class="login-note">仅向家庭成员开放 · 让陪伴更近一点</text>
       </template>
       <template v-else>
@@ -292,7 +294,7 @@ async function changePassword() {
         <input v-model="regForm.password" class="input" maxlength="64" password placeholder="12 至 64 位"/>
         <text class="field-label">确认密码</text>
         <input v-model="regForm.confirmation" class="input" maxlength="64" password placeholder="再输入一次" @confirm="signUp"/>
-        <button class="mf-btn mf-btn--shine login-button" :loading="submitting" :disabled="submitting" @click="signUp">注册并进入 →</button>
+        <button class="mf-btn login-button" :loading="submitting" :disabled="submitting" @click="signUp">注册并进入</button>
         <text class="login-note">邀请码由管理员发放 · 只可用一次</text>
       </template>
     </view>
@@ -353,7 +355,7 @@ async function changePassword() {
         <input v-model="currentPassword" class="input" maxlength="64" password placeholder="当前密码"/>
         <input v-model="newPassword" class="input" maxlength="64" password placeholder="新密码（12 至 64 位）"/>
         <input v-model="confirmation" class="input" maxlength="64" password placeholder="再次输入新密码"/>
-        <button class="mf-btn mf-btn--shine" :loading="submitting" :disabled="submitting" @click="changePassword">更新密码</button>
+        <button class="mf-btn" :loading="submitting" :disabled="submitting" @click="changePassword">更新密码</button>
         <button class="logout" :disabled="submitting" @click="logout">退出家庭空间</button>
       </view>
     </view>
@@ -379,38 +381,38 @@ async function changePassword() {
 /* ——— 顶栏 ——— */
 /* 头部：窄屏下品牌与右侧胶囊都必须单行，否则「家庭空间 / 10月30日 / 通话 / 搜索」会各自折行挤成一团 */
 .brandbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:nowrap;gap:12px;padding:26px 0 18px}
-.wordmark{flex:0 0 auto;font-size:24px;font-weight:750;color:var(--c-primary-deep);letter-spacing:1px;white-space:nowrap}
+.wordmark{flex:0 0 auto;font-size:22px;font-weight:700;font-family:"KaiTi","Kaiti SC","STKaiti",serif;color:var(--c-ink);letter-spacing:1px;white-space:nowrap}
 .brand-caption{font-size:11px;font-weight:400;color:var(--c-muted);margin-left:12px;letter-spacing:2px;white-space:nowrap}
 .brand-right{display:flex;align-items:center;flex:0 0 auto;gap:12px}
-.date-pill{display:flex;flex:0 0 auto;flex-direction:column;align-items:flex-end;line-height:1.3;padding:6px 14px;border-radius:var(--r-pill);background:var(--c-glass);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid var(--c-glass-line);box-shadow:var(--sh-1);white-space:nowrap}
+.date-pill{display:flex;flex:0 0 auto;flex-direction:column;align-items:flex-end;line-height:1.3;padding:4px 8px;border-radius:2px;background:transparent;border:1px solid rgba(58,52,46,.2);white-space:nowrap}
 .date-main{font-size:12px;font-weight:600;color:var(--c-ink);white-space:nowrap}
 .date-sub{font-size:10px;color:var(--c-muted);white-space:nowrap}
-.search-entry{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:12px;line-height:1;color:var(--c-primary-deep);background:var(--c-glass);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid var(--c-glass-line);border-radius:var(--r-pill);padding:9px 15px;box-shadow:var(--sh-1);white-space:nowrap;transition:transform var(--t-fast) var(--e-spring),box-shadow var(--t) var(--e-out)}
-.search-entry:active{transform:scale(.94)}
-.call-entry{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:12px;line-height:1;color:#fff;background:linear-gradient(135deg,var(--c-primary),var(--c-primary-deep));border-radius:var(--r-pill);padding:9px 15px;box-shadow:var(--sh-1);white-space:nowrap;transition:transform var(--t-fast) var(--e-spring)}
-.call-entry:active{transform:scale(.94)}
+.search-entry{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:12px;line-height:1;color:var(--c-ink);background:#fffdf8;border:1px solid rgba(58,52,46,.22);border-radius:3px;padding:8px 12px;white-space:nowrap}
+.search-entry:active{transform:translateY(1px)}
+.call-entry{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:12px;line-height:1;letter-spacing:.06em;color:#fffdf8;background:var(--c-primary-deep);border:1px solid #6e2b20;border-radius:3px;padding:8px 12px;white-space:nowrap}
+.call-entry:active{transform:translateY(1px)}
 /* ——— 页头 ——— */
 .page-heading{padding:18px 0 8px;position:relative}
-.page-title{display:block;font-size:28px;font-weight:750;margin-top:11px;letter-spacing:-.7px;color:var(--c-ink);line-height:1.35}
+.page-title{display:block;font-family:"KaiTi","Kaiti SC","STKaiti",serif;font-size:30px;font-weight:700;margin-top:8px;letter-spacing:.04em;color:var(--c-ink);line-height:1.35}
 
 /* ——— 问候主卡 ——— */
 .bento{margin-top:20px}
-.hero{display:flex;flex-direction:column;justify-content:center;padding:34px 36px;background:linear-gradient(122deg,#f6e6da 0%,#efdccb 46%,#e6d4d8 100%);border-radius:var(--r-xl);min-height:190px}
-.hero-label{font-size:11px;color:#a1795f;letter-spacing:1.4px}
-.hero-title{font-size:29px;display:block;line-height:1.6;font-weight:680;margin-top:13px;color:#4a3628;letter-spacing:-.4px}
+.hero{display:flex;flex-direction:column;justify-content:center;padding:28px 28px 28px 32px;background:#fffdf8;border-radius:4px;min-height:160px;border-left:3px solid var(--c-primary)}
+.hero-label{font-family:"KaiTi","Kaiti SC","STKaiti",serif;font-size:14px;color:var(--c-primary);letter-spacing:.12em}
+.hero-title{font-family:"KaiTi","Kaiti SC","STKaiti",serif;font-size:30px;display:block;line-height:1.55;font-weight:700;margin-top:10px;color:var(--c-ink)}
 
 /* ——— 插画（登录页）——— */
 .story-art{position:relative;align-self:stretch;flex-shrink:0;width:250px;height:190px}
-.sun{position:absolute;width:58px;height:58px;border-radius:50%;background:radial-gradient(circle at 34% 32%,#f0d59a,#d9a860);right:26px;top:6px;box-shadow:0 0 30px rgba(217,168,96,.5);animation:mf-float 6s var(--e-io) infinite}
-.roof{position:absolute;bottom:96px;left:44px;width:0;height:0;border-left:63px solid transparent;border-right:63px solid transparent;border-bottom:44px solid #9db4c4;filter:drop-shadow(0 -2px 4px rgba(58,52,46,.08))}
-.house{position:absolute;background:linear-gradient(160deg,#fffdfa,#f3ece4);bottom:30px;left:51px;width:104px;height:94px;border-radius:8px;transform:rotate(-5deg);box-shadow:0 12px 26px -12px rgba(58,52,46,.5)}
-.window{position:absolute;width:30px;height:34px;left:18px;top:24px;background:linear-gradient(160deg,#dbe9f3,#b9cfdd);border-radius:16px 16px 2px 2px;animation:mf-breathe 4.5s var(--e-io) infinite}
-.door{position:absolute;width:26px;height:40px;right:18px;bottom:0;background:linear-gradient(180deg,#c98f6c,#a86e4e);border-radius:6px 6px 0 0}
-.hill{position:absolute;bottom:-26px;left:0;right:-30px;height:60px;border-radius:50% 50% 0 0;background:linear-gradient(180deg,#c9d6cf,#aebfb4)}
+.sun{position:absolute;width:46px;height:46px;border-radius:50%;background:transparent;border:1.5px solid #54473d;right:26px;top:6px}
+.roof{position:absolute;bottom:96px;left:44px;width:0;height:0;border-left:63px solid transparent;border-right:63px solid transparent;border-bottom:44px solid #54473d}
+.house{position:absolute;background:#fffdf8;border:1.5px solid #54473d;bottom:30px;left:51px;width:104px;height:94px;border-radius:2px}
+.window{position:absolute;width:26px;height:26px;left:16px;top:22px;background:transparent;border:1.5px solid #54473d;border-radius:2px}
+.door{position:absolute;width:24px;height:38px;right:16px;bottom:0;background:transparent;border:1.5px solid #54473d;border-bottom:0;border-radius:2px 2px 0 0}
+.hill{position:absolute;bottom:-18px;left:8px;right:8px;height:28px;border-radius:0;border-top:1.5px solid #54473d;background:transparent}
 
 /* ——— 快捷入口（参考「一起」版式：柔和色块 + 图标 + 名称 + 副题）——— */
 .shortcuts{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:18px 0 4px}
-.shortcut{display:flex;flex-direction:column;align-items:flex-start;gap:5px;border-radius:18px;padding:20px 20px 18px;margin:0;line-height:1.4;border:0;box-shadow:0 1px 0 rgba(58,52,46,.04);text-align:left;transition:transform var(--t-fast) var(--e-spring)}
+.shortcut{display:flex;flex-direction:column;align-items:flex-start;gap:5px;border-radius:4px;padding:16px 16px 14px;margin:0;line-height:1.4;border:1px solid rgba(58,52,46,.12);box-shadow:none;text-align:left}
 .shortcut::after{border:0}
 .shortcut--0{background:#f8ece1}
 .shortcut--1{background:#eceff1}
@@ -427,44 +429,44 @@ async function changePassword() {
 .pane{animation:mf-fade 320ms var(--e-out) both}
 
 /* ——— 子标签 ——— */
-.subnav{display:flex;gap:8px;padding:4px;margin:6px 0 16px;border-radius:var(--r-pill);background:var(--c-glass);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid var(--c-glass-line);box-shadow:var(--sh-1);width:fit-content}
-.subnav button{padding:8px 18px;margin:0;border:0;border-radius:var(--r-pill);background:none;font-size:12px;color:var(--c-muted);line-height:1.5;transition:color var(--t) var(--e-out),background var(--t) var(--e-out),transform var(--t-fast) var(--e-spring)}
+.subnav{display:flex;gap:0;margin:6px 0 16px;border-bottom:1px solid rgba(58,52,46,.16);width:fit-content;background:transparent}
+.subnav button{padding:8px 16px;margin:0;border:0;border-radius:0;border-bottom:2px solid transparent;background:none;font-size:13px;color:var(--c-muted);line-height:1.5;letter-spacing:.08em}
 .subnav button::after{border:0}
-.subnav button.active{color:#fff;background:linear-gradient(135deg,#cd8465,var(--c-primary));box-shadow:0 6px 16px -6px rgba(166,96,63,.7)}
-.subnav button:active{transform:scale(.94)}
+.subnav button.active{color:var(--c-primary-deep);background:none;border-bottom-color:var(--c-primary);box-shadow:none;font-weight:650}
+.subnav button:active{transform:none}
 
 /* ——— 底部导航 ——— */
-.navigation{position:fixed;left:0;right:0;bottom:0;z-index:30;display:grid;grid-template-columns:repeat(6,1fr);gap:2px;padding:9px 12px calc(10px + env(safe-area-inset-bottom));background:var(--c-glass);-webkit-backdrop-filter:blur(26px) saturate(1.7);backdrop-filter:blur(26px) saturate(1.7);border-top:1px solid var(--c-glass-line);box-shadow:0 -10px 34px -20px rgba(58,52,46,.55)}
-.navigation button{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 0;margin:0;border:0;background:none;color:var(--c-muted);font-size:10px;line-height:1.5;transition:color var(--t) var(--e-out),transform var(--t-fast) var(--e-spring)}
+.navigation{position:fixed;left:0;right:0;bottom:0;z-index:30;display:grid;grid-template-columns:repeat(6,1fr);gap:2px;padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:#fffdf8;border-top:1px solid rgba(58,52,46,.16)}
+.navigation button{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 0;margin:0;border:0;background:none;color:var(--c-muted);font-size:10px;line-height:1.5;letter-spacing:0}
 .navigation button::after{border:0}
-.navigation button.active{color:var(--c-primary-deep);font-weight:640}
-.navigation button:active{transform:scale(.9)}
-.nav-icon{display:block;font-size:16px;line-height:1.3;transition:transform var(--t) var(--e-spring),color var(--t) var(--e-out)}
-.navigation button.active .nav-icon{transform:translateY(-3px) scale(1.18);color:var(--c-primary)}
-.navigation button.active::before{content:'';position:absolute;top:-1px;left:50%;width:16px;height:3px;margin-left:-8px;border-radius:2px;background:linear-gradient(90deg,var(--c-primary),var(--c-sand));animation:mf-pop 400ms var(--e-spring) both}
+.navigation button.active{color:var(--c-primary-deep);font-weight:650}
+.navigation button:active{transform:none}
+.nav-icon{display:block;font-size:16px;line-height:1.3}
+.navigation button.active .nav-icon{color:var(--c-primary-deep)}
+.navigation button.active::before{content:'';position:absolute;top:0;left:50%;width:14px;height:2px;margin-left:-7px;background:var(--c-primary)}
 .nav-badge{position:absolute;top:-4px;right:calc(50% - 24px);min-width:16px;height:16px;line-height:16px;border-radius:8px;background:var(--c-danger);color:#fff;font-size:9px;text-align:center;padding:0 4px;box-shadow:0 2px 6px rgba(185,106,91,.5);animation:mf-pop 420ms var(--e-spring) both}
 
 /* ——— 登录页 ——— */
 .login-layout{position:relative;z-index:1;display:grid;grid-template-columns:1.05fr .95fr;gap:26px;align-items:center;max-width:980px;margin:auto;padding:40px 30px 60px;min-height:100vh}
-.login-story{position:relative;overflow:hidden;min-height:420px;padding:38px 40px;border-radius:var(--r-xl);background:linear-gradient(135deg,#f3e3d4 0%,#e8d6c8 45%,#dfd0d4 100%);box-shadow:var(--sh-3);display:flex;flex-direction:column}
-.login-story .wordmark{font-size:15px;font-weight:700;color:#a1795f;letter-spacing:2px}
-.story-title{font-size:38px;font-weight:700;line-height:1.45;margin-top:22px;color:#43322a;letter-spacing:-1px}
+.login-story{position:relative;overflow:hidden;min-height:420px;padding:38px 40px;border-radius:4px;background:#fffdf8;border:1px solid rgba(58,52,46,.18);box-shadow:0 14px 32px -20px rgba(58,52,46,.35);display:flex;flex-direction:column}
+.login-story .wordmark{font-size:16px;font-weight:700;font-family:"KaiTi","Kaiti SC","STKaiti",serif;color:var(--c-ink);letter-spacing:.12em}
+.story-title{font-family:"KaiTi","Kaiti SC","STKaiti",serif;font-size:36px;font-weight:700;line-height:1.5;margin-top:22px;color:var(--c-ink);letter-spacing:.02em}
 .story-copy{font-size:13px;line-height:2;margin-top:16px;color:#8a7263}
 .story-bottom{margin-top:auto;font-size:11px;letter-spacing:3px;color:#a08a79}
 .story-art{position:absolute;right:10px;bottom:22px;width:250px;height:190px}
 .story-art .house{bottom:34px;left:60px}
 .story-art .roof{bottom:100px;left:53px}
 .story-art .hill{bottom:-30px}
-.login{padding:32px 30px;border-radius:var(--r-xl);background:var(--c-glass);-webkit-backdrop-filter:blur(24px) saturate(1.6);backdrop-filter:blur(24px) saturate(1.6);border:1px solid var(--c-glass-line);box-shadow:var(--sh-3),var(--sh-edge)}
+.login{padding:32px 30px;border-radius:4px;background:#fffdf8;border:1px solid rgba(58,52,46,.18)}
 .login .eyebrow{color:var(--c-primary);font-weight:640}
 .auth-tabs{display:flex;gap:18px;margin:10px 0 4px;border-bottom:1px solid var(--c-glass-line)}
 .auth-tab{padding-bottom:8px;font-size:15px;letter-spacing:2px;color:var(--c-muted);border-bottom:2px solid transparent}
 .auth-tab.on{color:var(--c-primary);font-weight:650;border-bottom-color:var(--c-primary)}
-.login-title{display:block;font-size:26px;font-weight:700;margin:10px 0 8px;color:var(--c-ink);letter-spacing:-.5px}
+.login-title{display:block;font-family:"KaiTi","Kaiti SC","STKaiti",serif;font-size:26px;font-weight:700;margin:10px 0 8px;color:var(--c-ink);letter-spacing:.16em}
 .description{display:block;font-size:12px;line-height:1.9;color:var(--c-muted);margin-bottom:22px}
 .field-label{display:block;font-size:11px;color:var(--c-ink-2);margin:0 0 7px 4px;letter-spacing:.5px}
-.input{width:100%;height:48px;padding:0 16px;margin-bottom:16px;border:1px solid var(--c-line);border-radius:var(--r-md);background:rgba(255,255,255,.75);font-size:14px;color:var(--c-ink);box-sizing:border-box;transition:border-color var(--t) var(--e-out),box-shadow var(--t) var(--e-out),background var(--t) var(--e-out)}
-.input:focus{border-color:var(--c-primary);background:#fff;box-shadow:0 0 0 4px var(--c-primary-tint)}
+.input{width:100%;height:46px;padding:0 14px;margin-bottom:16px;border:1px solid rgba(58,52,46,.22);border-radius:4px;background:#fffdf8;font-size:14px;color:var(--c-ink);box-sizing:border-box}
+.input:focus{border-color:var(--c-primary);background:#fff;outline:none}
 .login-button{width:100%;margin-top:8px}
 .login-note{display:block;margin-top:18px;text-align:center;font-size:11px;color:var(--c-muted)}
 
@@ -472,9 +474,9 @@ async function changePassword() {
 .settings{padding:26px}
 .settings-title{display:block;font-size:17px;font-weight:650;color:var(--c-ink)}
 .settings .description{margin-bottom:18px}
-.logout{width:100%;height:44px;margin-top:12px;border:0;border-radius:var(--r-pill);background:var(--c-danger-soft);color:var(--c-danger);font-size:13px;line-height:44px;transition:transform var(--t-fast) var(--e-spring)}
+.logout{width:100%;height:44px;margin-top:12px;border:1px solid rgba(185,106,91,.45);border-radius:4px;background:#fffdf8;color:var(--c-danger);font-size:13px;letter-spacing:.08em;line-height:44px}
 .logout::after{border:0}
-.logout:active{transform:scale(.97)}
+.logout:active{transform:translateY(1px)}
 
 /* ——— 响应式 ——— */
 @media(max-width:860px){

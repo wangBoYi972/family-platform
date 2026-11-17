@@ -51,17 +51,20 @@ AI 服务自身不做任何权限判断，也就没有「越权口子」可开�
 工具失败（下游不可达、参数缺失）返回 `{"error": "..."}` 而不是抛异常——模型能向用户解释
 「暂时查不到」，而不是整个对话 500。
 
-### 历史存本地
+### 历史按人存在 AI 服务自己的库
 
-AI 对话**不入 IM 消息库**：历史按设备存 `localStorage`（`family_ai_history`，保留 40 条），
-发送时只带最近 13 条给服务端，服务端再裁到 12 条。会话列表里它是固定置顶的特殊项，
-不参与轮询、不参与已读回执、不支持长按撤回。
+AI 对话**不入 IM 消息库**。`ai_message` 按「当前用户 + 当前家庭」存最近 40 条，
+换手机登录同一账号还能接着看。打开会话先 `GET /api/ai/history`；
+库是空的、本机还有升级前的旧记录时，再 `POST /api/ai/history/import` 补传一次。
+本机 `family_ai_history` 只做断网缓存。发送时仍把最近若干条带给模型当上下文，
+服务端只把这一轮的新提问和回答追加进库。会话列表里它是固定置顶的特殊项，
+不参与轮询、不参与已读回执、不支持长按撤回。未配置模型时历史接口仍然可读。
 
 ## 3. 可用工具
 
 | 工具 | 用途 | 下游 |
 | --- | --- | --- |
-| `list_tasks` | 查任务清单，可按 `TODO`/`DOING`/`DONE` 筛选 | content-svc `/api/tasks` |
+| `list_tasks` | 查任务清单，可按 `TODO`/`IN_PROGRESS`/`COMPLETED` 筛选 | content-svc `/api/tasks` |
 | `list_calendar` | 查日程与纪念日 | content-svc `/api/calendar` |
 | `search_family_data` | 跨任务/日程/动态/相册/公告/档案/文件关键字搜索 | content、archive、file 三服务 |
 
@@ -82,6 +85,9 @@ AI 对话**不入 IM 消息库**：历史按设备存 `localStorage`（`family_a
 | `FAMILY_AI_FILE_URL` | `http://127.0.0.1:8087` | file-svc 地址 |
 | `FAMILY_AI_ARCHIVE_URL` | `http://127.0.0.1:8088` | archive-svc 地址 |
 | `FAMILY_AI_USER_URL` | `http://127.0.0.1:8081` | user-svc 地址（Feign 装配用） |
+| `FAMILY_AI_DB_URL` | `jdbc:mysql://127.0.0.1:3306/family_ai?...` | 助手历史库。本地需先建库 `family_ai` |
+| `FAMILY_AI_DB_USERNAME` | `family_app` | 业务账号，只授权 `family_ai` |
+| `FAMILY_AI_DB_PASSWORD` | 空 | 数据库密码，不进仓库 |
 
 本地启用：
 
@@ -99,10 +105,11 @@ SPRING_PROFILES_ACTIVE=local java -jar family-ai-svc/target/family-ai-svc-0.1.0-
 
 | 测试 | 覆盖 |
 | --- | --- |
-| `AiEndpointTest` | 未登录 401（SSE 都不开）、鉴权先于参数校验 |
+| `AiEndpointTest` | 未登录 401（对话和历史都不开）、鉴权先于参数校验 |
+| `AiHistoryServiceTest` | 按人隔离、只留最近 40 条、空库才导入一次、delta 拼接 |
 | `AiToolsTest` | 工具定义契约、未知工具兜底、缺参数快速失败、下游不可达不中断对话 |
 | `AiServiceTest` | 流式增量 + done、工具轮（token 透传、分片 arguments 合并）、轮数用尽收尾、历史裁剪、未配置 503、模型 500 转 error 事件 |
-| `apps/shared/ai-client.test.mjs` | SSE 缓冲解析：完整事件、跨分片拼接、`\r\n` 兼容、`[DONE]` 忽略、坏 JSON 丢弃 |
+| `apps/shared/ai-client.test.mjs` | SSE 缓冲解析；服务端历史优先、空库待导入、断网不导入 |
 
 `AiServiceTest` 用 JDK 自带 `HttpServer` 起假模型和假下游，不引 WireMock 之类的额外依赖，
 断言全部基于服务端实际发出的请求体和推给前端的事件序列。
@@ -111,5 +118,5 @@ SPRING_PROFILES_ACTIVE=local java -jar family-ai-svc/target/family-ai-svc-0.1.0-
 
 - 回答质量取决于所选模型；`qwen-plus` 是缺省值，可换 `qwen-max` 等。
 - 工具结果直接喂 JSON，字段过多时模型可能转述不全——这是截断阈值存在的另一层原因。
-- AI 会话历史只在单台设备上，换手机就看不到之前的对话。
+- 助手历史存在 `family_ai.ai_message`，同一账号跨设备可见；断网时退回本机缓存，联网后再对齐。
 - 未做按用户限流：单用户连续刷问会持续消耗 token 费用，上生产前建议在网关按用户加一道配额。

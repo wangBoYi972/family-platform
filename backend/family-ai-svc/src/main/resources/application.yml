@@ -5,12 +5,37 @@ spring:
     name: family-ai-svc
   jackson:
     default-property-inclusion: non_null
+  datasource:
+    url: ${FAMILY_AI_DB_URL:jdbc:mysql://127.0.0.1:3306/family_ai?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${FAMILY_AI_DB_USERNAME:family_app}
+    password: ${FAMILY_AI_DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      pool-name: AiHikariPool
+  flyway:
+    enabled: true
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
 family:
+  auth:
+    jwt-secret: ${FAMILY_JWT_SECRET:}
+  # Feign 直连下游。空 url 会让上下文起不来，生产用同一组环境变量覆盖成内网地址。
+  clients:
+    user-url: ${FAMILY_AI_USER_URL:http://127.0.0.1:8081}
+    content-url: ${FAMILY_AI_CONTENT_URL:http://127.0.0.1:8082}
+    file-url: ${FAMILY_AI_FILE_URL:http://127.0.0.1:8087}
+    archive-url: ${FAMILY_AI_ARCHIVE_URL:http://127.0.0.1:8088}
   ai:
     # key 只从环境变量注入（FAMILY_AI_API_KEY），绝不写进仓库。
     # enabled=false 时 /api/ai/chat 返回 503，前端按「AI 未配置」提示。
