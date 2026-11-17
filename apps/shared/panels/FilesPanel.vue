@@ -207,7 +207,7 @@ onMounted(load);
 <style scoped>
 .files{display:flex;flex-direction:column;gap:16px}
 .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-.metric{background:var(--c-surface);border:1px solid var(--c-line);border-radius:14px;padding:14px;text-align:center}
+.metric{background:rgba(255,255,255,.54);border:1px solid rgba(255,255,255,.8);border-radius:24px;padding:14px;text-align:center}
 .figure{display:block;font-size:22px;font-weight:700;color:var(--c-primary)}
 .caption{font-size:11px;color:var(--c-muted)}
 .scope-note{font-size:11px;color:var(--c-muted);line-height:1.6}
@@ -221,7 +221,7 @@ onMounted(load);
 .switch-item.active{background:var(--c-surface);color:var(--c-primary);font-weight:600;box-shadow:0 1px 4px rgba(23,42,70,.08)}
 .upload button{font-size:12px;margin:0}
 .list{display:flex;flex-direction:column;gap:8px}
-.row{display:flex;align-items:center;gap:12px;background:var(--c-surface);border:1px solid var(--c-line);border-radius:14px;padding:12px 14px}
+.row{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.54);border:1px solid rgba(255,255,255,.8);border-radius:24px;padding:12px 14px}
 .kind{width:38px;height:38px;line-height:38px;text-align:center;border-radius:11px;background:var(--c-primary-soft);color:var(--c-primary);font-size:16px;flex-shrink:0}
 .body{flex:1;min-width:0}
 .name{display:block;font-size:13px;font-weight:600;color:var(--c-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

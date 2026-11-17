@@ -190,33 +190,28 @@ onMounted(() => { load(); loadMembers(); });
 .pager-text{font-size:12px;color:var(--c-muted)}
 .content{position:relative;z-index:1}
 .page-heading,.section-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:24px}
-.eyebrow{margin:0 0 8px;color:var(--c-primary);font-family:var(--font-display);font-size:13px;letter-spacing:.18em}
-.page-heading h1,.section-heading h2{margin:0;font-weight:700;letter-spacing:.04em}
-.page-heading h1{font-size:32px}
-.section-heading h2{font-size:22px}
-.subtitle{margin:14px 0 0;color:var(--c-ink-2);font-size:13px;line-height:1.7}
-.create-button{border-radius:4px;padding:0 18px;height:40px;font-weight:600}
+.eyebrow{margin:0 0 14px;color:var(--c-primary);font-family:var(--font-display);font-size:15px;letter-spacing:.24em}
+.page-heading h1,.section-heading h2{margin:0;font-weight:500;letter-spacing:.03em}
+.page-heading h1{font-size:52px}
+.section-heading h2{font-size:32px}
+.subtitle{margin:18px 0 0;color:var(--c-ink-2);font-size:16px;line-height:1.8}
+.create-button{border-radius:30px;padding:0 22px;height:46px;font-weight:500;letter-spacing:.08em}
 
 /* ——— Bento 指标 ——— */
-.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;margin:28px 0 36px;border:1px solid rgba(58,52,46,.16);background:#fffdf8}
-.metric{position:relative;display:flex;flex-direction:column;gap:4px;padding:20px 22px;border-radius:0;overflow:hidden;border-right:1px solid rgba(58,52,46,.12);box-shadow:none}
+.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin:40px 0 48px;border:0;background:transparent}
+.metric{position:relative;display:flex;flex-direction:column;gap:8px;padding:28px 28px 24px;border-radius:30px;overflow:hidden;border:1px solid rgba(255,255,255,.8);background:rgba(255,255,255,.54);backdrop-filter:blur(20px);box-shadow:0 10px 30px rgba(134,187,255,.28)}
 .metric:last-child{border-right:0}
 .metric-icon{
   position:absolute;right:16px;top:16px;width:28px;height:28px;display:grid;place-items:center;
-  border-radius:2px;font-size:14px;font-weight:700;border:1px solid currentColor;
+  border-radius: 50%;font-size:14px;font-weight:700;border:1px solid rgba(255,255,255,.8);background:rgba(255,255,255,.54);
 }
-.metric-value{font-family:var(--font-display);font-size:34px;font-weight:700;line-height:1.15}
-.metric-label{font-size:13px;font-weight:600;color:var(--c-ink)}
-.metric small{font-size:12px;color:var(--c-muted)}
-.metric--clay{background:#fffdf8}
-.metric--clay .metric-icon{color:var(--c-primary-deep)}
-.metric--clay .metric-value{color:var(--c-primary-deep)}
-.metric--sage{background:#fffdf8}
-.metric--sage .metric-icon{color:#5f7d68}
-.metric--sage .metric-value{color:#5f7d68}
-.metric--danger{background:#fffdf8}
-.metric--danger .metric-icon{color:var(--c-danger)}
-.metric--danger .metric-value{color:var(--c-danger)}
+.metric-value{font-family:var(--font-display);font-size:64px;font-weight:500;line-height:1}
+.metric-label{font-size:16px;font-weight:500;color:var(--c-ink)}
+.metric small{font-size:13px;color:var(--c-muted)}
+.metric--clay,.metric--sage,.metric--danger{background:rgba(255,255,255,.54)}
+.metric--clay .metric-icon,.metric--sage .metric-icon{color:#4F7DC6}
+.metric--clay .metric-value,.metric--sage .metric-value{color:#142B53}
+.metric--danger .metric-icon,.metric--danger .metric-value{color:#142B53}
 
 /* ——— 表格 ——— */
 .task-table :deep(th.el-table__cell){border-bottom:1px solid var(--c-line);font-family:var(--font-display);letter-spacing:.12em}

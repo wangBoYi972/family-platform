@@ -5,30 +5,31 @@
 
 :root,
 page {
-  /* —— 底色：燕麦奶油 —— */
-  --c-bg: #f7f2eb;
-  --c-bg-2: #f1e9de;
-  --c-surface: #ffffff;
-  --c-surface-2: #fbf7f1;
-
-  /* —— 纸面（沿用旧变量名）—— */
-  --c-glass: #fffdf8;
-  --c-glass-2: #fbf7f1;
-  --c-glass-line: rgba(58, 52, 46, 0.16);
-
-  /* —— 主色：朱砂 —— */
-  --c-primary: #b4543a;
-  --c-primary-deep: #8d3a2a;
-  --c-primary-soft: #f6e6df;
-  --c-primary-tint: rgba(180, 84, 58, 0.12);
+  /* 液态光学玻璃，色值来自 Style Atlas */
+  --liquid-surface: rgba(255, 255, 255, .54);
+  --liquid-blur: 20px;
+  --liquid-outline: 1px solid rgba(255, 255, 255, .8);
+  --liquid-radius: 30px;
+  --liquid-glow: #86BBFF;
+  --c-bg: #F4F7FF;
+  --c-bg-2: #CFEFFF;
+  --c-surface: rgba(255, 255, 255, .72);
+  --c-surface-2: #F4F7FF;
+  --c-glass: var(--liquid-surface);
+  --c-glass-2: rgba(255, 255, 255, .4);
+  --c-glass-line: rgba(255, 255, 255, .8);
+  --c-primary: #4F7DC6;
+  --c-primary-deep: #142B53;
+  --c-primary-soft: #CFEFFF;
+  --c-primary-tint: rgba(134, 187, 255, 0.28);
 
   /* —— 辅助色：莫兰迪四色 —— */
   --c-sky: #7e9ab0;
   --c-sky-soft: #e6edf2;
   --c-sage: #8ca394;
   --c-sage-soft: #e7efe8;
-  --c-rose: #c9a0a0;
-  --c-rose-soft: #f5eaea;
+  --c-rose: #F4BED9;
+  --c-rose-soft: rgba(244, 190, 217, .45);
   --c-sand: #cfa769;
   --c-sand-soft: #f8eedc;
   --c-plum: #8a6a8f;
@@ -37,26 +38,25 @@ page {
   --c-danger-soft: #f7e7e3;
 
   /* —— 文字 —— */
-  --c-ink: #3a342e;
-  --c-ink-2: #6e655c;
-  --c-muted: #9c9289;
+  --c-ink: #142B53;
+  --c-ink-2: #4F7DC6;
+  --c-muted: #6d86b0;
+  --font-display: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
 
   /* —— 线条 —— */
-  --c-line: rgba(58, 52, 46, 0.1);
-  --c-line-soft: rgba(58, 52, 46, 0.055);
-
-  /* —— 圆角：账本裁边 —— */
-  --r-xs: 2px;
-  --r-sm: 3px;
-  --r-md: 4px;
-  --r-lg: 6px;
-  --r-xl: 8px;
-  --r-pill: 3px;
+  --c-line: rgba(79, 125, 198, 0.18);
+  --c-line-soft: rgba(134, 187, 255, 0.16);
+  --r-xs: 10px;
+  --r-sm: 12px;
+  --r-md: 16px;
+  --r-lg: 30px;
+  --r-xl: 30px;
+  --r-pill: 999px;
 
   /* —— 阴影：纸页压一层 —— */
-  --sh-1: 0 1px 0 rgba(58, 52, 46, 0.05);
-  --sh-2: 0 1px 0 rgba(58, 52, 46, 0.06), 0 10px 24px -16px rgba(58, 52, 46, 0.18);
-  --sh-3: 0 16px 36px -20px rgba(58, 52, 46, 0.28);
+  --sh-1: 0 8px 20px rgba(134, 187, 255, 0.16);
+  --sh-2: 0 10px 28px rgba(134, 187, 255, 0.24);
+  --sh-3: 0 16px 40px rgba(134, 187, 255, 0.32);
   --sh-edge: none;
 
   /* —— 动效曲线 —— */
@@ -77,12 +77,18 @@ page {
   --family-primary-soft: var(--c-primary-soft);
 }
 
-/* —— 页面底：手账点阵，不再铺彩色光晕 —— */
-page {
-  background-color: #f3ece3;
-  background-image: radial-gradient(rgba(58, 52, 46, 0.075) 1px, transparent 1.35px);
-  background-size: 22px 22px;
-  color: var(--c-ink);
+/* —— 页面底：账本横线加一道朱砂装订线 —— */
+page,
+body,
+uni-page-body {
+  background-color: #CFEFFF;
+  background-image:
+    radial-gradient(ellipse 42% 36% at 8% 0%, #F4BED9 0%, transparent 70%),
+    radial-gradient(ellipse 48% 42% at 92% 8%, #86BBFF 0%, transparent 68%),
+    radial-gradient(ellipse 36% 32% at 78% 100%, #4F7DC6 0%, transparent 72%),
+    linear-gradient(160deg, #F4F7FF 0%, #CFEFFF 100%);
+  background-attachment: fixed;
+  color: #142B53;
   font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -185,10 +191,12 @@ page {
 /* 纸卡片 */
 .mf-card {
   position: relative;
-  background: var(--c-glass);
-  border: 1px solid var(--c-glass-line);
-  border-radius: var(--r-lg);
-  box-shadow: var(--sh-1);
+  background: var(--liquid-surface);
+  border: var(--liquid-outline);
+  border-radius: var(--liquid-radius);
+  box-shadow: 0 10px 30px rgba(134, 187, 255, .28);
+  backdrop-filter: blur(var(--liquid-blur));
+  -webkit-backdrop-filter: blur(var(--liquid-blur));
   overflow: hidden;
 }
 .mf-card--flat {
@@ -275,19 +283,19 @@ page {
   gap: 8px;
   min-height: 46px;
   padding: 0 22px;
-  border: 1px solid #6e2b20;
-  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, .8);
+  border-radius: 30px;
   font-size: 15px;
   font-weight: 600;
-  letter-spacing: 0.12em;
-  color: #fffdf8;
-  background: var(--c-primary-deep);
-  box-shadow: none;
+  letter-spacing: 0.04em;
+  color: #F4F7FF;
+  background: #4F7DC6;
+  box-shadow: 0 8px 20px rgba(134, 187, 255, .45);
   transition: background var(--t) var(--e-out), transform var(--t-fast) var(--e-out);
 }
 .mf-btn:active {
   transform: translateY(1px);
-  background: #7a3123;
+  background: #142B53;
 }
 .mf-btn[disabled] {
   opacity: 0.5;
@@ -384,7 +392,7 @@ page {
   height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(58, 52, 46, 0.16);
+  background: rgba(79, 125, 198, 0.28);
   border-radius: 8px;
 }
 ::-webkit-scrollbar-track {
@@ -402,18 +410,19 @@ button {
   font-weight: 500;
   letter-spacing: 0.06em;
   color: var(--c-ink);
-  background: #fffdf8;
-  border: 1px solid rgba(58, 52, 46, 0.22);
-  border-radius: 8rpx;
+  background: rgba(255, 255, 255, .54);
+  border: 1px solid rgba(255, 255, 255, .8);
+  border-radius: 30px;
   box-sizing: border-box;
 }
 button::after { border: none; }
 button:active { transform: translateY(1px); }
 button[disabled] { opacity: .5; }
 button.primary {
-  color: #fffdf8;
-  background: var(--c-primary-deep);
-  border-color: #6e2b20;
+  color: #F4F7FF;
+  background: #4F7DC6;
+  border-color: rgba(255, 255, 255, .8);
+  box-shadow: 0 8px 20px rgba(134, 187, 255, .45);
 }
 
 /* ============================ 无障碍 ============================ */

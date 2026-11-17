@@ -44,10 +44,10 @@ function move(offset) {
 </template>
 
 <style scoped>
-.board { margin-top: 22px; padding: 16px 16px 12px; background: #fffdf8; border: 1px solid rgba(58, 52, 46, 0.14); }
+.board { margin-top: 22px; padding: 16px 16px 12px; background: rgba(255,255,255,.54); border: 1px solid rgba(255,255,255,.8); border-radius: 30px; backdrop-filter: blur(20px); }
 .month, .grid { display: grid; }
 .month { grid-template-columns: 36px 1fr 36px; align-items: center; text-align: center; }
-.month button { height: 32px; border: 1px solid rgba(58, 52, 46, 0.18); background: #fffdf8; color: #2c2824; }
+.month button { height: 32px; border: 1px solid rgba(255,255,255,.8); background: rgba(255,255,255,.54); color: #142B53; border-radius: 30px; }
 .grid { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-top: 14px; text-align: center; }
 .weekday { font-size: 12px; color: var(--family-muted); padding-bottom: 6px; }
 .day { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 62px; padding: 4px 0 6px; border: 0; background: transparent; color: #2c2824; line-height: 1.1; }
@@ -59,7 +59,7 @@ function move(offset) {
 .term .extra { color: #6f675f; }
 .badge { position: absolute; top: 2px; right: 3px; font-size: 9px; line-height: 1; color: var(--family-primary); }
 .work .badge { color: #6f675f; }
-.selected { background: var(--family-primary-deep, #8d3a2a); color: #fffdf8; }
+.selected { background: #4F7DC6; color: #F4F7FF; }
 .selected .lunar, .selected .extra, .selected .badge { color: #f3ece3; }
 .caption, .legend { margin: 10px 0 0; font-size: 12px; color: var(--family-muted); line-height: 1.6; }
 .caption { color: #2c2824; }

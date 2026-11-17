@@ -166,7 +166,7 @@ onMounted(async () => { await load(); await loadInvites(); });
 </template>
 
 <style scoped>
-.account-page{max-width:980px}.account-page header,.section-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}.account-page h1{font-size:28px;font-weight:700;letter-spacing:-.02em}.account-page h2{font-size:20px;font-weight:650}.account-page p{color:var(--c-muted);line-height:1.7}.account-page h1,.account-page h2{font-family:var(--font-display)}.account-page section{margin-top:28px;padding:22px 24px;border-radius:4px;background:#fffdf8;border:1px solid rgba(58,52,46,.16)}.password-section form{max-width:420px}
+.account-page{max-width:980px}.account-page header,.section-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}.account-page h1{font-size:28px;font-weight:700;letter-spacing:-.02em}.account-page h2{font-size:20px;font-weight:650}.account-page p{color:var(--c-muted);line-height:1.7}.account-page h1,.account-page h2{font-family:var(--font-display)}.account-page section{margin-top:28px;padding:22px 24px;border-radius:30px;background:rgba(255,255,255,.54);border:1px solid rgba(255,255,255,.8);backdrop-filter:blur(20px)}.password-section form{max-width:420px}
 .member-search{max-width:220px}
 .issued-code{display:flex;align-items:center;gap:10px;margin-top:6px;padding:12px 14px;border-radius:10px;background:var(--c-bg-2,rgba(58,52,46,.05));border:1px dashed var(--c-glass-line)}
 .issued-code code{font-size:18px;letter-spacing:.08em;font-weight:650}

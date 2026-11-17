@@ -50,6 +50,8 @@ const calTabs = ["日程", "纪念日"];
 
 const now = new Date();
 const dateText = `${now.getMonth() + 1} 月 ${now.getDate()} 日`;
+const dayNum = now.getDate();
+const monthLabel = `${now.getMonth() + 1}月`;
 const weekText = "周" + "日一二三四五六"[now.getDay()];
 const hour = now.getHours();
 const greeting = hour < 6 ? "夜深了" : hour < 11 ? "早上好" : hour < 14 ? "中午好" : hour < 18 ? "下午好" : "晚上好";
@@ -319,8 +321,14 @@ async function changePassword() {
       <!-- 问候主卡 -->
       <view class="bento">
         <view class="hero mf-card mf-rise" style="--i:0">
-          <text class="hero-label">{{ greeting }}，今天也好好生活</text>
-          <text class="hero-title">忙碌之外，<br/>别忘了彼此。</text>
+          <view class="hero-seal">
+            <text class="hero-day">{{ dayNum }}</text>
+            <text class="hero-month">{{ monthLabel }}</text>
+          </view>
+          <view class="hero-copy">
+            <text class="hero-label">{{ greeting }}，今天也好好生活</text>
+            <text class="hero-title">忙碌之外，<br/>别忘了彼此。</text>
+          </view>
         </view>
       </view>
 
@@ -375,31 +383,30 @@ async function changePassword() {
 </view>
 </template>
 <style scoped>
-.page{position:relative;min-height:100vh;overflow-x:hidden}
-.shell{position:relative;z-index:1;max-width:1060px;margin:auto;padding:0 30px 120px}
-
-/* ——— 顶栏 ——— */
-/* 头部：窄屏下品牌与右侧胶囊都必须单行，否则「家庭空间 / 10月30日 / 通话 / 搜索」会各自折行挤成一团 */
-.brandbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:nowrap;gap:12px;padding:26px 0 18px}
-.wordmark{flex:0 0 auto;font-size:22px;font-weight:700;font-family:"KaiTi","Kaiti SC","STKaiti",serif;color:var(--c-ink);letter-spacing:1px;white-space:nowrap}
-.brand-caption{font-size:11px;font-weight:400;color:var(--c-muted);margin-left:12px;letter-spacing:2px;white-space:nowrap}
+.page{position:relative;min-height:100vh;overflow-x:hidden;background:transparent}
+.shell{--pad:48px;position:relative;z-index:1;max-width:1180px;margin:auto;padding:0 var(--pad) 140px}
+.brandbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:nowrap;gap:16px;padding:40px 0 12px}
+.wordmark{flex:0 0 auto;font-size:26px;font-weight:600;font-family:var(--font-display);color:#142B53;letter-spacing:.04em;white-space:nowrap}
+.brand-caption{font-size:12px;font-weight:400;color:#4F7DC6;margin-left:12px;letter-spacing:.12em;white-space:nowrap}
 .brand-right{display:flex;align-items:center;flex:0 0 auto;gap:12px}
-.date-pill{display:flex;flex:0 0 auto;flex-direction:column;align-items:flex-end;line-height:1.3;padding:4px 8px;border-radius:2px;background:transparent;border:1px solid rgba(58,52,46,.2);white-space:nowrap}
-.date-main{font-size:12px;font-weight:600;color:var(--c-ink);white-space:nowrap}
-.date-sub{font-size:10px;color:var(--c-muted);white-space:nowrap}
-.search-entry{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:12px;line-height:1;color:var(--c-ink);background:#fffdf8;border:1px solid rgba(58,52,46,.22);border-radius:3px;padding:8px 12px;white-space:nowrap}
+.date-pill{display:flex;flex:0 0 auto;flex-direction:column;align-items:flex-end;line-height:1.3;padding:8px 14px;border-radius:30px;background:var(--liquid-surface);border:var(--liquid-outline);backdrop-filter:blur(20px);white-space:nowrap}
+.date-main{font-size:14px;font-weight:600;color:#142B53;white-space:nowrap}
+.date-sub{font-size:11px;color:#4F7DC6;white-space:nowrap}
+.search-entry{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:12px;line-height:1;color:#142B53;background:var(--liquid-surface);border:var(--liquid-outline);border-radius:30px;padding:8px 14px;white-space:nowrap;backdrop-filter:blur(20px)}
 .search-entry:active{transform:translateY(1px)}
-.call-entry{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:12px;line-height:1;letter-spacing:.06em;color:#fffdf8;background:var(--c-primary-deep);border:1px solid #6e2b20;border-radius:3px;padding:8px 12px;white-space:nowrap}
+.call-entry{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:12px;line-height:1;letter-spacing:.06em;color:#F4F7FF;background:#4F7DC6;border:1px solid rgba(255,255,255,.8);border-radius:30px;padding:8px 14px;white-space:nowrap}
 .call-entry:active{transform:translateY(1px)}
-/* ——— 页头 ——— */
-.page-heading{padding:18px 0 8px;position:relative}
-.page-title{display:block;font-family:"KaiTi","Kaiti SC","STKaiti",serif;font-size:30px;font-weight:700;margin-top:8px;letter-spacing:.04em;color:var(--c-ink);line-height:1.35}
-
-/* ——— 问候主卡 ——— */
-.bento{margin-top:20px}
-.hero{display:flex;flex-direction:column;justify-content:center;padding:28px 28px 28px 32px;background:#fffdf8;border-radius:4px;min-height:160px;border-left:3px solid var(--c-primary)}
-.hero-label{font-family:"KaiTi","Kaiti SC","STKaiti",serif;font-size:14px;color:var(--c-primary);letter-spacing:.12em}
-.hero-title{font-family:"KaiTi","Kaiti SC","STKaiti",serif;font-size:30px;display:block;line-height:1.55;font-weight:700;margin-top:10px;color:var(--c-ink)}
+.page-heading{padding:28px 0 4px;position:relative}
+.page-title{display:block;font-family:var(--font-display);font-size:52px;font-weight:500;margin-top:8px;letter-spacing:.02em;color:#142B53;line-height:1.3}
+.page-title::after{content:"";display:block;width:64px;height:2px;margin-top:20px;background:#86BBFF}
+.bento{margin-top:28px}
+.hero{display:flex;flex-direction:row;align-items:stretch;padding:0;background:var(--liquid-surface);border:var(--liquid-outline);border-radius:30px;min-height:240px;overflow:hidden;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 10px 30px rgba(134,187,255,.28)}
+.hero-seal{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:0 0 168px;background:rgba(255,255,255,.28);color:#142B53;border-right:1px solid rgba(255,255,255,.8)}
+.hero-day{font-family:var(--font-display);font-size:76px;line-height:1;font-weight:500}
+.hero-month{margin-top:12px;font-size:14px;letter-spacing:.2em;color:#4F7DC6}
+.hero-copy{display:flex;flex-direction:column;justify-content:center;padding:40px 44px}
+.hero-label{font-family:var(--font-display);font-size:16px;color:#4F7DC6;letter-spacing:.22em}
+.hero-title{font-family:var(--font-display);font-size:42px;display:block;line-height:1.45;font-weight:500;margin-top:16px;color:#142B53}
 
 /* ——— 插画（登录页）——— */
 .story-art{position:relative;align-self:stretch;flex-shrink:0;width:250px;height:190px}
@@ -411,16 +418,12 @@ async function changePassword() {
 .hill{position:absolute;bottom:-18px;left:8px;right:8px;height:28px;border-radius:0;border-top:1.5px solid #54473d;background:transparent}
 
 /* ——— 快捷入口（参考「一起」版式：柔和色块 + 图标 + 名称 + 副题）——— */
-.shortcuts{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:18px 0 4px}
-.shortcut{display:flex;flex-direction:column;align-items:flex-start;gap:5px;border-radius:4px;padding:16px 16px 14px;margin:0;line-height:1.4;border:1px solid rgba(58,52,46,.12);box-shadow:none;text-align:left}
+.shortcuts{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:28px 0 8px}
+.shortcut{display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:8px;min-height:156px;border-radius:30px;padding:22px 20px 20px;margin:0;line-height:1.4;border:var(--liquid-outline);background:var(--liquid-surface);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 10px 30px rgba(134,187,255,.22);text-align:left}
 .shortcut::after{border:0}
-.shortcut--0{background:#f8ece1}
-.shortcut--1{background:#eceff1}
-.shortcut--2{background:#eaeeea}
-.shortcut--3{background:#f3eaea}
-.shortcut-icon{font-size:18px;line-height:1;color:var(--c-ink);opacity:.82}
-.shortcut-label{font-size:14px;font-weight:660;color:var(--c-ink);margin-top:8px}
-.shortcut-note{font-size:11px;color:var(--c-ink-2);opacity:.75}
+.shortcut-icon{font-family:var(--font-display);font-size:20px;line-height:1;color:#4F7DC6;letter-spacing:.16em}
+.shortcut-label{font-family:var(--font-display);font-size:20px;font-weight:500;color:#142B53;margin-top:18px}
+.shortcut-note{font-size:13px;color:var(--c-ink-2)}
 
 /* ——— 首页底部 ——— */
 .overview-slot{margin-top:20px}
@@ -429,43 +432,43 @@ async function changePassword() {
 .pane{animation:mf-fade 320ms var(--e-out) both}
 
 /* ——— 子标签 ——— */
-.subnav{display:flex;gap:0;margin:6px 0 16px;border-bottom:1px solid rgba(58,52,46,.16);width:fit-content;background:transparent}
-.subnav button{padding:8px 16px;margin:0;border:0;border-radius:0;border-bottom:2px solid transparent;background:none;font-size:13px;color:var(--c-muted);line-height:1.5;letter-spacing:.08em}
+.subnav{display:flex;gap:8px;margin:6px 0 16px;border-bottom:0;width:fit-content;background:transparent}
+.subnav button{padding:8px 16px;margin:0;border:1px solid rgba(255,255,255,.8);border-radius:30px;background:rgba(255,255,255,.54);font-size:13px;color:#4F7DC6;line-height:1.5;letter-spacing:.04em;backdrop-filter:blur(20px)}
 .subnav button::after{border:0}
-.subnav button.active{color:var(--c-primary-deep);background:none;border-bottom-color:var(--c-primary);box-shadow:none;font-weight:650}
-.subnav button:active{transform:none}
+.subnav button.active{color:#F4F7FF;background:#4F7DC6;border-color:rgba(255,255,255,.8);box-shadow:0 8px 20px rgba(134,187,255,.45);font-weight:600}
+.subnav button:active{transform:translateY(1px)}
 
 /* ——— 底部导航 ——— */
-.navigation{position:fixed;left:0;right:0;bottom:0;z-index:30;display:grid;grid-template-columns:repeat(6,1fr);gap:2px;padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:#fffdf8;border-top:1px solid rgba(58,52,46,.16)}
-.navigation button{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 0;margin:0;border:0;background:none;color:var(--c-muted);font-size:10px;line-height:1.5;letter-spacing:0}
+.navigation{position:fixed;left:16px;right:16px;bottom:12px;z-index:30;display:grid;grid-template-columns:repeat(6,1fr);gap:2px;padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:var(--liquid-surface);border:var(--liquid-outline);border-radius:30px;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 10px 30px rgba(134,187,255,.28)}
+.navigation button{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0;margin:0;border:0;background:none;color:#4F7DC6;font-size:12px;line-height:1.5;letter-spacing:.06em}
 .navigation button::after{border:0}
-.navigation button.active{color:var(--c-primary-deep);font-weight:650}
+.navigation button.active{color:#142B53;font-weight:600;background:transparent}
 .navigation button:active{transform:none}
 .nav-icon{display:block;font-size:16px;line-height:1.3}
-.navigation button.active .nav-icon{color:var(--c-primary-deep)}
-.navigation button.active::before{content:'';position:absolute;top:0;left:50%;width:14px;height:2px;margin-left:-7px;background:var(--c-primary)}
+.navigation button.active .nav-icon{color:#4F7DC6}
+.navigation button.active::before{content:'';position:absolute;top:0;left:50%;width:14px;height:2px;margin-left:-7px;background:#86BBFF;border-radius:2px}
 .nav-badge{position:absolute;top:-4px;right:calc(50% - 24px);min-width:16px;height:16px;line-height:16px;border-radius:8px;background:var(--c-danger);color:#fff;font-size:9px;text-align:center;padding:0 4px;box-shadow:0 2px 6px rgba(185,106,91,.5);animation:mf-pop 420ms var(--e-spring) both}
 
 /* ——— 登录页 ——— */
 .login-layout{position:relative;z-index:1;display:grid;grid-template-columns:1.05fr .95fr;gap:26px;align-items:center;max-width:980px;margin:auto;padding:40px 30px 60px;min-height:100vh}
-.login-story{position:relative;overflow:hidden;min-height:420px;padding:38px 40px;border-radius:4px;background:#fffdf8;border:1px solid rgba(58,52,46,.18);box-shadow:0 14px 32px -20px rgba(58,52,46,.35);display:flex;flex-direction:column}
-.login-story .wordmark{font-size:16px;font-weight:700;font-family:"KaiTi","Kaiti SC","STKaiti",serif;color:var(--c-ink);letter-spacing:.12em}
-.story-title{font-family:"KaiTi","Kaiti SC","STKaiti",serif;font-size:36px;font-weight:700;line-height:1.5;margin-top:22px;color:var(--c-ink);letter-spacing:.02em}
+.login-story{position:relative;overflow:hidden;min-height:420px;padding:38px 40px;border-radius:30px;background:var(--liquid-surface);border:var(--liquid-outline);box-shadow:0 10px 30px rgba(134,187,255,.28);backdrop-filter:blur(20px);display:flex;flex-direction:column}
+.login-story .wordmark{font-size:16px;font-weight:500;font-family:var(--font-display);color:var(--c-ink);letter-spacing:.14em}
+.story-title{font-family:var(--font-display);font-size:48px;font-weight:500;line-height:1.4;margin-top:28px;color:var(--c-ink);letter-spacing:.02em}
 .story-copy{font-size:13px;line-height:2;margin-top:16px;color:#8a7263}
 .story-bottom{margin-top:auto;font-size:11px;letter-spacing:3px;color:#a08a79}
 .story-art{position:absolute;right:10px;bottom:22px;width:250px;height:190px}
 .story-art .house{bottom:34px;left:60px}
 .story-art .roof{bottom:100px;left:53px}
 .story-art .hill{bottom:-30px}
-.login{padding:32px 30px;border-radius:4px;background:#fffdf8;border:1px solid rgba(58,52,46,.18)}
+.login{padding:32px 30px;border-radius:30px;background:rgba(255,255,255,.54);border:1px solid rgba(255,255,255,.8);backdrop-filter:blur(20px)}
 .login .eyebrow{color:var(--c-primary);font-weight:640}
 .auth-tabs{display:flex;gap:18px;margin:10px 0 4px;border-bottom:1px solid var(--c-glass-line)}
 .auth-tab{padding-bottom:8px;font-size:15px;letter-spacing:2px;color:var(--c-muted);border-bottom:2px solid transparent}
 .auth-tab.on{color:var(--c-primary);font-weight:650;border-bottom-color:var(--c-primary)}
-.login-title{display:block;font-family:"KaiTi","Kaiti SC","STKaiti",serif;font-size:26px;font-weight:700;margin:10px 0 8px;color:var(--c-ink);letter-spacing:.16em}
+.login-title{display:block;font-family:var(--font-display);font-size:26px;font-weight:500;margin:10px 0 8px;color:var(--c-ink);letter-spacing:.12em}
 .description{display:block;font-size:12px;line-height:1.9;color:var(--c-muted);margin-bottom:22px}
 .field-label{display:block;font-size:11px;color:var(--c-ink-2);margin:0 0 7px 4px;letter-spacing:.5px}
-.input{width:100%;height:46px;padding:0 14px;margin-bottom:16px;border:1px solid rgba(58,52,46,.22);border-radius:4px;background:#fffdf8;font-size:14px;color:var(--c-ink);box-sizing:border-box}
+.input{width:100%;height:46px;padding:0 14px;margin-bottom:16px;border:1px solid rgba(255,255,255,.8);border-radius:30px;background:rgba(255,255,255,.72);font-size:14px;color:#142B53;box-sizing:border-box}
 .input:focus{border-color:var(--c-primary);background:#fff;outline:none}
 .login-button{width:100%;margin-top:8px}
 .login-note{display:block;margin-top:18px;text-align:center;font-size:11px;color:var(--c-muted)}
@@ -474,7 +477,7 @@ async function changePassword() {
 .settings{padding:26px}
 .settings-title{display:block;font-size:17px;font-weight:650;color:var(--c-ink)}
 .settings .description{margin-bottom:18px}
-.logout{width:100%;height:44px;margin-top:12px;border:1px solid rgba(185,106,91,.45);border-radius:4px;background:#fffdf8;color:var(--c-danger);font-size:13px;letter-spacing:.08em;line-height:44px}
+.logout{width:100%;height:44px;margin-top:12px;border:1px solid rgba(255,255,255,.8);border-radius:30px;background:rgba(244,190,217,.7);color:#142B53;font-size:13px;letter-spacing:.08em;line-height:44px}
 .logout::after{border:0}
 .logout:active{transform:translateY(1px)}
 
@@ -493,9 +496,12 @@ async function changePassword() {
   .wordmark{font-size:21px}
   .brand-caption{margin-left:8px;letter-spacing:1px}
   .brand-right{gap:8px}
-  .page-title{font-size:24px}
-  .hero{padding:28px 26px;min-height:160px}
-  .hero-title{font-size:24px}
+  .page-title{font-size:34px}
+  .hero{padding:0;min-height:180px}
+  .hero-seal{flex-basis:96px}
+  .hero-day{font-size:44px}
+  .hero-title{font-size:26px}
+  .hero-copy{padding:24px 20px}
   .shortcuts{grid-template-columns:repeat(2,1fr);gap:12px}
   .shortcut{padding:20px 18px 18px}
   .subnav{width:100%;overflow-x:auto}

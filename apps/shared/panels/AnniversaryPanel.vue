@@ -122,7 +122,7 @@ onMounted(load);
 <style scoped>
 .anniversary{display:flex;flex-direction:column;gap:16px}
 .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-.metric{background:var(--c-surface);border:1px solid var(--c-line);border-radius:14px;padding:14px;text-align:center}
+.metric{background:rgba(255,255,255,.54);border:1px solid rgba(255,255,255,.8);border-radius:24px;padding:14px;text-align:center}
 .figure{display:block;font-size:20px;font-weight:700;color:var(--c-primary)}
 .caption{font-size:11px;color:var(--c-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
@@ -134,7 +134,7 @@ onMounted(load);
 .bucket-head{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
 .bucket-label{font-size:14px;font-weight:700;color:var(--c-ink)}
 .bucket-hint{font-size:11px;color:var(--c-muted)}
-.row{display:flex;align-items:flex-start;gap:14px;background:var(--c-surface);border:1px solid var(--c-line);border-radius:14px;padding:13px 15px;margin-bottom:8px}
+.row{display:flex;align-items:flex-start;gap:14px;background:rgba(255,255,255,.54);border:1px solid rgba(255,255,255,.8);border-radius:24px;padding:13px 15px;margin-bottom:8px}
 .days{min-width:58px;text-align:center;font-size:13px;font-weight:700;color:var(--c-surface);background:var(--c-muted);border-radius:11px;padding:6px 8px;flex-shrink:0}
 .days.soon{background:var(--c-danger)}
 .days.gone{background:var(--c-line)}

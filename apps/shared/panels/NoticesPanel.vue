@@ -58,7 +58,7 @@ onMounted(load);
 .panel{display:flex;flex-direction:column;gap:24rpx}
 .toolbar{display:flex;justify-content:space-between;align-items:center}
 .section{font-size:36rpx;font-weight:600}
-.card{background:var(--c-surface);border:1px solid var(--c-line);border-radius:20rpx;padding:28rpx;box-shadow:0 2rpx 12rpx rgba(58,52,46,.05)}
+.card{background:rgba(255,255,255,.54);border:1px solid rgba(255,255,255,.8);border-radius:30px;padding:28rpx;box-shadow:0 10px 30px rgba(134,187,255,.22);backdrop-filter:blur(20px)}
 .row{display:flex;flex-direction:column;gap:16rpx}
 .row-head{display:flex;justify-content:space-between;align-items:center;gap:16rpx}
 .row-head :deep(.editor){margin-top:0}

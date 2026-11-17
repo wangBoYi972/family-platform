@@ -123,6 +123,6 @@ onMounted(load);
 h1 { margin: 0 0 8px; font-size: 26px; font-family: var(--font-display); }
 .mf-rule { width: 36px; height: 2px; background: var(--c-primary); margin-bottom: 12px; border-radius: 0; }
 .hint { color: var(--c-muted, #8a8a8a); font-size: 12px; line-height: 1.6; margin: 6px 0 0; }
-.panel { margin-bottom: 18px; border-radius: 4px; border: 1px solid rgba(58, 52, 46, 0.16); box-shadow: none; }
+.panel { margin-bottom: 18px; border-radius: 30px; border: 1px solid rgba(255, 255, 255, .8); background: rgba(255, 255, 255, .54); box-shadow: 0 10px 30px rgba(134, 187, 255, .22); backdrop-filter: blur(20px); }
 .card-head { display: flex; align-items: center; justify-content: space-between; }
 </style>

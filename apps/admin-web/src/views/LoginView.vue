@@ -151,10 +151,7 @@ async function submitRegister() {
   display: grid;
   place-items: center;
   padding: 44px 28px;
-  background-color: var(--c-bg);
-  /* 点阵网格：像手账本的内页 */
-  background-image: radial-gradient(rgba(58, 52, 46, 0.07) 1px, transparent 1.4px);
-  background-size: 24px 24px;
+  background: transparent;
 }
 
 /* ——— 整册纸面 ——— */
@@ -162,16 +159,21 @@ async function submitRegister() {
   display: grid;
   grid-template-columns: 1.12fr 0.88fr;
   width: min(1000px, 100%);
-  background: #fffdf8;
-  border: 1px solid rgba(58, 52, 46, 0.18);
-  border-radius: 6px;
-  box-shadow: 0 1px 0 rgba(58, 52, 46, 0.06), 0 18px 40px -18px rgba(58, 52, 46, 0.28);
+  background: var(--liquid-surface);
+  border: var(--liquid-outline);
+  border-radius: var(--liquid-radius);
+  overflow: hidden;
+  box-shadow: 0 16px 40px rgba(134, 187, 255, .35);
+  backdrop-filter: blur(var(--liquid-blur));
+  -webkit-backdrop-filter: blur(var(--liquid-blur));
 }
 
 .page--left {
   padding: 38px 40px 34px;
   display: flex;
   flex-direction: column;
+  background: rgba(20, 43, 83, .72);
+  color: #F4F7FF;
 }
 
 .brand {
@@ -179,7 +181,7 @@ async function submitRegister() {
   align-items: center;
   gap: 9px;
   font-size: 15px;
-  color: var(--c-ink);
+  color: #F4F7FF;
   letter-spacing: 0.02em;
 }
 .brand-glyph { color: var(--c-primary-deep); }
@@ -190,23 +192,23 @@ async function submitRegister() {
   align-self: flex-start;
   margin-top: 34px;
   padding: 3px 10px;
-  font-family: "KaiTi", "Kaiti SC", "STKaiti", serif;
+  font-family: var(--font-display);
   font-size: 13px;
   letter-spacing: 0.18em;
-  color: #b4543a;
-  border: 1.5px solid rgba(180, 84, 58, 0.75);
-  border-radius: 3px;
-  transform: rotate(-1.6deg);
+  color: #86BBFF;
+  border: 1px solid rgba(134, 187, 255, .8);
+  border-radius: 30px;
+  transform: none;
   opacity: 0.9;
 }
 
 .copy h1 {
   margin: 18px 0 12px;
-  font-family: "KaiTi", "Kaiti SC", "STKaiti", serif;
+  font-family: var(--font-display);
   font-size: 37px;
   line-height: 1.5;
   font-weight: 700;
-  color: var(--c-ink);
+  color: #F4F7FF;
   letter-spacing: 0.01em;
 }
 /* 手绘波浪线强调 */
@@ -217,7 +219,7 @@ async function submitRegister() {
 }
 .sub {
   margin: 0;
-  color: var(--c-ink-2);
+  color: #CFEFFF;
   font-size: 13.5px;
   line-height: 1.9;
 }
@@ -233,7 +235,7 @@ async function submitRegister() {
   margin: auto 0 0;
   padding: 14px 0 0;
   list-style: none;
-  border-top: 1px solid rgba(58, 52, 46, 0.14);
+  border-top: 1px solid rgba(255, 255, 255, .28);
 }
 .ledger li {
   display: flex;
@@ -241,22 +243,22 @@ async function submitRegister() {
   gap: 10px;
   padding: 7px 0;
   font-size: 13px;
-  color: var(--c-ink-2);
+  color: #F4F7FF;
 }
 .ledger i {
-  font-family: "KaiTi", "Kaiti SC", "STKaiti", serif;
+  font-family: var(--font-display);
   font-style: normal;
   font-size: 12px;
-  color: #b4543a;
-  border: 1px solid rgba(180, 84, 58, 0.55);
-  border-radius: 2px;
+  color: #86BBFF;
+  border: 1px solid rgba(134, 187, 255, .7);
+  border-radius: 30px;
   padding: 0 4px;
   line-height: 1.5;
 }
 .ledger .item { letter-spacing: 0.04em; }
 .ledger .dots {
   flex: 1;
-  border-bottom: 2px dotted rgba(58, 52, 46, 0.28);
+  border-bottom: 2px dotted rgba(255, 255, 255, .35);
   transform: translateY(-3px);
 }
 .ledger em { font-style: normal; color: var(--c-muted); font-size: 12px; }
@@ -264,22 +266,9 @@ async function submitRegister() {
 /* ——— 中缝缝线 ——— */
 .page--right {
   position: relative;
-  border-left: 1px solid rgba(58, 52, 46, 0.16);
+  border-left: 1px solid rgba(255, 255, 255, .45);
 }
-.page--right::before {
-  content: "";
-  position: absolute;
-  left: -3.5px;
-  top: 0;
-  bottom: 0;
-  width: 6px;
-  background: repeating-linear-gradient(
-    180deg,
-    transparent 0 14px,
-    rgba(58, 52, 46, 0.28) 14px 16.5px
-  );
-  pointer-events: none;
-}
+.page--right::before { content: none; }
 
 /* ——— 右页：登记 ——— */
 .page--right {
@@ -290,7 +279,7 @@ async function submitRegister() {
 }
 .page--right h2 {
   margin: 0 0 6px;
-  font-family: "KaiTi", "Kaiti SC", "STKaiti", serif;
+  font-family: var(--font-display);
   font-size: 26px;
   font-weight: 700;
   letter-spacing: 0.34em;
@@ -298,21 +287,23 @@ async function submitRegister() {
 }
 .hint { margin: 0 0 26px; color: var(--c-muted); font-size: 13px; line-height: 1.7; }
 /* 登录 / 注册切换：账本页签 */
-.tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid rgba(58, 52, 46, 0.14); }
+.tabs { display: flex; gap: 8px; margin-bottom: 20px; }
 .tabs button {
-  appearance: none; border: 0; background: none; cursor: pointer;
-  padding: 8px 14px; font-size: 14px; letter-spacing: 0.14em; color: var(--c-muted);
-  border-bottom: 2px solid transparent; transition: color 200ms var(--e-out), border-color 200ms var(--e-out);
+  appearance: none; cursor: pointer;
+  padding: 8px 18px; font-size: 14px; letter-spacing: 0.08em; color: #4F7DC6;
+  border: 1px solid rgba(255, 255, 255, .8); border-radius: 30px;
+  background: rgba(255, 255, 255, .54);
+  transition: color 200ms var(--e-out), background 200ms var(--e-out);
 }
-.tabs button:hover { color: var(--c-ink); }
-.tabs button.on { color: var(--c-primary-deep); border-bottom-color: var(--c-primary-deep); }
+.tabs button:hover { color: #142B53; }
+.tabs button.on { color: #F4F7FF; background: #4F7DC6; box-shadow: 0 8px 20px rgba(134, 187, 255, .45); }
 .submit-button {
   width: 100%;
   height: 46px;
   margin-top: 8px;
   font-size: 15px;
   letter-spacing: 0.2em;
-  border-radius: 4px;
+  border-radius: 30px;
 }
 .page--right > small {
   display: block;

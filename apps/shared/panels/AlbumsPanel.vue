@@ -110,7 +110,7 @@ onUnmounted(() => clearTimeout(keywordTimer));
 .search{height:45px;padding:0 15px;border:1px solid var(--family-border);background:white;border-radius:10px;font-size:13px}.photo-count{font-size:11px;color:var(--family-muted)}
 .toolbar{display:flex;justify-content:space-between;align-items:center}
 .section{font-size:36rpx;font-weight:600}
-.card{background:var(--c-surface);border:1px solid var(--c-line);border-radius:20rpx;padding:28rpx;box-shadow:0 2rpx 12rpx rgba(58,52,46,.05)}
+.card{background:rgba(255,255,255,.54);border:1px solid rgba(255,255,255,.8);border-radius:30px;padding:28rpx;box-shadow:0 10px 30px rgba(134,187,255,.22);backdrop-filter:blur(20px)}
 .album{display:flex;flex-direction:column;gap:14rpx}
 .album-head{display:flex;justify-content:space-between;align-items:center;gap:16rpx}
 .album-head :deep(.editor){margin-top:0}

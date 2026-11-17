@@ -255,7 +255,7 @@ defineExpose({ open: openPanel });
 <style scoped>
 .search{position:fixed;inset:0;z-index:120;display:flex;flex-direction:column}
 .search-mask{position:absolute;inset:0;background:rgba(25,38,58,.32)}
-.search-panel{position:relative;z-index:1;margin:90px auto 0;width:660px;max-width:calc(100% - 32px);max-height:calc(100% - 120px);display:flex;flex-direction:column;background:var(--c-surface);border-radius:20px;box-shadow:0 24px 60px rgba(23,42,70,.22);overflow:hidden}
+.search-panel{position:relative;z-index:1;margin:90px auto 0;width:660px;max-width:calc(100% - 32px);max-height:calc(100% - 120px);display:flex;flex-direction:column;background:rgba(244,247,255,.86);border:1px solid rgba(255,255,255,.8);border-radius:30px;box-shadow:0 24px 60px rgba(134,187,255,.28);overflow:hidden;backdrop-filter:blur(20px)}
 .search-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px 0}
 .search-title{font-size:14px;font-weight:600;color:var(--c-ink)}
 .search-close{font-size:22px;line-height:1;color:var(--c-muted);padding:0 6px}

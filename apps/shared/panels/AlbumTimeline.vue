@@ -198,7 +198,7 @@ onMounted(load);
 <style scoped>
 .timeline{display:flex;flex-direction:column;gap:16px}
 .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-.metric{background:var(--c-surface);border:1px solid var(--c-line);border-radius:14px;padding:14px;text-align:center}
+.metric{background:rgba(255,255,255,.54);border:1px solid rgba(255,255,255,.8);border-radius:24px;padding:14px;text-align:center}
 .figure{display:block;font-size:22px;font-weight:700;color:var(--c-primary)}
 .caption{font-size:11px;color:var(--c-muted)}
 .months{display:flex;flex-wrap:wrap;gap:8px}

@@ -129,7 +129,7 @@ defineExpose({ load, sync: load });
 
 <style scoped>
 .panel{display:flex;flex-direction:column;gap:18px}
-.card{background:var(--c-surface);border:1px solid var(--c-line);border-radius:14px;padding:16px}
+.card{background:rgba(255,255,255,.54);border:1px solid rgba(255,255,255,.8);border-radius:24px;padding:16px;backdrop-filter:blur(20px)}
 .profile{display:flex;align-items:center;gap:14px}
 .avatar{width:64px;height:64px;border-radius:50%;background:var(--family-primary);color:var(--c-surface);text-align:center;line-height:64px;font-size:26px;flex-shrink:0}
 .avatar.small{width:52px;height:52px;line-height:52px;font-size:22px}

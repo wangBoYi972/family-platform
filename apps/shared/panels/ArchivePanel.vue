@@ -263,7 +263,7 @@ defineExpose({ load, sync });
 .stat{background:white;border:1px solid var(--c-line);border-radius:14px;padding:14px;text-align:center}
 .stat-value{display:block;font-size:22px;font-weight:700;color:var(--c-primary)}
 .stat-label{display:block;font-size:11px;color:var(--c-muted);margin-top:4px}
-.input,.textarea{width:100%;box-sizing:border-box;background:var(--c-surface);border:1px solid var(--c-line);border-radius:11px;padding:12px 14px;font-size:13px}
+.input,.textarea{width:100%;box-sizing:border-box;background:rgba(255,255,255,.72);border:1px solid rgba(255,255,255,.8);border-radius:16px;padding:12px 14px;font-size:13px;color:#142B53}
 .input{height:44px}
 .textarea{height:130px}
 .form,.card{background:white;border:1px solid var(--c-line);border-radius:14px}

@@ -744,18 +744,20 @@ defineExpose({ openDial, openDialWith });
   flex: 1;
   margin: 0;
   font-size: 13px;
-  border-radius: 13px;
+  border-radius: 30px;
   height: 42px;
   line-height: 42px;
 }
 .ghost {
-  background: var(--c-surface-2);
-  color: var(--c-ink);
-  border: 1px solid var(--c-line);
+  background: rgba(255, 255, 255, .54);
+  color: #142B53;
+  border: 1px solid rgba(255, 255, 255, .8);
 }
 .primary {
-  background: var(--c-primary-deep);
-  color: #fff;
+  background: #4F7DC6;
+  color: #F4F7FF;
+  border: 1px solid rgba(255, 255, 255, .8);
+  box-shadow: 0 8px 20px rgba(134, 187, 255, .45);
 }
 .incoming {
   display: flex;
