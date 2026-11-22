@@ -4,6 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>页面不存在 · 家庭综合平台</title>
+  <script>
+    // GitHub Pages 会在访问者原来的地址上返回这份 404.html。
+    // 相对链接会跟着丢失的路径走，所以先把基准钉在站点根上。
+    (function () {
+      var root = "/";
+      if (/(^|\.)github\.io$/i.test(location.hostname)) {
+        var repo = (location.pathname.split("/").filter(Boolean)[0] || "");
+        if (/^[A-Za-z0-9._-]+$/.test(repo)) root = "/" + repo + "/";
+      }
+      document.write('<base href="' + root + '">');
+    })();
+  </script>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="assets/site.css">
 </head>
