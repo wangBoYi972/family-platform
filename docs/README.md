@@ -33,3 +33,5 @@ Pages 只有在上述设置生效、并且这次改动已经在 `main` 上之后
 不要在 `docs/` 添加 `.nojekyll`。那个文件会关掉 Jekyll，Markdown 就会按原文件被 Pages 公开。
 
 介绍页是纯静态页面：没有登录，没有收集个人信息的表单，也没有后端。
+
+视觉对齐管理端的液态玻璃样式，色值、圆角、按钮和顶栏来自 `apps/admin-web/src/styles/variables.css` 与 `apps/admin-web/src/App.vue`，小屋徽标来自 `apps/admin-web/src/components/BrandMark.vue`。家庭端 `apps/mini-family/src/styles/theme.css` 使用同一套色值。
