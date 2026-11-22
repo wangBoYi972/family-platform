@@ -230,6 +230,7 @@ h3 { margin: 0 0 8px; font-size: 20px; }
 }
 .chapter {
   display: inline-flex;
+  justify-self: start;
   align-items: center;
   justify-content: center;
   min-width: 36px;
