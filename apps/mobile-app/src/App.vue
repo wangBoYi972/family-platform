@@ -1,19 +1,29 @@
 <script setup>
 import { onLaunch } from "@dcloudio/uni-app";
+
+// #ifdef H5
+// 发行构建里，普通 .js 模块拿到的全局 uni 是残缺占位对象（编译器只替换 uni.xxx 成员访问），
+// 这里在它缺接口时补一份；开发构建里 uni 本来就是完整的，绝不能覆盖——
+// 否则补进去的 `uni.getStorageSync` 会指回覆盖后的对象，自己调自己导致栈溢出。
+const nativeUni = globalThis.uni || {};
+if (typeof nativeUni.getStorageSync !== "function") {
+  globalThis.uni = {
+    ...nativeUni,
+    getStorageSync: key => uni.getStorageSync(key),
+    setStorageSync: (key, value) => uni.setStorageSync(key, value),
+    removeStorageSync: key => uni.removeStorageSync(key),
+    request: options => uni.request(options),
+    uploadFile: options => uni.uploadFile(options),
+    downloadFile: options => uni.downloadFile(options),
+    connectSocket: options => uni.connectSocket(options),
+    showModal: options => uni.showModal(options),
+    showToast: options => uni.showToast(options)
+  };
+}
+// #endif
 onLaunch(() => {});
 </script>
 <style>
-:root { --family-primary:#2f6b5e; --family-bg:#f7f9f8; --family-text:#1d2a26; --family-muted:#687570; --family-border:#e4e9e7;
-  /* 共享面板（apps/shared/panels、apps/shared/call）统一用 --c-* 语义色，
-     这里按 APP 的品牌绿重新映射；缺一个变量在 H5 上只会静默丢样式，所以四个辅助色也必须补齐。 */
-  --c-primary:#2f6b5e; --c-primary-deep:#245448; --c-primary-soft:#e3efeb; --c-primary-tint:rgba(47,107,94,.12);
-  --c-ink:#1d2a26; --c-ink-2:#3b4a45; --c-muted:#687570; --c-line:#e4e9e7;
-  --c-surface:#ffffff; --c-surface-2:#f1f6f4; --c-danger:#b4563f; --c-danger-soft:#f7e7e3;
-  --c-sky:#7e9ab0; --c-sky-soft:#e6edf2;
-  --c-sage:#7d9488; --c-sage-soft:#e7efe8;
-  --c-sand:#b9955c; --c-sand-soft:#f8eedc;
-  --c-plum:#8a6a8f; --c-plum-soft:#f1e9f2;
-  --c-glass:rgba(255,255,255,.8); --c-glass-line:rgba(255,255,255,.7);
-  --e-spring:cubic-bezier(.34,1.56,.64,1); }
-page { background:var(--family-bg); color:var(--family-text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+/* 四个前端共用同一份设计语言：变量、卡片、按钮、动效都来自这里，不再各应用各写一套。 */
+@import "./styles/theme.css";
 </style>

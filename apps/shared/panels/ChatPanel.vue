@@ -16,7 +16,7 @@ const props = defineProps({
   /** 实时通道是否连着。连着就不必为「谁已读」额外轮询，后端会推。 */
   live: { type: Boolean, default: false }
 });
-const emit = defineEmits(["session-ended", "unread-change", "call"]);
+const emit = defineEmits(["session-ended", "unread-change", "call", "call-history"]);
 
 const conversations = ref([]), members = ref([]), session = ref(null);
 const active = ref(""), activeTitle = ref(""), messages = ref([]), draft = ref("");
@@ -676,7 +676,13 @@ defineExpose({ load, receive });
   <view :class="['chat', { 'in-room': !!active }]">
     <view class="chat-frame">
       <view class="sidebar">
-        <view class="sidebar-head"><text class="title">家人聊天</text><button size="mini" :disabled="loading" @click="load">刷新</button></view>
+        <view class="sidebar-head">
+          <text class="title">家人聊天</text>
+          <view class="head-tools">
+            <button size="mini" @click="emit('call-history')">通话记录</button>
+            <button size="mini" :disabled="loading" @click="load">刷新</button>
+          </view>
+        </view>
         <view v-if="listError" class="state"><text>{{ listError }}</text><button size="mini" @click="load">重试</button></view>
         <view v-else-if="loading && !displayConversations.length" class="state">正在加载会话…</view>
         <view v-else-if="!displayConversations.length" class="state">还没有会话<text class="hint">发起家庭群聊，或点选家庭成员开始聊天。</text></view>
@@ -712,7 +718,10 @@ defineExpose({ load, receive });
               <text class="title">{{ activeTitle }}</text>
               <text class="hint">{{ isAi() ? 'AI 智能体 · 基于你能看到的数据回答' : (readMembers.length ? '已读：' + readMembers.join('、') : (live ? '实时推送中 · 断线自动重连' : '每 4 秒自动获取新消息')) }}</text>
             </view>
-            <button v-if="activePeerId" class="call-btn" size="mini" @click="emit('call', activePeerId)">☎ 通话</button>
+            <view class="room-tools">
+              <button v-if="activePeerId" class="call-btn" size="mini" @click="emit('call', activePeerId)">☎ 通话</button>
+              <button class="call-btn" size="mini" @click="emit('call-history')">通话记录</button>
+            </view>
           </view>
           <scroll-view class="messages" scroll-y :scroll-top="scrollTop" :scroll-into-view="anchor">
             <view v-if="hasEarlier" class="earlier">
@@ -785,6 +794,7 @@ defineExpose({ load, receive });
 .hint{display:block;font-size:11px;color:var(--c-muted);margin-top:6px;line-height:1.8}
 .earlier{display:flex;justify-content:center;padding:10px 0}
 .sidebar-head button{margin:0;font-size:11px}
+.head-tools,.room-tools{display:flex;gap:8px;flex-shrink:0}
 .call-btn{margin:0;font-size:11px;background:#4F7DC6;color:#F4F7FF;border-radius:30px;border:1px solid rgba(255,255,255,.8)}
 .conv-list{display:flex;flex-direction:column;gap:8px}
 .conv{display:flex;align-items:center;gap:12px;padding:12px;border-radius:20px;background:rgba(255,255,255,.45);border:1px solid transparent}

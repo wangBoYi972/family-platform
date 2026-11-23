@@ -6,7 +6,11 @@ spring:
     username: root
     password: root
   flyway:
-    enabled: false
+    # 历史表由手工 SQL 建，没有迁移记录，直接开启会因「表已存在」失败。
+    # baseline 到 V2（当前结构已达版本），后续 V3+ 由 Flyway 自动执行。
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 2
   rabbitmq:
     username: guest
     password: guest

@@ -50,17 +50,17 @@ function move(offset) {
 .month button { height: 32px; border: 1px solid rgba(255,255,255,.8); background: rgba(255,255,255,.54); color: #142B53; border-radius: 30px; }
 .grid { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-top: 14px; text-align: center; }
 .weekday { font-size: 12px; color: var(--family-muted); padding-bottom: 6px; }
-.day { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 62px; padding: 4px 0 6px; border: 0; background: transparent; color: #2c2824; line-height: 1.1; }
+.day { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 62px; padding: 4px 0 6px; border: 0; background: transparent; color: var(--c-ink); line-height: 1.1; }
 .solar { font-size: 14px; }
 .lunar, .extra { min-height: 12px; font-size: 10px; font-weight: 400; }
 .lunar { color: var(--family-muted); }
 .extra { color: transparent; }
 .festival .extra, .rest .extra, .rest .solar { color: var(--family-primary); }
-.term .extra { color: #6f675f; }
+.term .extra { color: var(--c-muted); }
 .badge { position: absolute; top: 2px; right: 3px; font-size: 9px; line-height: 1; color: var(--family-primary); }
-.work .badge { color: #6f675f; }
+.work .badge { color: var(--c-muted); }
 .selected { background: #4F7DC6; color: #F4F7FF; }
-.selected .lunar, .selected .extra, .selected .badge { color: #f3ece3; }
+.selected .lunar, .selected .extra, .selected .badge { color: rgba(244, 247, 255, .85); }
 .caption, .legend { margin: 10px 0 0; font-size: 12px; color: var(--family-muted); line-height: 1.6; }
-.caption { color: #2c2824; }
+.caption { color: var(--c-ink); }
 </style>

@@ -5,6 +5,7 @@
   "versionName": "0.1.0",
   "versionCode": "1",
   "h5": { "title": "家庭综合平台" },
+  "uniStatistics": { "enable": false },
   "app-plus": {
     "distribute": {
       "android": {

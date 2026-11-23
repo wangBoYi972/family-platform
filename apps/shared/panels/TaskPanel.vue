@@ -6,6 +6,7 @@ import { canManageTask, localDate, nextTaskStatus, prevTaskStatus, taskStatusLab
 import { pageQuery } from "../paged-list.mjs";
 import { usePagedList } from "../use-paged-list.js";
 import ListMore from "../ListMore.vue";
+import { requestNotify, TEMPLATE_KEYS } from "../wx-notify.mjs";
 
 const emit = defineEmits(["session-ended"]);
 const keyword = ref(""), status = ref("ALL");
@@ -131,6 +132,10 @@ async function changeStatus(task, target) {
     await request("/tasks/" + task.id + "/status", { method: "PATCH", data: { status: target } });
     task.status = target;
     uni.showToast({ title: "任务状态已更新", icon: "none" });
+    // 完成任务时申请订阅消息授权（必须在用户点击的同步链里）
+    if (target === "COMPLETED") {
+      requestNotify(request, [TEMPLATE_KEYS.taskReminder]);
+    }
   } catch (error) {
     report(error);
     if (error.status === 409) await load();

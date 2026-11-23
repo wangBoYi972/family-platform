@@ -1,5 +1,7 @@
 package com.familyhome.file.storage;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
@@ -16,6 +18,7 @@ import org.springframework.stereotype.Component;
 @EnableConfigurationProperties(FileStorageProperties.class)
 @ConditionalOnProperty(name = "family.file.storage.type", havingValue = "local", matchIfMissing = true)
 public class LocalFileStorage implements FileStorage {
+    private static final Logger log = LoggerFactory.getLogger(LocalFileStorage.class);
     @Autowired private FileStorageProperties properties;
     private Path root;
 
@@ -32,6 +35,9 @@ public class LocalFileStorage implements FileStorage {
     void initialize() throws IOException {
         root = Path.of(properties.getRoot()).toAbsolutePath().normalize();
         Files.createDirectories(root);
+        // 相对 root 按进程工作目录解析：从 backend/ 和从项目根启动会指向不同目录，
+        // 表现为「库里有记录、下载却 404」。把实际路径打进日志，便于一眼定位。
+        log.info("本地文件存储根目录: {}（进程工作目录 {}）", root, Path.of("").toAbsolutePath().normalize());
     }
 
     @Override

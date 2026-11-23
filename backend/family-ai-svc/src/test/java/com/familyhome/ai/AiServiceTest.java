@@ -110,7 +110,7 @@ class AiServiceTest {
     @Test
     @DisplayName("配置未启用时抛 503")
     void throws503WhenDisabled() {
-        AiProperties properties = new AiProperties(false, null, null, null, 3,
+        AiProperties properties = new AiProperties(false, null, null, null, 3, null,
                 null, null, null, null, tempConfig());
         AiService service = new AiService(properties, new AiConfigStore(json, properties), mockRegistry());
         assertThatThrownBy(() -> run(service, "测试"))
@@ -184,7 +184,7 @@ class AiServiceTest {
 
     private AiProperties properties(boolean enabled, String apiKey, int maxToolRounds) {
         String baseUrl = "http://127.0.0.1:" + fake.getAddress().getPort();
-        return new AiProperties(enabled, apiKey, baseUrl, "qwen-plus", maxToolRounds,
+        return new AiProperties(enabled, apiKey, baseUrl, "qwen-plus", maxToolRounds, "qwen3-asr-flash",
                 null, null, null, null, tempConfig());
     }
 

@@ -81,13 +81,13 @@ async function submitRegister() {
         </div>
 
         <!-- 手绘线稿：一栋小房子 -->
-        <svg class="sketch" viewBox="0 0 300 190" fill="none" stroke="#54473d" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg class="sketch" viewBox="0 0 300 190" fill="none" stroke="#86BBFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M197 46 l0.8 -19 l15 0.8 l-0.9 21" />
           <path d="M50 97 C 84 68, 118 43, 149 27 C 182 45, 216 71, 251 101" />
           <path d="M64 95 C 92 71, 121 49, 148 34 C 173 49, 202 72, 232 98" />
           <path d="M75 91 C 75 115, 75.3 139, 75.7 162 C 126 163.5, 178 163.4, 227 161.8 C 227.3 139, 227.6 116, 227.8 94" />
           <path d="M136 162 C 136.3 148, 136.7 135, 137.2 124 C 146.6 119.4, 158 119.6, 166.6 124 C 167.1 135, 167.5 148, 167.8 162" />
-          <circle cx="158.4" cy="140" r="1.6" fill="#54473d" stroke="none" />
+          <circle cx="158.4" cy="140" r="1.6" fill="#86BBFF" stroke="none" />
           <rect x="95" y="109" width="25" height="25" rx="2.5" />
           <path d="M107.5 109.6 v23.6 M95.6 121.5 h23.8" />
           <path d="M205 15 c-5 -4, -3.5 -9, 1.6 -11.5" />
@@ -215,7 +215,7 @@ async function submitRegister() {
 .circled {
   font-style: normal;
   padding-bottom: 8px;
-  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 10' preserveAspectRatio='none'><path d='M2 6 Q 12 1 22 6 T 42 6 T 62 6 T 78 5' fill='none' stroke='%23b4543a' stroke-width='3' stroke-linecap='round'/></svg>") no-repeat bottom / 100% 9px;
+  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 10' preserveAspectRatio='none'><path d='M2 6 Q 12 1 22 6 T 42 6 T 62 6 T 78 5' fill='none' stroke='%2386BBFF' stroke-width='3' stroke-linecap='round'/></svg>") no-repeat bottom / 100% 9px;
 }
 .sub {
   margin: 0;
@@ -261,7 +261,7 @@ async function submitRegister() {
   border-bottom: 2px dotted rgba(255, 255, 255, .35);
   transform: translateY(-3px);
 }
-.ledger em { font-style: normal; color: var(--c-muted); font-size: 12px; }
+.ledger em { font-style: normal; color: #CFEFFF; font-size: 12px; }
 
 /* ——— 中缝缝线 ——— */
 .page--right {
@@ -332,7 +332,7 @@ async function submitRegister() {
     background: repeating-linear-gradient(
       90deg,
       transparent 0 14px,
-      rgba(58, 52, 46, 0.28) 14px 16.5px
+      rgba(79, 125, 198, 0.28) 14px 16.5px
     );
   }
 }

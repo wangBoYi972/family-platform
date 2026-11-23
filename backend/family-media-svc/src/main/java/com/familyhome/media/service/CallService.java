@@ -23,6 +23,12 @@ public interface CallService {
 
     void updateMediaState(SessionPrincipal principal, String callId, boolean micOn, boolean camOn);
 
+    /**
+     * 开关通话录音。录音本身在客户端完成，这里只广播状态：
+     * 房间里每个人都要看到「正在录音」，否则就是偷偷录音。
+     */
+    CallVO setRecording(SessionPrincipal principal, String callId, boolean on);
+
     CallVO detail(SessionPrincipal principal, String callId);
 
     /** 当前进行中的通话，没有则返回 null。 */

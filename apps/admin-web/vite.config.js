@@ -9,6 +9,11 @@ export default defineConfig({
     alias: { "@shared": fileURLToPath(new URL("../shared", import.meta.url)) }
   },
   server: {
+    // 端口在 README 与网关 CORS 里都固定为 5173：不写死会退到默认 5174，
+    // 与家庭端 H5 撞端口（一个占 IPv4、一个占 IPv6，排查起来极难）。
+    port: 5173,
+    strictPort: true,
+    host: "127.0.0.1",
     fs: { allow: [fileURLToPath(new URL("..", import.meta.url))] },
     proxy: {
       "/api": "http://127.0.0.1:8080"

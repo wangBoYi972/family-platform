@@ -1,0 +1,33 @@
+server:
+  port: 8092
+spring:
+  application:
+    name: family-iot-svc
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/family_iot?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:root}
+  flyway:
+    enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+family:
+  auth:
+    jwt-secret: ${FAMILY_JWT_SECRET:}
+  iot:
+    # WebSocket 连接超时（秒）
+    ws-timeout: ${FAMILY_IOT_WS_TIMEOUT:10}
+    # 命令执行超时（秒）
+    command-timeout: ${FAMILY_IOT_COMMAND_TIMEOUT:5}
+    # 加密密钥（从环境变量读取，本地开发环境需设置）
+    encryption-key: ${FAMILY_IOT_ENCRYPTION_KEY:}

@@ -43,6 +43,8 @@ family:
     api-key: ${FAMILY_AI_API_KEY:}
     base-url: ${FAMILY_AI_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
     model: ${FAMILY_AI_MODEL:qwen-plus}
+    # 通话录音转写模型：走 OpenAI 兼容 chat/completions 的 input_audio（支持 base64，不需要公网 URL）
+    asr-model: ${FAMILY_AI_ASR_MODEL:qwen3-asr-flash}
     max-tool-rounds: ${FAMILY_AI_MAX_TOOL_ROUNDS:3}
     content-url: ${FAMILY_AI_CONTENT_URL:http://127.0.0.1:8082}
     file-url: ${FAMILY_AI_FILE_URL:http://127.0.0.1:8087}

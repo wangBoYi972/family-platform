@@ -221,7 +221,7 @@ onMounted(() => { load(); loadMembers(); });
   .filters{flex-direction:column}
   .filters .el-select{width:100%}
   .metrics{grid-template-columns:1fr}
-  .metric{border-right:0;border-bottom:1px solid rgba(58,52,46,.12)}
+  .metric{border-right:0;border-bottom:1px solid rgba(79,125,198,.18)}
   .metric:last-child{border-bottom:0}
 }
 </style>

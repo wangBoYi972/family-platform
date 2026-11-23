@@ -6,7 +6,9 @@ spring:
     username: root
     password: root
   flyway:
-    enabled: false
+    # V4 曾以 success=0 落库，启动会直接抛「Detected failed migration」；
+    # 历史已修正，保持开启以便后续版本自动执行。
+    enabled: true
   cloud:
     nacos:
       discovery:

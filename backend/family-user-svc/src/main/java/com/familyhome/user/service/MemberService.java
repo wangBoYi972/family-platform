@@ -35,7 +35,12 @@ public interface MemberService {
      */
     List<WhitelistVO> whitelist(SessionPrincipal p, String keyword);
 
-    void add(SessionPrincipal p, String phone, String role);
+    /**
+     * 新增白名单成员。
+     *
+     * @return 新建成员，含自增 id，供调用方后续停用/展示
+     */
+    WhitelistVO add(SessionPrincipal p, String phone, String role);
 
     void disable(SessionPrincipal p, long id);
 }

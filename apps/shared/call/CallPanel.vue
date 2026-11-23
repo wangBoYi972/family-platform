@@ -1,8 +1,9 @@
 <script setup>
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
 // 共享组件：鉴权请求由各宿主应用通过 @app 别名提供（apps/*/src/utils/request.js）。
-import { request } from "@app/utils/request";
+import { request, uploadBlob } from "@app/utils/request";
 import { CallClient } from "./call-client.js";
+import { CallRecorder, extensionFor } from "./call-recorder.mjs";
 import { MeshRtc } from "./webrtc-mesh.js";
 import CallVideo from "./CallVideo.vue";
 import CallAudio from "./CallAudio.vue";
@@ -29,6 +30,10 @@ const micOn = ref(true);
 const camOn = ref(true);
 const facing = ref("user");
 const localStream = ref(null);
+// 录音状态以服务端广播为准：本机只是执行者，不能让「谁在录」变成各端各说各话
+const recording = ref(false);
+const recordOwner = ref(null);
+const recordBusy = ref(false);
 
 const streams = reactive({});
 const peerStates = reactive({});
@@ -37,6 +42,7 @@ const camState = reactive({});
 
 let client = null;
 let mesh = null;
+let recorder = null;
 let preparing = null;
 let ticker = null;
 let resetTimer = null;
@@ -183,6 +189,15 @@ async function handleEvent(message) {
       micState[String(message.user)] = message.mic;
       camState[String(message.user)] = message.cam;
       return;
+    case "call.record":
+      if (message.call) applySnapshot(message.call);
+      recording.value = !!message.recording;
+      recordOwner.value = message.recording ? message.by : null;
+      // 别人开的录音必须当面告知，静默录音是这条功能最不能踩的线
+      if (message.recording && String(message.by) !== selfId.value) {
+        uni.showToast({ title: nameOf(message.by) + " 开启了通话录音", icon: "none", duration: 2600 });
+      }
+      return;
     case "webrtc.offer":
       mesh?.handleOffer(message.from, message.sdp).catch(error => warn("处理 offer 失败", error));
       return;
@@ -194,6 +209,12 @@ async function handleEvent(message) {
       return;
     case "error":
       errorText.value = message.message || "通话异常";
+      // 服务端说「已经有人在录」时，本地刚开的录音必须停掉，
+      // 否则会录下一份永远不会被提交的音频，用户还以为自己录上了
+      if (recording.value && /已经在录音/.test(errorText.value)) {
+        stopRecording();
+        uni.showToast({ title: "已有成员在录音，无需重复录制", icon: "none" });
+      }
       return;
     default:
       return;
@@ -243,6 +264,8 @@ async function onAccepted(message) {
 
 function applySnapshot(snapshot) {
   call.value = snapshot;
+  recording.value = !!snapshot.recording;
+  recordOwner.value = snapshot.recording ? snapshot.recordedBy : null;
   (snapshot.participants || []).forEach(item => {
     const id = String(item.userId);
     micState[id] = item.micOn;
@@ -269,6 +292,8 @@ async function prepareMedia() {
       send: payload => client?.send({ ...payload, callId: call.value?.id }),
       onStream: (id, stream) => {
         streams[id] = stream;
+        // 录音中后加入的成员也要进混音，否则他那段话在纪要里会凭空消失
+        recorder?.addStream(id, stream);
       },
       onPeerState: (id, state) => {
         peerStates[id] = state;
@@ -371,6 +396,8 @@ async function reject() {
 
 async function hangup() {
   const current = call.value;
+  // 先停录音再发挂断：反过来的话服务端可能先结束会话，最后一段音频就成了孤儿
+  const segments = await stopRecording();
   if (current) {
     const isCaller = String(current.callerId) === selfId.value;
     const action = stage.value === "incoming" ? "reject" : isCaller ? "end" : "leave";
@@ -381,15 +408,23 @@ async function hangup() {
     }
   }
   reset();
+  await submitMinutes(current?.id, segments);
 }
 
 function endLocal(text) {
   endedText.value = text || "通话已结束";
   stage.value = "ended";
   stopTimer();
-  resetMedia();
-  clearTimeout(resetTimer);
-  resetTimer = setTimeout(reset, 1500);
+  const current = call.value;
+  // 录音器要先 flush 再拆流，否则最后一段会缺尾巴
+  stopRecording()
+    .then(segments => {
+      resetMedia();
+      clearTimeout(resetTimer);
+      resetTimer = setTimeout(reset, 1500);
+      return submitMinutes(current?.id, segments);
+    })
+    .catch(() => {});
 }
 
 function reset() {
@@ -404,6 +439,14 @@ function reset() {
 }
 
 function resetMedia() {
+  // 兜底：页面卸载、网络中断这类路径也要把录音停掉，不能让麦克风一直录
+  if (recorder) {
+    recorder.stop().catch(() => {});
+    recorder = null;
+  }
+  recording.value = false;
+  recordOwner.value = null;
+  recordBusy.value = false;
   mesh?.close();
   mesh = null;
   localStream.value = null;
@@ -416,6 +459,7 @@ function resetMedia() {
 
 function dropPeer(userId) {
   mesh?.dropPeer(userId);
+  recorder?.removeStream(String(userId));
   delete streams[String(userId)];
   delete peerStates[String(userId)];
 }
@@ -470,6 +514,112 @@ async function flipCamera() {
   } catch {
     facing.value = facing.value === "user" ? "environment" : "user";
     uni.showToast({ title: "当前设备无法切换摄像头", icon: "none" });
+  }
+}
+
+function askConfirm(title, content) {
+  return new Promise(resolve => {
+    uni.showModal({
+      title,
+      content,
+      confirmText: "开启",
+      cancelText: "取消",
+      success: res => resolve(!!res.confirm),
+      fail: () => resolve(false)
+    });
+  });
+}
+
+/**
+ * 录音开关。录音在本地完成，但状态必须经服务端广播——
+ * 「谁在录」不能各端各说各话，否则就成了偷偷录音。
+ */
+async function toggleRecord() {
+  if (recordBusy.value || !call.value) return;
+  if (recording.value) {
+    if (String(recordOwner.value) !== selfId.value) {
+      uni.showToast({ title: "只有开启录音的人可以停止", icon: "none" });
+      return;
+    }
+    const segments = await stopRecording();
+    client?.send({ type: "call.record", on: false, callId: call.value.id });
+    uni.showToast({
+      title: segments.length ? "录音已停止，挂断后生成纪要" : "录音已停止",
+      icon: "none"
+    });
+    return;
+  }
+  const ok = await askConfirm(
+    "开启通话纪要",
+    "开启后所有参与者都会看到「录音中」。挂断后录音会转成文字并由 AI 生成纪要，仅家庭成员可见。"
+  );
+  if (!ok) return;
+  recordBusy.value = true;
+  try {
+    await prepareMedia();
+    recorder = new CallRecorder({ segmentMs: 180000 });
+    await recorder.start(localStream.value);
+    // 已在房间里的远端流要立刻接入，晚一步就会漏掉开头的话
+    Object.keys(streams).forEach(id => recorder.addStream(id, streams[id]));
+    recording.value = true;
+    recordOwner.value = selfId.value;
+    client?.send({ type: "call.record", on: true, callId: call.value.id });
+    uni.showToast({ title: "已开始录音", icon: "none" });
+  } catch (error) {
+    await stopRecording();
+    uni.showToast({ title: error?.message || "无法开启录音", icon: "none" });
+  } finally {
+    recordBusy.value = false;
+  }
+}
+
+/** 停止录音并取回分段；重复调用安全。 */
+async function stopRecording() {
+  recording.value = false;
+  recordOwner.value = null;
+  const active = recorder;
+  recorder = null;
+  if (!active) return [];
+  try {
+    return await active.stop();
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 分段上传 + 登记。音频先落到私有文件服务，转写与纪要由媒体服务在后台跑，
+ * 因此这里成功只代表「已提交」，正文要等几秒到几分钟。
+ */
+async function submitMinutes(callId, segments) {
+  if (!callId || !segments?.length) return;
+  try {
+    const uploaded = [];
+    for (let index = 0; index < segments.length; index++) {
+      const segment = segments[index];
+      const type = segment.blob?.type || "audio/webm";
+      const file = await uploadBlob(
+        "/files",
+        segment.blob,
+        `call-${callId}-${index + 1}.${extensionFor(type)}`,
+        { visibility: "FAMILY" }
+      );
+      if (!file?.id) throw new Error("文件服务未返回文件标识");
+      uploaded.push({ fileId: file.id, durationMs: Math.max(0, Math.round(segment.durationMs || 0)) });
+    }
+    const total = uploaded.reduce((sum, item) => sum + (item.durationMs || 0), 0);
+    await request(`/media/calls/${callId}/recording`, {
+      method: "POST",
+      header: { "Content-Type": "application/json" },
+      data: { consent: true, durationMs: total, segments: uploaded }
+    });
+    uni.showToast({ title: "纪要生成中，稍后到通话记录查看", icon: "none", duration: 2600 });
+  } catch (error) {
+    uni.showToast({
+      title: "录音已保存，但纪要提交失败：" + (error?.message || "网络异常"),
+      icon: "none",
+      duration: 3200
+    });
   }
 }
 
@@ -540,6 +690,10 @@ defineExpose({ openDial, openDialWith });
           <view class="live-left">
             <text class="title">{{ kind === 'VIDEO' ? '视频通话' : '语音通话' }}</text>
             <text class="sub">{{ stageTitle }}</text>
+            <!-- 录音必须有醒目状态：房间里每个人都该一眼看到自己正在被录 -->
+            <text v-if="recording" class="rec-badge">
+              ● 录音中{{ String(recordOwner) === selfId ? '（由我录制）' : '（' + nameOf(recordOwner) + ' 录制）' }}
+            </text>
           </view>
           <text class="count">{{ tiles.length }} 人在线</text>
         </view>
@@ -584,6 +738,10 @@ defineExpose({ openDial, openDialWith });
             <text class="ctrl-icon">🔄</text>
             <text class="ctrl-label">切换</text>
           </view>
+          <view :class="['ctrl', { rec: recording }]" @click="toggleRecord">
+            <text class="ctrl-icon">{{ recording ? '⏹' : '📝' }}</text>
+            <text class="ctrl-label">{{ recordBusy ? '处理中' : recording ? '停止录音' : '通话纪要' }}</text>
+          </view>
           <view class="ctrl hangup" @click="hangup">
             <text class="ctrl-icon">✕</text>
             <text class="ctrl-label">挂断</text>
@@ -602,7 +760,9 @@ defineExpose({ openDial, openDialWith });
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(40, 33, 29, 0.55);
+  background: rgba(20, 43, 83, 0.42);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   padding: 20px;
   box-sizing: border-box;
 }
@@ -612,11 +772,13 @@ defineExpose({ openDial, openDialWith });
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 20px;
-  border-radius: 6px;
-  background: #fffdf8;
-  border: 1px solid rgba(58, 52, 46, 0.18);
-  box-shadow: 0 18px 40px -20px rgba(45, 36, 30, 0.4);
+  padding: 24px;
+  border-radius: 30px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 16px 40px rgba(134, 187, 255, 0.35);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   box-sizing: border-box;
 }
 .head {
@@ -933,6 +1095,18 @@ defineExpose({ openDial, openDialWith });
   background: #a8543f;
   color: #fff;
   border-color: transparent;
+}
+/* 录音中：红点 + 红底，和静音/关摄像头这类「关掉某个输入」区分开 */
+.ctrl.rec .ctrl-icon {
+  background: rgba(216, 86, 107, 0.14);
+  border-color: rgba(216, 86, 107, 0.5);
+}
+.rec-badge {
+  margin-top: 2px;
+  font-size: 10px;
+  line-height: 1.6;
+  color: #c24055;
+  font-weight: 600;
 }
 .ctrl-label {
   font-size: 10px;

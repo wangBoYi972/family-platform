@@ -1,0 +1,41 @@
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+server:
+  port: 8093
+spring:
+  application:
+    name: family-ledger-svc
+  datasource:
+    url: ${FAMILY_LEDGER_DB_URL:jdbc:mysql://127.0.0.1:3306/family_ledger?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${FAMILY_LEDGER_DB_USERNAME:root}
+    password: ${FAMILY_LEDGER_DB_PASSWORD:root}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      leak-detection-threshold: 60000
+      pool-name: LedgerHikariPool
+  flyway:
+    enabled: true
+    table: flyway_schema_history_ledger
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+springdoc:
+  api-docs:
+    enabled: ${FAMILY_DOCS_ENABLED:false}
+  swagger-ui:
+    enabled: ${FAMILY_DOCS_ENABLED:false}
+family:
+  auth:
+    jwt-secret: ${FAMILY_JWT_SECRET:}
+  clients:
+    user-url: ${FAMILY_USER_URL:http://127.0.0.1:8081}

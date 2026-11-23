@@ -1,1 +1,1 @@
-{ "pages": [{ "path": "pages/index/index", "style": { "navigationBarTitleText": "家庭工作台" } }] }
+{ "globalStyle": { "rpxCalcMaxDeviceWidth": 600, "rpxCalcBaseDeviceWidth": 375, "rpxCalcIncludeWidth": 750 }, "pages": [{ "path": "pages/index/index", "style": { "navigationBarTitleText": "家庭工作台", "navigationStyle": "custom" } }] }

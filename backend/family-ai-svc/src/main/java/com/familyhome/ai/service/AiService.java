@@ -278,6 +278,11 @@ public class AiService {
                 http.send(request, HttpResponse.BodyHandlers.ofInputStream());
         if (response.statusCode() != 200) {
             String error = new String(response.body().readAllBytes(), StandardCharsets.UTF_8);
+            if (response.statusCode() == 401 || response.statusCode() == 403) {
+                // 密钥失效是配置问题，重试没有意义；原文进日志，界面只给可执行的提示
+                log.warn("模型鉴权失败 status={} body={}", response.statusCode(), error);
+                throw new IllegalStateException("AI 模型密钥无效或已过期，请在管理端「AI 设置」中更新密钥");
+            }
             throw new IllegalStateException("模型服务返回 " + response.statusCode() + ": " + error);
         }
         StringBuilder content = new StringBuilder();

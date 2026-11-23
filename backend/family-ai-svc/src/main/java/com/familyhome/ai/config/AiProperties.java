@@ -14,6 +14,8 @@ public record AiProperties(
         String model,
         /** 单次对话允许的工具调用轮数上限，防模型陷入循环查个不停。 */
         Integer maxToolRounds,
+        /** 语音转写模型（OpenAI 兼容 chat/completions 协议，输入为 input_audio）。 */
+        String asrModel,
         /** 下游服务地址（local 直连各服务端口，生产走内网地址）。 */
         String contentUrl,
         String fileUrl,
@@ -26,6 +28,7 @@ public record AiProperties(
         if (baseUrl == null || baseUrl.isBlank()) baseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1";
         if (model == null || model.isBlank()) model = "qwen-plus";
         if (maxToolRounds == null || maxToolRounds < 1) maxToolRounds = 3;
+        if (asrModel == null || asrModel.isBlank()) asrModel = "qwen3-asr-flash";
         if (configFile == null || configFile.isBlank()) configFile = ".local/ai-settings.json";
     }
 }

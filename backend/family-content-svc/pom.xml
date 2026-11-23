@@ -10,6 +10,7 @@
     <dependency><groupId>org.flywaydb</groupId><artifactId>flyway-mysql</artifactId></dependency>
     <dependency><groupId>com.mysql</groupId><artifactId>mysql-connector-j</artifactId><scope>runtime</scope></dependency>
     <dependency><groupId>com.alibaba.cloud</groupId><artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId></dependency>
+    <dependency><groupId>org.springframework.cloud</groupId><artifactId>spring-cloud-starter-openfeign</artifactId></dependency>
     <dependency><groupId>com.familyhome</groupId><artifactId>family-security</artifactId><version>0.1.0-SNAPSHOT</version></dependency>
     <dependency><groupId>com.familyhome</groupId><artifactId>family-messaging</artifactId><version>0.1.0-SNAPSHOT</version></dependency>
     <!-- 内容服务直接使用用户/文件 Feign 契约，必须显式声明模块依赖。 -->

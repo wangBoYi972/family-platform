@@ -19,6 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
 @SpringBootTest(
         properties = {
             "spring.datasource.url=jdbc:h2:mem:archive-test;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
+            "spring.flyway.enabled=true",
             "spring.cloud.nacos.discovery.enabled=false"
         })
 @ActiveProfiles("local")

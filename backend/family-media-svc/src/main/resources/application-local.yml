@@ -6,7 +6,8 @@ spring:
     username: root
     password: root
   flyway:
-    enabled: false
+    # V3 是通话录音相关表与字段，关掉会导致 5 个录音接口全部 500
+    enabled: true
   cloud:
     nacos:
       discovery:
@@ -15,6 +16,7 @@ family:
   clients:
     user-url: http://127.0.0.1:8081
     file-url: http://127.0.0.1:8087
+    ai-url: http://127.0.0.1:8091
   auth:
     jwt-secret: ${FAMILY_JWT_SECRET:local-development-secret-32-characters-min}
 springdoc:

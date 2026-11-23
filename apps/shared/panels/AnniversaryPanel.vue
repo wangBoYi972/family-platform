@@ -4,6 +4,7 @@ import { request } from "@app/utils/request";
 import { localDate } from "@shared/tasks.mjs";
 // 折算逻辑与两个宿主的「当天提醒」共用一份实现，改口径不要只改这里
 import { buildAnniversary as build } from "@shared/anniversary-remind.mjs";
+import { requestNotify, TEMPLATE_KEYS } from "@shared/wx-notify.mjs";
 
 const emit = defineEmits(["session-ended", "go"]);
 const rows = ref([]), members = ref([]);
@@ -58,6 +59,8 @@ async function load() {
     const [list, people] = await Promise.all([request("/calendar"), request("/users/members")]);
     rows.value = list;
     members.value = people;
+    // 首次加载纪念日时申请订阅消息授权
+    requestNotify(request, [TEMPLATE_KEYS.anniversaryReminder]);
   } catch (e) {
     error.value = e.message || "纪念日加载失败";
     if (e.status === 401) emit("session-ended");

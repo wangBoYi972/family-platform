@@ -25,4 +25,13 @@ public final class Calls {
     public static final String REASON_HANGUP = "HANGUP";
     public static final String REASON_LEFT = "LEFT";
     public static final String REASON_ERROR = "ERROR";
+
+    /** 录音提交后待转写。 */
+    public static final String RECORDING_UPLOADED = "UPLOADED";
+    /** 正在逐段转写并生成纪要。 */
+    public static final String RECORDING_TRANSCRIBING = "TRANSCRIBING";
+    /** 纪要可读。 */
+    public static final String RECORDING_READY = "READY";
+    /** 转写或生成失败，可重试。 */
+    public static final String RECORDING_FAILED = "FAILED";
 }

@@ -1,4 +1,6 @@
 **/target/
+# IDE 运行配置里解包出来的依赖 jar，二进制且可重建
+**/.run/libs/
 .idea/
 .vscode/
 *.iml
@@ -20,4 +22,11 @@ output/
 
 # 本地启动脚本：里面写死了本机 JDK 路径与数据库口令，只作个人便利，不入库
 backend/start-*.sh
+
+# 运行日志：logback 会写 application.json 并滚动成 .gz，属于运行时产物
+**/logs/
+*.gz
+
+# 助手在项目内的工作数据（记忆、技能、临时排查脚本）
+.workbuddy/
 

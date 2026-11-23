@@ -134,7 +134,7 @@ public class MemberServiceImpl implements MemberService {
     }
 
     @Transactional
-    public void add(SessionPrincipal p, String phone, String role) {
+    public WhitelistVO add(SessionPrincipal p, String phone, String role) {
         p.requireAdmin();
         households.lock(p.householdId());
         if (whitelist.selectCount(
@@ -151,6 +151,7 @@ public class MemberServiceImpl implements MemberService {
         e.setRole(role);
         e.setEnabled(true);
         whitelist.insert(e);
+        return MemberConverter.toVO(e);
     }
 
     @Transactional

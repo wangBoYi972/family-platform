@@ -36,6 +36,9 @@ page {
   --c-plum-soft: #f1e9f2;
   --c-danger: #b96a5b;
   --c-danger-soft: #f7e7e3;
+  /* 账本口径：收入走青绿，支出走陶红，四个端同一套语义色 */
+  --c-income: #5f8f74;
+  --c-expense: #b96a5b;
 
   /* —— 文字 —— */
   --c-ink: #142B53;
@@ -400,8 +403,11 @@ uni-page-body {
 }
 
 /* ============================ 按钮基线 ============================ */
-/* uni 默认按钮改成纸面细线钮；主操作加 .primary 或 .mf-btn */
-button {
+/* uni 默认按钮改成纸面细线钮；主操作加 .primary 或 .mf-btn。
+   H5 构建会把 <button> 编译成 <uni-button class="uni-button">，
+   纯 button 选择器命中不到，所以两者用同一组规则。 */
+button,
+uni-button.uni-button {
   margin: 0;
   padding: 0 28rpx;
   min-height: 64rpx;
@@ -415,14 +421,25 @@ button {
   border-radius: 30px;
   box-sizing: border-box;
 }
-button::after { border: none; }
-button:active { transform: translateY(1px); }
-button[disabled] { opacity: .5; }
-button.primary {
+button::after,
+uni-button.uni-button::after { border: none; }
+button:active,
+uni-button.uni-button:active { transform: translateY(1px); }
+button[disabled],
+uni-button.uni-button[disabled] { opacity: .5; }
+button.primary,
+uni-button.uni-button.primary {
   color: #F4F7FF;
   background: #4F7DC6;
   border-color: rgba(255, 255, 255, .8);
   box-shadow: 0 8px 20px rgba(134, 187, 255, .45);
+}
+/* size="mini" 的框架默认字号和行高偏大，统一成面板里的小号胶囊 */
+uni-button.uni-button-mini {
+  padding: 0 24rpx;
+  min-height: 56rpx;
+  line-height: 56rpx;
+  font-size: 24rpx;
 }
 
 /* ============================ 无障碍 ============================ */

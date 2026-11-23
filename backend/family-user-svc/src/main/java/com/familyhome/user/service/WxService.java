@@ -18,6 +18,7 @@ import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
+import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -99,14 +100,33 @@ public class WxService {
         FamilyUser target = users.selectById(i.userId());
         if (target == null || isBlank(target.getWxOpenid())) return "skipped";
         if (!sameHousehold(caller.userId(), i.userId())) return "skipped";
-        if (!consumeGrant(i.userId(), i.templateKey())) return "no-quota";
+        return sendNotify(i.userId(), target.getWxOpenid(), i.templateKey(), template, i.page(), i.data());
+    }
+
+    /**
+     * 内部服务调用专用：不做同家庭校验，由调用方保证业务合法性。
+     * 用于定时任务等后台服务的离线提醒。
+     */
+    public String notifyInternal(Long userId, String templateKey, String page, Map<String, Object> data) {
+        if (!wx.isEnabled()) return "skipped";
+        WxProperties.Template template = wx.getTemplates().get(templateKey);
+        if (template == null || isBlank(template.getTemplateId())) return "skipped";
+        FamilyUser target = users.selectById(userId);
+        if (target == null || isBlank(target.getWxOpenid())) return "skipped";
+        return sendNotify(userId, target.getWxOpenid(), templateKey, template, page, data);
+    }
+
+    /** 发送订阅消息的核心逻辑 */
+    private String sendNotify(Long userId, String openid, String templateKey,
+                              WxProperties.Template template, String page, Map<String, Object> data) {
+        if (!consumeGrant(userId, templateKey)) return "no-quota";
 
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("touser", target.getWxOpenid());
+        body.put("touser", openid);
         body.put("template_id", template.getTemplateId());
-        if (!isBlank(i.page())) body.put("page", i.page());
+        if (!isBlank(page)) body.put("page", page);
         else if (!isBlank(template.getPage())) body.put("page", template.getPage());
-        body.put("data", renderFields(i.data(), template.getFields()));
+        body.put("data", renderFields(data, template.getFields()));
         try {
             JsonNode res = postJson(
                 wx.getApiBase() + "/cgi-bin/message/subscribe/send?access_token=" + accessToken(),
@@ -115,10 +135,10 @@ public class WxService {
             if (errcode == 0) return "sent";
             // 43101 = 用户未订阅/已取消订阅：配额已经消耗了，记下原因就好
             log.warn("订阅消息发送失败 userId={} template={} errcode={} errmsg={}",
-                i.userId(), i.templateKey(), errcode, res.path("errmsg").asText(""));
+                userId, templateKey, errcode, res.path("errmsg").asText(""));
             return "failed";
         } catch (Exception ex) {
-            log.warn("订阅消息发送异常 userId={} template={}", i.userId(), i.templateKey(), ex);
+            log.warn("订阅消息发送异常 userId={} template={}", userId, templateKey, ex);
             return "failed";
         }
     }
@@ -205,13 +225,19 @@ public class WxService {
         }
     }
 
-    private JsonNode postJson(String url, Map<String, Object> body) throws Exception {
-        HttpResponse<String> res = http.send(HttpRequest.newBuilder(URI.create(url))
-            .timeout(Duration.ofSeconds(5))
-            .header("Content-Type", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
-            .build(), HttpResponse.BodyHandlers.ofString());
-        return mapper.readTree(res.body());
+
+    /** 订阅消息的 JSON POST；与 getJson 共用超时和错误语义。 */
+    private JsonNode postJson(String url, Map<String, Object> body) {
+        try {
+            HttpResponse<String> res = http.send(HttpRequest.newBuilder(URI.create(url))
+                .timeout(Duration.ofSeconds(5))
+                .header("Content-Type", "application/json; charset=utf-8")
+                .POST(BodyPublishers.ofString(mapper.writeValueAsString(body), StandardCharsets.UTF_8))
+                .build(), HttpResponse.BodyHandlers.ofString());
+            return mapper.readTree(res.body());
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "微信接口不可用");
+        }
     }
 
     private static boolean isBlank(String v) { return v == null || v.isBlank(); }

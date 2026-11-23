@@ -1,0 +1,18 @@
+server:
+  port: 0
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  flyway:
+    enabled: false
+family:
+  auth:
+    jwt-secret: test-secret-32-characters-minimum
+  iot:
+    ws-timeout: 5
+    command-timeout: 3
+    encryption-key: dGVzdC1lbmNyeXB0aW9uLWtleS0zMi1jaGFyYWN0ZXJz

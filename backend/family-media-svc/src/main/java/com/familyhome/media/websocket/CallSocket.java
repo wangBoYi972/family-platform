@@ -221,6 +221,9 @@ public class CallSocket extends TextWebSocketHandler implements WebSocketConfigu
             case "call.state" ->
                     calls.updateMediaState(
                             principal, callId, bool(payload.get("mic")), bool(payload.get("cam")));
+            // 录音状态必须由服务端广播：客户端各自翻转本地状态的话，
+            // 别人永远看不到「他正在录我」
+            case "call.record" -> calls.setRecording(principal, callId, bool(payload.get("on")));
             case "webrtc.offer", "webrtc.answer" -> {
                 String sdp = text(payload.get("sdp"));
                 Long to = number(payload.get("to"));

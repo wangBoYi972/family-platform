@@ -15,8 +15,12 @@ export default defineConfig({
     alias: [{ find: "@shared", replacement: shared }]
   },
   server: {
-    // 5173 管理端 / 5174 家庭端 / 5175 移动端，档案端固定 5176
+    // 5173 管理端 / 5174 家庭端 / 5175 移动端，档案端固定 5176。
+    // host 与 strictPort 必须写死：否则只监听 [::1] 或自动跳到 5177，
+    // 文档里写的 http://127.0.0.1:5176 会直接打不开。
     port: 5176,
+    strictPort: true,
+    host: "127.0.0.1",
     fs: { allow: [fileURLToPath(new URL("..", import.meta.url))] }
   }
 });

@@ -36,6 +36,8 @@
     <module>family-im-svc</module>
     <module>family-media-svc</module>
     <module>family-ai-svc</module>
+    <module>family-iot-svc</module>
+    <module>family-ledger-svc</module>
   </modules>
   <dependencyManagement>
     <dependencies>

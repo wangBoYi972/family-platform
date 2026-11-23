@@ -15,6 +15,8 @@ export default defineConfig({
   server: {
     // 默认 5173 会与管理端撞端口，这里固定 5175（网关 CORS 已放行）。
     port: 5175,
+    // 固定 IPv4，保证 http://127.0.0.1:5175 与网关代理地址一致。
+    host: "127.0.0.1",
     fs: { allow: [fileURLToPath(new URL("..", import.meta.url))] },
     proxy: {
       "/api": { target: process.env.FAMILY_API_TARGET || "http://127.0.0.1:8080", changeOrigin: true }

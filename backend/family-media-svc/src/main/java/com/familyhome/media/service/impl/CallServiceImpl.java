@@ -258,6 +258,48 @@ public class CallServiceImpl implements CallService {
     }
 
     @Override
+    @Transactional
+    public CallVO setRecording(SessionPrincipal principal, String callId, boolean on) {
+        CallSession call = requireCall(principal.householdId(), callId);
+        requireLive(call);
+        CallParticipant me = participantOf(callId, principal.userId());
+        // 管理员需要能在出问题时关掉录音，否则只能等录音的人自己停
+        if (!principal.admin() && (me == null || !Calls.STATE_JOINED.equals(me.getState())))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "只有通话中的成员可以开关录音");
+        if (!on && call.getRecordedBy() != null && !Objects.equals(call.getRecordedBy(), principal.userId())
+                && !principal.admin())
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "只能停止自己发起的录音");
+
+        long userId = principal.userId();
+        // 两个人都点「开始录音」时，只保留先开的那个：否则谁停止、
+        // 谁的音频被上传都没有确定答案，状态字段也只剩一个
+        if (on && Boolean.TRUE.equals(call.getRecording()) && !Objects.equals(call.getRecordedBy(), userId))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "已经有成员在录音");
+        Long owner = on ? userId : null;
+        sessions.update(
+            null,
+            new LambdaUpdateWrapper<CallSession>()
+                .eq(CallSession::getId, callId)
+                .set(CallSession::getRecording, on)
+                .set(CallSession::getRecordedBy, owner));
+        call.setRecording(on);
+        call.setRecordedBy(owner);
+
+        CallVO snapshot = snapshot(call);
+        List<Long> recipients = liveUserIds(callId);
+        afterCommit(
+            () ->
+                bus.broadcast(
+                    "call.record",
+                    callId,
+                    call.getHouseholdId(),
+                    userId,
+                    recipients,
+                    Map.of("call", snapshot, "recording", on, "by", userId)));
+        return snapshot;
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public CallVO detail(SessionPrincipal principal, String callId) {
         CallSession call = requireCall(principal.householdId(), callId);
@@ -276,20 +318,18 @@ public class CallServiceImpl implements CallService {
     @Override
     @Transactional(readOnly = true)
     public List<CallVO> history(SessionPrincipal principal, PageQuery page) {
-        List<CallParticipant> mine =
-            participants.selectList(
-                new LambdaQueryWrapper<CallParticipant>()
-                    .eq(CallParticipant::getUserId, principal.userId())
-                    .orderByDesc(CallParticipant::getId)
+        // 家庭过滤必须发生在分页之前：先按参与者 ID 截断再过滤家庭，跨家庭的同 ID 记录会占掉页内名额，
+        // 表现为某页为空或漏掉本家庭记录。用 EXISTS 直接把「本家庭 + 我参与」下推到 SQL。
+        List<CallSession> own =
+            sessions.selectList(
+                new LambdaQueryWrapper<CallSession>()
+                    .eq(CallSession::getHouseholdId, principal.householdId())
+                    .apply(
+                        "EXISTS (SELECT 1 FROM call_participant p WHERE p.call_id = call_session.id AND p.user_id = {0})",
+                        principal.userId())
+                    .orderByDesc(CallSession::getCreatedAt)
                     .last(page.limitClause()));
-        List<String> ids =
-            mine.stream().map(CallParticipant::getCallId).distinct().limit(page.size()).toList();
-        if (ids.isEmpty()) return List.of();
-        return sessions.selectBatchIds(ids).stream()
-            .filter(item -> Objects.equals(item.getHouseholdId(), principal.householdId()))
-            .sorted(Comparator.comparing(CallSession::getCreatedAt).reversed())
-            .map(this::snapshot)
-            .toList();
+        return own.stream().map(this::snapshot).toList();
     }
 
     @Override
@@ -564,6 +604,8 @@ public class CallServiceImpl implements CallService {
             call.getStatus(),
             call.getCallerId(),
             call.getEndReason(),
+            Boolean.TRUE.equals(call.getRecording()),
+            call.getRecordedBy(),
             call.getCreatedAt(),
             call.getAnsweredAt(),
             call.getEndedAt(),

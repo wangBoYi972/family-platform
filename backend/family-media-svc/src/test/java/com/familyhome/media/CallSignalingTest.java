@@ -41,7 +41,11 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
             "spring.datasource.url=jdbc:h2:mem:call-ws-test;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
             "spring.cloud.nacos.discovery.enabled=false",
             "family.messaging.enabled=false",
-            "family.media.verify-members=false"
+            "family.media.verify-members=false",
+            // 同上：密钥显式给出，避免占位符在测试环境解析为空导致上下文起不来
+            "family.auth.jwt-secret=call-signaling-test-secret-32-bytes",
+            "family.clients.user-url=http://127.0.0.1:18081",
+            "family.clients.file-url=http://127.0.0.1:18087"
         })
 class CallSignalingTest {
     @TestConfiguration

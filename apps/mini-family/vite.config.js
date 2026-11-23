@@ -16,6 +16,8 @@ export default defineConfig({
   server: {
     // 与管理端（5173）错开端口；API 默认指向本机网关 8080（跑 18080 验收环境时改 FAMILY_API_TARGET）
     port: 5174,
+    // 固定 IPv4，保证 http://127.0.0.1:5174 与网关代理地址一致。
+    host: "127.0.0.1",
     // 共享组件位于本应用根目录之外，开发服务器需显式放行，否则 dev 下报 outside of allow list。
     fs: { allow: [fileURLToPath(new URL("..", import.meta.url))] },
     proxy: {

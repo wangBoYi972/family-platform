@@ -6,7 +6,10 @@ spring:
     username: root
     password: root
   flyway:
-    enabled: false
+    # 同 file-svc：结构已与 V1-V3 一致但没有迁移记录，baseline 到 V3 后由 Flyway 接管
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 3
   rabbitmq:
     username: guest
     password: guest

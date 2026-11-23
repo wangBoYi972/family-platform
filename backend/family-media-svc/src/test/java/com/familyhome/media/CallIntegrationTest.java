@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.familyhome.common.api.PageQuery;
 import com.familyhome.media.dto.CallStartDTO;
 import com.familyhome.media.mapper.CallSessionMapper;
 import com.familyhome.media.model.CallSession;
@@ -32,7 +33,11 @@ import org.springframework.web.server.ResponseStatusException;
             "family.media.ring-timeout-seconds=10",
             "family.media.turn.secret=test-turn-secret",
             "family.media.turn.urls=turn:turn.example.com:3478?transport=udp",
-            "family.media.turn.ttl-seconds=600"
+            "family.media.turn.ttl-seconds=600",
+            // 显式给出密钥：ServiceSecurity 要求 32 字节以上，缺省占位为空时上下文直接起不来
+            "family.auth.jwt-secret=call-integration-test-secret-32-bytes",
+            "family.clients.user-url=http://127.0.0.1:18081",
+            "family.clients.file-url=http://127.0.0.1:18087"
         })
 @Transactional
 class CallIntegrationTest {
@@ -135,6 +140,38 @@ class CallIntegrationTest {
         assertThatThrownBy(() -> calls.start(other, null, new CallStartDTO("DIRECT", "AUDIO", callee.userId(), null)))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("对方正在通话中");
+    }
+
+    @Test
+    @DisplayName("历史列表按家庭隔离并支持分页，跨家庭同用户记录不会混入")
+    void historyIsHouseholdScopedAndPaged() {
+        CallVO own = startDirect();
+        calls.end(caller, own.id());
+
+        // 用同一个 userId、不同 householdId 发起通话，确保隔离依据是家庭而不是用户 ID。
+        SessionPrincipal foreignCaller = new SessionPrincipal(caller.userId(), 902, "MEMBER", "f1", "family");
+        SessionPrincipal foreignCallee = new SessionPrincipal(92, 902, "MEMBER", "f2", "family");
+        CallVO outside =
+                calls.start(foreignCaller, null, new CallStartDTO("DIRECT", "AUDIO", foreignCallee.userId(), null));
+        calls.end(foreignCaller, outside.id());
+
+        assertThat(calls.history(caller, PageQuery.of(1, 30)))
+                .extracting(CallVO::id)
+                .contains(own.id())
+                .doesNotContain(outside.id());
+        assertThat(calls.history(foreignCaller, PageQuery.of(1, 30)))
+                .extracting(CallVO::id)
+                .contains(outside.id())
+                .doesNotContain(own.id());
+
+        CallVO newer = startDirect();
+        calls.end(caller, newer.id());
+        List<CallVO> firstPage = calls.history(caller, PageQuery.of(1, 1));
+        List<CallVO> secondPage = calls.history(caller, PageQuery.of(2, 1));
+        assertThat(firstPage).hasSize(1);
+        assertThat(secondPage).hasSize(1);
+        assertThat(List.of(firstPage.get(0).id(), secondPage.get(0).id()))
+                .containsExactlyInAnyOrder(own.id(), newer.id());
     }
 
     @Test

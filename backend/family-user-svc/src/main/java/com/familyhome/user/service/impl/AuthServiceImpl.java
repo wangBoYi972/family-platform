@@ -1,6 +1,7 @@
 package com.familyhome.user.service.impl;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.familyhome.user.config.AuthProperties;
 import com.familyhome.user.dto.LoginDTO;
@@ -51,10 +52,14 @@ public class AuthServiceImpl implements AuthService {
     @Autowired
     private LoginRateLimiter loginRateLimiter;
 
+    /** 同一手机号在限流窗口内的登录尝试上限，集成测试可调高以免 429 干扰断言。 */
+    @Value("${family.auth.login-attempt-limit:10}")
+    private int loginAttemptLimit;
+
     @Override
     @Transactional
     public LoginVO login(LoginDTO request) {
-        loginRateLimiter.checkAndIncrement("login", request.phone(), 10);
+        loginRateLimiter.checkAndIncrement("login", request.phone(), loginAttemptLimit);
         String client = request.client() == null ? "family" : request.client();
         if (!Set.of("admin", "family", "archive").contains(client))
             throw new IllegalArgumentException("无效的客户端类型");

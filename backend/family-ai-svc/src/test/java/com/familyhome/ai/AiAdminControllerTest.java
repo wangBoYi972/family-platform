@@ -130,7 +130,7 @@ class AiAdminControllerTest {
     }
 
     private AiProperties properties(Path configFile, String envKey) {
-        return new AiProperties(true, envKey, "http://model", "qwen-plus", 3,
+        return new AiProperties(true, envKey, "http://model", "qwen-plus", 3, "qwen3-asr-flash",
                 "http://content", "http://file", "http://archive", "http://user", configFile.toString());
     }
 

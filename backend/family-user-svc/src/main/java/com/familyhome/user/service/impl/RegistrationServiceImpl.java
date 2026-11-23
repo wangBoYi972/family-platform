@@ -45,7 +45,8 @@ import org.springframework.web.server.ResponseStatusException;
 public class RegistrationServiceImpl implements RegistrationService {
     private static final Set<String> CLIENTS = Set.of("admin", "family", "archive");
     private static final int HOUSEHOLD_MEMBER_LIMIT = 10;
-    private static final int ATTEMPT_LIMIT = 5;
+    @org.springframework.beans.factory.annotation.Value("${family.auth.register-attempt-limit:5}")
+    private int attemptLimit;
 
     @Autowired private AuthProperties properties;
     @Autowired private InviteCodeMapper inviteCodes;
@@ -62,7 +63,7 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     /** 注册是匿名入口，按手机号限制尝试次数，避免邀请码被批量试错。 */
     private void limit(String phone) {
-        loginRateLimiter.checkAndIncrement("register", phone, ATTEMPT_LIMIT);
+        loginRateLimiter.checkAndIncrement("register", phone, attemptLimit);
     }
 
     @Override

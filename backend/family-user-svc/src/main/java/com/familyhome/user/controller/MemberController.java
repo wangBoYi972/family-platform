@@ -73,9 +73,8 @@ public class MemberController {
     }
 
     @PostMapping("/users/whitelist")
-    public ApiResponse<Void> add(HttpServletRequest r, @Valid @RequestBody MemberCreateDTO i) {
-        service.add(SessionPrincipal.from(r), i.phone(), i.role());
-        return ApiResponse.success(null);
+    public ApiResponse<WhitelistVO> add(HttpServletRequest r, @Valid @RequestBody MemberCreateDTO i) {
+        return ApiResponse.success(service.add(SessionPrincipal.from(r), i.phone(), i.role()));
     }
 
     @DeleteMapping("/users/whitelist/{id}")

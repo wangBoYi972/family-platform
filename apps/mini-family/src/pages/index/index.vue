@@ -4,19 +4,24 @@ import CalendarPanel from "@shared/panels/CalendarPanel.vue";
 import { login, register, request } from "../../utils/request";
 import { localDate } from "@shared/tasks.mjs";
 import { anniversariesToday, remindDoneKey, remindText } from "@shared/anniversary-remind.mjs";
+import { familyToday, healthRemindDoneKey, healthRemindText, pendingDoses, todayFollowUps } from "@shared/health-schedule.mjs";
 import TaskPanel from "@shared/panels/TaskPanel.vue";
+import LedgerPanel from "@shared/panels/LedgerPanel.vue";
 import DynamicsPanel from "@shared/panels/DynamicsPanel.vue";
 import AlbumsPanel from "@shared/panels/AlbumsPanel.vue";
 import NoticesPanel from "@shared/panels/NoticesPanel.vue";
 import MembersPanel from "@shared/panels/MembersPanel.vue";
 import ChatPanel from "@shared/panels/ChatPanel.vue";
 import ArchivePanel from "@shared/panels/ArchivePanel.vue";
+import HealthPanel from "@shared/panels/HealthPanel.vue";
 import TodayOverview from "../../components/TodayOverview.vue";
 import GlobalSearch from "@shared/panels/GlobalSearch.vue";
 import FilesPanel from "@shared/panels/FilesPanel.vue";
 import AlbumTimeline from "@shared/panels/AlbumTimeline.vue";
 import AnniversaryPanel from "@shared/panels/AnniversaryPanel.vue";
+import IotPanel from "@shared/panels/IotPanel.vue";
 import CallPanel from "@shared/call/CallPanel.vue";
+import CallHistoryPanel from "@shared/panels/CallHistoryPanel.vue";
 import { FAMILY_NAV_TARGETS, resolveNavTarget } from "@shared/navigation.mjs";
 import { FamilySocket } from "@shared/family-socket.js";
 import { refreshPlan, hitsTopic } from "@shared/refresh-topics.mjs";
@@ -24,22 +29,22 @@ import { bindWxSession } from "@shared/wx-notify.mjs";
 import { sumUnread } from "@shared/unread.mjs";
 
 /** 后端会发哪些领域事件，这里就认识哪些主题；新事件类型上来先加进这个集合。 */
-const KNOWN_TOPICS = new Set(["task", "file", "notice", "dynamic", "album", "archive", "calendar", "anniversary", "member"]);
+const KNOWN_TOPICS = new Set(["task", "file", "notice", "dynamic", "album", "archive", "calendar", "anniversary", "member", "ledger", "iot"]);
 
 const phone = ref(""), password = ref(""), token = ref(uni.getStorageSync("family_access_token"));
 const tab = ref("首页");
 const circleTab = ref("动态"), homeTab = ref("成员"), calTab = ref("日程");
 const searchBox = ref(null);
-const navIcons = ["⌂", "▦", "✓", "◍", "▧", "○"];
+const navIcons = ["⌂", "▦", "✓", "¥", "◍", "▧", "🏠", "○"];
 const submitting = ref(false);
 const unread = ref(0), chatPeer = ref(null);
 const changingPassword = ref(false), currentPassword = ref(""), newPassword = ref(""), confirmation = ref("");
 const authMode = ref("login");
 const regForm = ref({ inviteCode: "", phone: "", nickname: "", password: "", confirmation: "" });
 
-const tabs = ["首页", "日历", "任务", "聊天", "家庭圈", "我的家"];
-const homeTabs = ["成员", "公告", "档案", "文件", "设置"];
-const titles = { 首页: "家人在一起，就很好。", 日历: "给相聚，留一点时间", 任务: "小事一起做", 聊天: "随时说说话", 家庭圈: "收藏生活的闪光", 我的家: "我们的一家" };
+const tabs = ["首页", "日历", "任务", "账本", "聊天", "家庭圈", "家居", "我的家"];
+const homeTabs = ["成员", "公告", "档案", "用药复诊", "文件", "设置"];
+const titles = { 首页: "家人在一起，就很好。", 日历: "给相聚，留一点时间", 任务: "小事一起做", 账本: "一起把钱算清楚", 聊天: "随时说说话", 家庭圈: "收藏生活的闪光", 家居: "智能家居", 我的家: "我们的一家" };
 const shortcutTabs = ["日历", "任务", "聊天", "家庭圈"];
 const shortcutIcons = ["▦", "✓", "◍", "▧"];
 const shortcutLabels = { 日历: "家庭日历", 任务: "一起做事", 聊天: "家人聊天", 家庭圈: "照片与动态" };
@@ -77,9 +82,10 @@ function openSearch() { searchBox.value?.open(); }
 function chatWith(member) { chatPeer.value = member.id; tab.value = "聊天"; }
 
 /** 通话：从顶部入口选人，或从聊天面板直接呼叫某位家人。 */
-const callPanel = ref(null);
+const callPanel = ref(null), callHistoryPanel = ref(null);
 function openCall() { callPanel.value?.openDial(); }
 function openCallWith(id) { callPanel.value?.openDialWith(id); }
+function openCallHistory() { callHistoryPanel.value?.open(); }
 
 /**
  * 实时刷新：家里另一台设备改了任务、公告、相册或文件，后端会向同家庭广播 refresh，
@@ -87,9 +93,10 @@ function openCallWith(id) { callPanel.value?.openDialWith(id); }
  * refresh 帧带事件类型（task.created / file.deleted…），按主题挑面板：任务变了不必连相册一起刷。
  * 聊天面板不在此列——它自己轮询，重拉会把正在输入的内容和滚动位置一起冲掉。
  */
-const calendarPanel = ref(null), anniversaryPanel = ref(null), taskPanel = ref(null);
+const calendarPanel = ref(null), anniversaryPanel = ref(null), taskPanel = ref(null), ledgerPanel = ref(null);
 const dynamicsPanel = ref(null), albumsPanel = ref(null), timelinePanel = ref(null);
-const membersPanel = ref(null), noticesPanel = ref(null), archivePanel = ref(null), filesPanel = ref(null);
+const membersPanel = ref(null), noticesPanel = ref(null), archivePanel = ref(null), healthPanel = ref(null), filesPanel = ref(null);
+const iotPanel = ref(null);
 const todayOverview = ref(null);
 const chatPanel = ref(null);
 const socketOpen = ref(false);
@@ -98,6 +105,7 @@ const refreshMap = [
   { ref: calendarPanel, topics: ["calendar"] },
   { ref: anniversaryPanel, topics: ["anniversary"] },
   { ref: taskPanel, topics: ["task"] },
+  { ref: ledgerPanel, topics: ["ledger"] },
   { ref: todayOverview, topics: ["task", "calendar", "dynamic", "member"] },
   { ref: dynamicsPanel, topics: ["dynamic"] },
   { ref: albumsPanel, topics: ["album"] },
@@ -105,7 +113,9 @@ const refreshMap = [
   { ref: membersPanel, topics: ["member"] },
   { ref: noticesPanel, topics: ["notice"] },
   { ref: archivePanel, topics: ["archive"] },
-  { ref: filesPanel, topics: ["file"] }
+  { ref: healthPanel, topics: ["archive"] },
+  { ref: filesPanel, topics: ["file"] },
+  { ref: iotPanel, topics: ["iot"] }
 ];
 const familySocket = new FamilySocket({
   // 优先 sync：分页面板会就地重拉已翻过的页，不会把用户拽回第一页。
@@ -148,10 +158,32 @@ async function checkAnniversary() {
     uni.showModal({ title: "今天的纪念日", content: remindText(todayItems), showCancel: false, confirmText: "知道了" });
   } catch { /* 提醒是锦上添花，失败静默 */ }
 }
-onMounted(() => { if (token.value) { familySocket.connect(); refreshUnread(); bindWxSession(request).catch(() => {}); checkAnniversary(); } });
+/**
+ * 当天健康提醒：未服用的药与今天的复诊各按日期记一个 key，同一天不再弹；
+ * 与纪念日提醒一样只弹一次，不在这里申请微信授权（授权只由用户点击触发）。
+ */
+async function checkHealth() {
+  try {
+    const today = familyToday();
+    const medKey = healthRemindDoneKey("medication", today);
+    const visitKey = healthRemindDoneKey("follow_up", today);
+    if (uni.getStorageSync(medKey) && uni.getStorageSync(visitKey)) return;
+    const [doses, visits] = await Promise.all([
+      request("/archives/medications/today").catch(() => []),
+      request("/archives/follow-ups/upcoming?days=30").catch(() => [])
+    ]);
+    const medicines = uni.getStorageSync(medKey) ? [] : pendingDoses(doses);
+    const followUps = uni.getStorageSync(visitKey) ? [] : todayFollowUps(visits, today);
+    if (!medicines.length && !followUps.length) return;
+    if (medicines.length) uni.setStorageSync(medKey, 1);
+    if (followUps.length) uni.setStorageSync(visitKey, 1);
+    uni.showModal({ title: "今日健康提醒", content: healthRemindText({ medicines, visits: followUps }), showCancel: false, confirmText: "知道了" });
+  } catch { /* 提醒是锦上添花，失败静默 */ }
+}
+onMounted(() => { if (token.value) { familySocket.connect(); refreshUnread(); bindWxSession(request).catch(() => {}); checkAnniversary(); checkHealth(); } });
 onUnmounted(() => familySocket.close());
 watch(token, value => {
-  if (value) { familySocket.connect(); refreshUnread(); bindWxSession(request).catch(() => {}); checkAnniversary(); }
+  if (value) { familySocket.connect(); refreshUnread(); bindWxSession(request).catch(() => {}); checkAnniversary(); checkHealth(); }
   else { familySocket.close(); unread.value = 0; }
 });
 
@@ -308,6 +340,7 @@ async function changePassword() {
       <view class="brand-right">
         <view class="date-pill"><text class="date-main">{{ dateText }}</text><text class="date-sub">{{ weekText }}</text></view>
         <text class="call-entry" @click="openCall">☎ 通话</text>
+        <text class="history-entry" @click="openCallHistory">通话记录</text>
         <text class="search-entry" @click="openSearch">⌕ 搜索</text>
       </view>
     </view>
@@ -349,14 +382,16 @@ async function changePassword() {
       <CalendarPanel v-if="calTab==='日程'" ref="calendarPanel" @session-ended="clearSession"/><AnniversaryPanel v-else ref="anniversaryPanel" @session-ended="clearSession" @go="open"/>
     </view>
     <TaskPanel v-else-if="tab === '任务'" ref="taskPanel" @session-ended="clearSession"/>
-    <ChatPanel v-else-if="tab === '聊天'" ref="chatPanel" :peer-id="chatPeer" :poll-ms="socketOpen ? 20000 : 4000" :live="socketOpen" @session-ended="clearSession" @unread-change="unread = $event" @call="openCallWith"/>
+    <LedgerPanel v-else-if="tab === '账本'" ref="ledgerPanel" @session-ended="clearSession"/>
+    <ChatPanel v-else-if="tab === '聊天'" ref="chatPanel" :peer-id="chatPeer" :poll-ms="socketOpen ? 20000 : 4000" :live="socketOpen" @session-ended="clearSession" @unread-change="unread = $event" @call="openCallWith" @call-history="openCallHistory"/>
+    <IotPanel v-else-if="tab === '家居'" ref="iotPanel" @session-ended="clearSession"/>
     <view v-else-if="tab === '家庭圈'">
       <view class="subnav"><button v-for="item in circleTabs" :key="item" :class="{active:circleTab===item}" @click="circleTab=item">{{ circleLabels[item] }}</button></view>
       <DynamicsPanel v-if="circleTab==='动态'" ref="dynamicsPanel" :token="token"/><AlbumsPanel v-else-if="circleTab==='相册'" ref="albumsPanel" :token="token"/><AlbumTimeline v-else ref="timelinePanel" @session-ended="clearSession"/>
     </view>
     <view v-else>
       <view class="subnav"><button v-for="item in homeTabs" :key="item" :class="{active:homeTab===item}" @click="homeTab=item">{{ item }}</button></view>
-      <MembersPanel v-if="homeTab==='成员'" ref="membersPanel" :token="token" @chat="chatWith"/><NoticesPanel v-else-if="homeTab==='公告'" ref="noticesPanel" :token="token"/><ArchivePanel v-else-if="homeTab==='档案'" ref="archivePanel" @session-ended="clearSession"/><FilesPanel v-else-if="homeTab==='文件'" ref="filesPanel" @session-ended="clearSession"/>
+      <MembersPanel v-if="homeTab==='成员'" ref="membersPanel" :token="token" @chat="chatWith"/><NoticesPanel v-else-if="homeTab==='公告'" ref="noticesPanel" :token="token"/><ArchivePanel v-else-if="homeTab==='档案'" ref="archivePanel" @session-ended="clearSession"/><HealthPanel v-else-if="homeTab==='用药复诊'" ref="healthPanel" @session-ended="clearSession"/><FilesPanel v-else-if="homeTab==='文件'" ref="filesPanel" @session-ended="clearSession"/>
       <view v-else class="settings mf-card">
         <text class="settings-title">账号与安全</text>
         <text class="description">修改密码后，所有设备需要重新登录。</text>
@@ -379,6 +414,7 @@ async function changePassword() {
     </view>
     <GlobalSearch ref="searchBox" @navigate="open" @session-ended="clearSession"/>
     <CallPanel ref="callPanel" :active="!!token"/>
+    <CallHistoryPanel ref="callHistoryPanel" @session-ended="clearSession"/>
   </view>
 </view>
 </template>
@@ -392,7 +428,8 @@ async function changePassword() {
 .date-pill{display:flex;flex:0 0 auto;flex-direction:column;align-items:flex-end;line-height:1.3;padding:8px 14px;border-radius:30px;background:var(--liquid-surface);border:var(--liquid-outline);backdrop-filter:blur(20px);white-space:nowrap}
 .date-main{font-size:14px;font-weight:600;color:#142B53;white-space:nowrap}
 .date-sub{font-size:11px;color:#4F7DC6;white-space:nowrap}
-.search-entry{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:12px;line-height:1;color:#142B53;background:var(--liquid-surface);border:var(--liquid-outline);border-radius:30px;padding:8px 14px;white-space:nowrap;backdrop-filter:blur(20px)}
+.search-entry,.history-entry{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:12px;line-height:1;color:#142B53;background:var(--liquid-surface);border:var(--liquid-outline);border-radius:30px;padding:8px 14px;white-space:nowrap;backdrop-filter:blur(20px)}
+.history-entry:active{transform:translateY(1px)}
 .search-entry:active{transform:translateY(1px)}
 .call-entry{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:12px;line-height:1;letter-spacing:.06em;color:#F4F7FF;background:#4F7DC6;border:1px solid rgba(255,255,255,.8);border-radius:30px;padding:8px 14px;white-space:nowrap}
 .call-entry:active{transform:translateY(1px)}
@@ -410,12 +447,12 @@ async function changePassword() {
 
 /* ——— 插画（登录页）——— */
 .story-art{position:relative;align-self:stretch;flex-shrink:0;width:250px;height:190px}
-.sun{position:absolute;width:46px;height:46px;border-radius:50%;background:transparent;border:1.5px solid #54473d;right:26px;top:6px}
-.roof{position:absolute;bottom:96px;left:44px;width:0;height:0;border-left:63px solid transparent;border-right:63px solid transparent;border-bottom:44px solid #54473d}
-.house{position:absolute;background:#fffdf8;border:1.5px solid #54473d;bottom:30px;left:51px;width:104px;height:94px;border-radius:2px}
-.window{position:absolute;width:26px;height:26px;left:16px;top:22px;background:transparent;border:1.5px solid #54473d;border-radius:2px}
-.door{position:absolute;width:24px;height:38px;right:16px;bottom:0;background:transparent;border:1.5px solid #54473d;border-bottom:0;border-radius:2px 2px 0 0}
-.hill{position:absolute;bottom:-18px;left:8px;right:8px;height:28px;border-radius:0;border-top:1.5px solid #54473d;background:transparent}
+.sun{position:absolute;width:46px;height:46px;border-radius:50%;background:transparent;border:1.5px solid #4F7DC6;right:26px;top:6px}
+.roof{position:absolute;bottom:96px;left:44px;width:0;height:0;border-left:63px solid transparent;border-right:63px solid transparent;border-bottom:44px solid #4F7DC6}
+.house{position:absolute;background:rgba(255,255,255,.7);border:1.5px solid #4F7DC6;bottom:30px;left:51px;width:104px;height:94px;border-radius:2px}
+.window{position:absolute;width:26px;height:26px;left:16px;top:22px;background:transparent;border:1.5px solid #4F7DC6;border-radius:2px}
+.door{position:absolute;width:24px;height:38px;right:16px;bottom:0;background:transparent;border:1.5px solid #4F7DC6;border-bottom:0;border-radius:2px 2px 0 0}
+.hill{position:absolute;bottom:-18px;left:8px;right:8px;height:28px;border-radius:0;border-top:1.5px solid #4F7DC6;background:transparent}
 
 /* ——— 快捷入口（参考「一起」版式：柔和色块 + 图标 + 名称 + 副题）——— */
 .shortcuts{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:28px 0 8px}
@@ -439,8 +476,8 @@ async function changePassword() {
 .subnav button:active{transform:translateY(1px)}
 
 /* ——— 底部导航 ——— */
-.navigation{position:fixed;left:16px;right:16px;bottom:12px;z-index:30;display:grid;grid-template-columns:repeat(6,1fr);gap:2px;padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:var(--liquid-surface);border:var(--liquid-outline);border-radius:30px;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 10px 30px rgba(134,187,255,.28)}
-.navigation button{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0;margin:0;border:0;background:none;color:#4F7DC6;font-size:12px;line-height:1.5;letter-spacing:.06em}
+.navigation{position:fixed;left:16px;right:16px;bottom:12px;z-index:30;display:flex;gap:2px;overflow-x:auto;padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:var(--liquid-surface);border:var(--liquid-outline);border-radius:30px;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 10px 30px rgba(134,187,255,.28)}
+.navigation button{position:relative;display:flex;flex:0 0 auto;flex-direction:column;align-items:center;gap:4px;min-width:96px;padding:8px 0;margin:0;border:0;background:none;color:#4F7DC6;font-size:12px;line-height:1.5;letter-spacing:.06em}
 .navigation button::after{border:0}
 .navigation button.active{color:#142B53;font-weight:600;background:transparent}
 .navigation button:active{transform:none}
@@ -454,8 +491,8 @@ async function changePassword() {
 .login-story{position:relative;overflow:hidden;min-height:420px;padding:38px 40px;border-radius:30px;background:var(--liquid-surface);border:var(--liquid-outline);box-shadow:0 10px 30px rgba(134,187,255,.28);backdrop-filter:blur(20px);display:flex;flex-direction:column}
 .login-story .wordmark{font-size:16px;font-weight:500;font-family:var(--font-display);color:var(--c-ink);letter-spacing:.14em}
 .story-title{font-family:var(--font-display);font-size:48px;font-weight:500;line-height:1.4;margin-top:28px;color:var(--c-ink);letter-spacing:.02em}
-.story-copy{font-size:13px;line-height:2;margin-top:16px;color:#8a7263}
-.story-bottom{margin-top:auto;font-size:11px;letter-spacing:3px;color:#a08a79}
+.story-copy{font-size:13px;line-height:2;margin-top:16px;color:#6d86b0}
+.story-bottom{margin-top:auto;font-size:11px;letter-spacing:3px;color:#8aa6c8}
 .story-art{position:absolute;right:10px;bottom:22px;width:250px;height:190px}
 .story-art .house{bottom:34px;left:60px}
 .story-art .roof{bottom:100px;left:53px}
@@ -515,6 +552,6 @@ async function changePassword() {
   .date-pill{padding:5px 10px}
   .date-main{font-size:11px}
   .date-sub{font-size:9px}
-  .call-entry,.search-entry{padding:8px 11px;font-size:11px}
+  .call-entry,.search-entry,.history-entry{padding:8px 11px;font-size:11px}
 }
 </style>

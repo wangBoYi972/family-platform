@@ -3,7 +3,9 @@ import { ref, watch } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 import { login, request } from "../../utils/request";
 import TaskPanel from "../../src/components/TaskPanel.vue";
+import IotPanel from "@shared/panels/IotPanel.vue";
 const taskPanel = ref(null);
+const iotPanel = ref(null);
 const isArchive = false;
 const phone = ref(""), password = ref(""), token = ref(uni.getStorageSync("family_access_token"));
 const tasks = ref([]), entries = ref([]), tab = ref(isArchive ? "档案" : "任务"), loading = ref(false), submitting = ref(false);
@@ -22,6 +24,7 @@ async function signIn() {
 async function load() {
   if (!token.value) return;
   if (!isArchive && tab.value === "任务") { taskPanel.value?.load(); return; }
+  if (!isArchive && tab.value === "家居") { iotPanel.value?.load?.(); return; }
   const sequence = ++loadSequence;
   loading.value = true;
   try {
@@ -73,8 +76,9 @@ onShow(load);
       <input v-model="confirmation" class="input" maxlength="64" password placeholder="再次输入新密码" />
       <button class="primary" :loading="submitting" :disabled="submitting" @click="changePassword">修改密码并重新登录</button>
     </view>
-    <view class="tabs"><text v-for="item in (isArchive ? ['档案'] : ['任务','动态','公告'])" :key="item" :class="['tab',tab===item?'active':'']" @click="tab=item">{{ item }}</text></view>
+    <view class="tabs"><text v-for="item in (isArchive ? ['档案'] : ['任务','动态','公告','家居'])" :key="item" :class="['tab',tab===item?'active':'']" @click="tab=item">{{ item }}</text></view>
     <TaskPanel v-if="tab === '任务' && !isArchive" ref="taskPanel" @session-ended="clearSession" />
+    <IotPanel v-else-if="tab === '家居' && !isArchive" ref="iotPanel" :is-admin="principal?.role === 'ADMIN'" @session-ended="clearSession" />
     <view v-else-if="loading" class="empty">加载中…</view>
     <view v-else-if="tab==='任务'||isArchive" class="list"><view v-for="item in tasks" :key="item.id" class="row"><text class="row-title">{{ item.title }}</text><text class="row-meta">{{ item.status || item.category || item.visibility }}</text></view><view v-if="!tasks.length" class="empty">暂无记录</view></view>
     <view v-else class="list"><view v-for="item in entries" :key="item.id" class="row"><text class="row-title">{{ item.title }}</text><text class="row-meta">{{ item.body || "家庭成员可见" }}</text></view><view v-if="!entries.length" class="empty">暂无记录</view></view>

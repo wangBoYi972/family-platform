@@ -14,12 +14,14 @@ public class PasswordHasher {
     private String dummyHash = encoder.encode(UUID.randomUUID().toString());
 
     public String encode(String password) {
+        // 与 PasswordSetDTO / RegisterDTO / 前端保持同一条线：12 位下限。
+        // 之前这里是 6 位，接口层校验一旦漏掉（例如内部调用）就能落下弱口令。
         if (password == null
                 || password.isBlank()
-                || password.length() < 6
+                || password.length() < 12
                 || password.length() > 64
                 || password.getBytes(StandardCharsets.UTF_8).length > 72) {
-            throw new IllegalArgumentException("密码需要 6 至 64 个字符，UTF-8 编码不得超过 72 字节");
+            throw new IllegalArgumentException("密码需要 12 至 64 个字符，UTF-8 编码不得超过 72 字节");
         }
         return encoder.encode(password);
     }

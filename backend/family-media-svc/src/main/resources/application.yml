@@ -49,6 +49,9 @@ springdoc:
   swagger-ui:
     enabled: ${FAMILY_DOCS_ENABLED:false}
 family:
+  clients:
+    # 录音转写与纪要生成在下游 AI 服务；生产可用环境变量指到内网地址
+    ai-url: ${FAMILY_MEDIA_AI_URL:http://127.0.0.1:8091}
   # 开启后 WebSocket 票据与信令跨实例广播走 Redis；多副本部署必须开启。
   messaging:
     enabled: ${FAMILY_MESSAGING_ENABLED:false}

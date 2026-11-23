@@ -35,6 +35,9 @@
   --c-plum-soft: #f1e9f2;
   --c-danger: #b96a5b;
   --c-danger-soft: #f7e7e3;
+  /* 账本口径：收入走青绿，支出走陶红，四个端同一套语义色 */
+  --c-income: #5f8f74;
+  --c-expense: #b96a5b;
 
   /* —— 文字 —— */
   --c-ink: #142B53;

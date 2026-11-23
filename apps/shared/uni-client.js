@@ -60,6 +60,42 @@ export function createUniClient({ uni, baseUrl, storageKey = "family_access_toke
     });
   }
 
+  /**
+   * 上传内存里的 Blob（通话录音分段）。
+   *
+   * <p>不走 {@link upload}：uni.uploadFile 在小程序端只认本地临时文件路径，
+   * H5 端对 Blob 的支持又因版本而异；录音本来就只存在于浏览器内存里，
+   * 直接用 fetch + FormData 提交到同一个文件接口，字段名仍是 file。
+   */
+  function uploadBlob(path, blob, filename, formData = {}) {
+    if (typeof fetch !== "function" || typeof FormData !== "function") {
+      return Promise.reject(new Error("当前环境不支持录音上传"));
+    }
+    const form = new FormData();
+    form.append("file", blob, filename);
+    Object.entries(formData).forEach(([key, value]) => form.append(key, value));
+    return fetch(baseUrl + path, {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token() },
+      body: form
+    })
+      .then(async response => {
+        let payload = null;
+        try {
+          payload = await response.json();
+        } catch {
+          payload = null;
+        }
+        if (response.ok && payload?.code === 0) return payload.data;
+        throw new Error(payload?.msg || (response.status === 401 ? "登录已过期" : "上传失败"));
+      })
+      .catch(error => {
+        if (error instanceof Error && error.message && !/Failed to fetch|Load failed|NetworkError/i.test(error.message))
+          throw error;
+        throw new Error("上传失败，请检查网络");
+      });
+  }
+
   /** 鉴权下载为临时 URL（供 <image> 展示）。 */
   function loadImageUrl(fileId) {
     return new Promise((resolve, reject) => {
@@ -98,5 +134,5 @@ export function createUniClient({ uni, baseUrl, storageKey = "family_access_toke
   const register = data =>
     request("/auth/register", { method: "POST", data, authenticated: false, header: { "Content-Type": "application/json" } });
 
-  return { request, upload, loadImageUrl, loadAudioUrl, loadFileUrl, login, register };
+  return { request, upload, uploadBlob, loadImageUrl, loadAudioUrl, loadFileUrl, login, register };
 }

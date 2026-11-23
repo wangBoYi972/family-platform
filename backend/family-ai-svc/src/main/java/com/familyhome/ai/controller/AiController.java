@@ -68,6 +68,10 @@ public class AiController {
     public void chat(HttpServletRequest request, HttpServletResponse response,
                      @Valid @RequestBody ChatRequest input) throws IOException {
         SessionPrincipal principal = SessionPrincipal.from(request);   // 未登录直接 401，SSE 都不开
+        // 空对话不拦会在模型侧抛错：此时响应已声明 text/event-stream，
+        // 全局异常处理器写不出 JSON，前端只能拿到一个 500。提前挡成 400，提示才看得懂。
+        if (input.messages() == null || input.messages().isEmpty())
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请先输入内容");
         // 配置检查必须排在拿 writer 之前：一旦 response 的流被取走，这里再抛异常，
         // 全局异常处理器就写不出 JSON 错误体（Tomcat 抛 getWriter() has already been called），
         // 前端只能看到空响应的 503，连「未配置」这个原因都拿不到。
