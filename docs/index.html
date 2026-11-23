@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>家庭综合平台 · family-platform</title>
+  <meta name="description" content="面向家庭内部使用的综合平台。Spring Cloud Alibaba 微服务后端，以及管理端、移动端和两个微信小程序。">
+  <meta name="theme-color" content="#4F7DC6">
+  <link rel="canonical" href="https://wangBoYi972.github.io/family-platform/">
+  <meta property="og:title" content="家庭综合平台">
+  <meta property="og:description" content="面向家庭内部使用的综合平台：微服务后端、管理端、移动端与两个微信小程序。">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://wangBoYi972.github.io/family-platform/">
+  <meta property="og:locale" content="zh_CN">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/site.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareSourceCode",
+    "name": "家庭综合平台",
+    "alternateName": "family-platform",
+    "description": "面向家庭内部使用的综合平台，包含微服务后端、管理端、移动端和两个微信小程序。",
+    "codeRepository": "https://github.com/wangBoYi972/family-platform",
+    "programmingLanguage": ["Java", "JavaScript"],
+    "runtimePlatform": "Java 21",
+    "author": {
+      "@type": "Person",
+      "name": "wangBoYi972",
+      "url": "https://github.com/wangBoYi972"
+    },
+    "url": "https://wangBoYi972.github.io/family-platform/"
+  }
+  </script>
+</head>
+<body>
+  <a class="skip" href="#about">跳到正文</a>
+  <header class="site-header">
+    <a class="brand" href="#top">
+      <svg class="brand-mark" width="26" height="26" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M19.1 6.3 l0.2 -3.1 l2.7 0.15 l-0.25 4.2" />
+        <path d="M3.4 13.6 C 7 10.4, 10.6 7.4, 14 4.9 C 17.3 7.5, 20.9 10.6, 24.5 13.9" />
+        <path d="M6.1 13.2 C 8.8 10.9, 11.4 8.9, 13.9 7 C 16.2 8.9, 18.8 11, 21.6 13.4" />
+        <path d="M6.9 12.9 C 6.95 16.4, 7 19.9, 7.05 23.3 C 11.6 23.45, 16.3 23.45, 20.9 23.3 C 20.95 19.9, 21 16.4, 21.1 13.1" />
+        <path d="M11.4 23.2 C 11.45 20.9, 11.5 18.7, 11.6 16.6 C 12.9 15.9, 15 15.9, 16.3 16.6 C 16.4 18.7, 16.45 20.9, 16.5 23.2" />
+        <circle cx="15.15" cy="19.4" r="0.5" fill="currentColor" stroke="none" />
+      </svg>
+      <span class="brand-name">
+        <strong>家庭综合平台</strong>
+        <span>family-platform</span>
+      </span>
+    </a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">目录</button>
+    <nav class="site-nav" id="site-nav" aria-label="页内目录">
+      <a href="#about">关于</a>
+      <a href="#services">服务</a>
+      <a href="#clients">客户端</a>
+      <a href="#capabilities">能力</a>
+      <a href="#stack">技术</a>
+      <a href="#status">现状</a>
+      <a href="#english">English</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <div class="wrap hero">
+      <div>
+        <p class="kicker">Household platform</p>
+        <h1>家庭综合平台</h1>
+        <p class="en-line">A private system for one household.</p>
+        <p class="lede">面向家庭内部使用：微服务后端、管理端、移动端和两个微信小程序共用业务接口，并按家庭与客户端范围授权。</p>
+        <div class="hero-actions">
+          <a class="button" href="https://github.com/wangBoYi972/family-platform">查看 GitHub 仓库</a>
+          <a class="button ghost" href="#services">八个业务服务</a>
+        </div>
+      </div>
+      <aside class="ledger" aria-label="服务目录">
+        <p>册中目录</p>
+        <ol>
+          <li><span>统一入口</span><code>family-gateway</code></li>
+          <li><span>成员与登录</span><code>family-user-svc</code></li>
+          <li><span>内容</span><code>family-content-svc</code></li>
+          <li><span>文件</span><code>family-file-svc</code></li>
+          <li><span>档案</span><code>family-archive-svc</code></li>
+          <li><span>消息</span><code>family-im-svc</code></li>
+          <li><span>通话</span><code>family-media-svc</code></li>
+          <li><span>家庭小助手</span><code>family-ai-svc</code></li>
+        </ol>
+      </aside>
+    </div>
+
+    <section class="section" id="about">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="chapter">壹</div>
+          <div>
+            <h2>它做什么</h2>
+            <p>仓库版本 <code>0.1.0-SNAPSHOT</code>。这是给一个家庭用的系统，不是对外开放的社交网络。</p>
+          </div>
+        </div>
+        <div class="prose">
+          <p>后端按服务拆开，各自持有自己的数据，由网关做统一入口。家庭归属取自已经校验过的会话，不信任客户端自己申报的家庭标识。管理端顶栏写着「把时间，留给家人」。</p>
+          <p>同一套接口同时给管理端、移动端和两个微信小程序使用。客户端不同，能碰到的范围也不同：例如档案小程序只做登录和档案，管理端则面向家庭管理员。</p>
+          <p>源码、设计笔记和持续集成都在公开仓库 <a href="https://github.com/wangBoYi972/family-platform">wangBoYi972/family-platform</a>。本页只转述仓库里已经写明的结构，不代替部署文档。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="services">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="chapter">贰</div>
+          <div>
+            <h2>后端服务</h2>
+            <p>首期业务服务都在 <code>backend/</code>。旁边还有公共模块 <code>family-common</code>、<code>family-security</code>、<code>family-messaging</code> 和 <code>family-api</code>。</p>
+          </div>
+        </div>
+        <div class="service-list">
+          <article class="service">
+            <div class="index">01</div>
+            <div>
+              <h3>统一入口</h3>
+              <p class="id">family-gateway</p>
+            </div>
+            <p>API 入口、路由、跨域，以及 JWT 前置校验。网关本身不存放业务表。</p>
+          </article>
+          <article class="service">
+            <div class="index">02</div>
+            <div>
+              <h3>成员与登录</h3>
+              <p class="id">family-user-svc</p>
+            </div>
+            <p>成员白名单、登录、会话校验、注销、家庭关系和角色权限。注册需要管理员发放的邀请码。</p>
+          </article>
+          <article class="service">
+            <div class="index">03</div>
+            <div>
+              <h3>家庭内容</h3>
+              <p class="id">family-content-svc</p>
+            </div>
+            <p>相册、动态、日历、任务和公告。列表可以按关键字或状态检索，并支持分页。</p>
+          </article>
+          <article class="service">
+            <div class="index">04</div>
+            <div>
+              <h3>文件</h3>
+              <p class="id">family-file-svc</p>
+            </div>
+            <p>私有文件的上传、下载授权和资源元数据。存储有本地实现，也有可插拔的 S3 兼容适配器。</p>
+          </article>
+          <article class="service">
+            <div class="index">05</div>
+            <div>
+              <h3>档案</h3>
+              <p class="id">family-archive-svc</p>
+            </div>
+            <p>家庭档案、健康记录和访问审计。管理员可以查看近一段时间的访问汇总。</p>
+          </article>
+          <article class="service">
+            <div class="index">06</div>
+            <div>
+              <h3>消息</h3>
+              <p class="id">family-im-svc</p>
+            </div>
+            <p>会话、消息、已读和 WebSocket。文本、图片、语音和文件都有对应类型；私聊只投递给会话双方。</p>
+          </article>
+          <article class="service">
+            <div class="index">07</div>
+            <div>
+              <h3>实时通话</h3>
+              <p class="id">family-media-svc</p>
+            </div>
+            <p>通话状态、WebSocket 信令、TURN 时效凭据和通话记录。媒体走 WebRTC。仓库里实现了一对一，以及最多 8 人的家庭通话。</p>
+          </article>
+          <article class="service">
+            <div class="index">08</div>
+            <div>
+              <h3>家庭小助手</h3>
+              <p class="id">family-ai-svc</p>
+            </div>
+            <p>对话助手，用当前用户自己的令牌查询本家庭的任务、日程和纪念日，并搜索动态、相册、公告、档案与文件。未配置模型时关闭。历史按用户和家庭保存，不写入即时消息库。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="clients">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="chapter">叁</div>
+          <div>
+            <h2>四个客户端</h2>
+            <p>都在 <code>apps/</code>。家庭端和移动端的面板、通话组件尽量只保留一份，放在共享目录里。</p>
+          </div>
+        </div>
+        <div class="client-grid">
+          <article class="card">
+            <span class="path">apps/admin-web</span>
+            <h3>管理端</h3>
+            <p>Vue 3、Element Plus、Vite。登录之后是任务工作台、家庭成员、家庭档案、公告通知、家庭日历，以及 AI 家庭助手设置。成员页可以管理账号、密码和注册邀请码。</p>
+          </article>
+          <article class="card">
+            <span class="path">apps/mini-family</span>
+            <h3>家庭综合小程序</h3>
+            <p>uni-app（Vue 3）。页面是首页、日历、任务、聊天、家庭圈和我的家，与移动端共用共享面板。</p>
+          </article>
+          <article class="card">
+            <span class="path">apps/mini-archive</span>
+            <h3>档案小程序</h3>
+            <p>同样基于 uni-app，使用独立的档案客户端身份。范围收在登录和档案列表，不承担家庭端的全部功能。</p>
+          </article>
+          <article class="card">
+            <span class="path">apps/mobile-app</span>
+            <h3>移动端</h3>
+            <p>uni-app 壳。五个分组：任务、日程（日历与纪念日）、家庭圈（动态、相册、时光轴）、消息、我的家（公告、文件、档案、成员）。顶栏有全局搜索，并接入通话和实时刷新。</p>
+          </article>
+          <article class="card wide">
+            <span class="path">apps/shared</span>
+            <h3>跨端共享</h3>
+            <p>通话组件、任务 / 日历 / 动态 / 相册 / 公告 / 文件 / 档案 / 成员 / 聊天等面板、分页、实时通道和请求错误文案。改一处，家庭端与移动端一起生效。管理端是另一套 Vue 应用，不走这套 uni-app 面板。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="capabilities">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="chapter">肆</div>
+          <div>
+            <h2>已经落在代码里的能力</h2>
+            <p>下面这些都能在当前仓库的服务或客户端里找到，不是路线图上的空标题。</p>
+          </div>
+        </div>
+        <ul class="capability-list">
+          <li><strong>进入家庭</strong><span>白名单与邀请码注册，角色区分管理员和成员。密码只保存 BCrypt 哈希。每个家庭最多十位启用成员。</span></li>
+          <li><strong>过日子</strong><span>任务可指派、开始、完成；日历和纪念日、动态、相册、公告都按家庭存放。相册时光轴可以导出一份单文件 HTML 纪念册。</span></li>
+          <li><strong>文件与档案</strong><span>文件下载需要授权。档案有访问记录；管理端用纯样式画出近 30 天的访问概览。</span></li>
+          <li><strong>说话</strong><span>消息支持文本、图片、语音和文件。新消息走实时帧，断线时退回轮询。已读回执会推送。自己发出的消息可在两分钟内撤回，界面留一句「此消息已撤回」。</span></li>
+          <li><strong>见面</strong><span>一对一和最多 8 人的家庭通话。信令在服务端，音视频走 WebRTC。超过 8 人所需的 SFU 仍在上线验收里，还没有当作完成项。</span></li>
+          <li><strong>问家里的事</strong><span>家庭小助手只查询这个用户原本就能看到的数据。回答以流式输出。微信订阅消息同样是：没配凭证就自动关闭，不假装已经接通。</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" id="stack">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="chapter">伍</div>
+          <div>
+            <h2>技术栈</h2>
+            <p>版本取自仓库的 Maven 与前端清单，随代码更新，不在这里另造一套。</p>
+          </div>
+        </div>
+        <dl class="stack-grid">
+          <div>
+            <dt>语言与运行时</dt>
+            <dd>Java 21。构建用 Maven，强制 Java 21。</dd>
+          </div>
+          <div>
+            <dt>服务框架</dt>
+            <dd>Spring Boot 3.3.5，Spring Cloud 2023.0.3，Spring Cloud Alibaba 2023.0.3.2。注册与发现使用 Nacos。</dd>
+          </div>
+          <div>
+            <dt>数据</dt>
+            <dd>MyBatis-Plus 3.5.17，Flyway 迁移。本地开发用各自的 H2；生产配置面向 MySQL。密钥和数据库口令从环境变量读取，不写在这个页面上。</dd>
+          </div>
+          <div>
+            <dt>消息与实时</dt>
+            <dd>Redis、RabbitMQ、WebSocket。领域事件经 Outbox 再通知在线客户端。通话媒体是 WebRTC。</dd>
+          </div>
+          <div>
+            <dt>接口与观测</dt>
+            <dd>springdoc OpenAPI 2.6.0，本地可开 Swagger，生产默认关闭。请求带 <code>X-Request-Id</code>。生产环境暴露 health、info、prometheus。<code>infra/</code> 里有 Prometheus 与 Grafana 的编排。</dd>
+          </div>
+          <div>
+            <dt>前端</dt>
+            <dd>管理端：Vue 3、Element Plus、Vite。小程序与移动端：uni-app（Vue 3）。持续集成使用 Node.js 20 与 pnpm 9 构建管理端。</dd>
+          </div>
+          <div>
+            <dt>工程化</dt>
+            <dd>GitHub Actions 跑后端校验、管理端构建和依赖扫描。各服务有多阶段、非 root 的 Dockerfile。<code>infra/docker-compose.yml</code> 编排 MySQL、Nacos、Redis 以及各服务。</dd>
+          </div>
+          <div>
+            <dt>仓库地图</dt>
+            <dd><code>backend/</code> 服务，<code>apps/</code> 客户端，<code>infra/</code> 编排与监控，<code>docs/</code> 设计笔记和本页，<code>scripts/</code> 通话冒烟脚本。</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
+    <section class="section" id="status">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="chapter">陆</div>
+          <div>
+            <h2>现在到哪一步</h2>
+            <p>README 把「代码里的基础闭环」和「正式上线前还要验收的事」分开写了。这里保持同样的说法。</p>
+          </div>
+        </div>
+        <div class="status-grid">
+          <article>
+            <h3>仓库里已经有的</h3>
+            <ul>
+              <li>网关路由与 JWT 前置校验，用户服务的登录、会话和成员管理。</li>
+              <li>内容、文件、档案、消息、通话和家庭小助手各自的数据表与迁移。</li>
+              <li>管理端接到成员、任务、公告、日历、档案和助手设置。</li>
+              <li>家庭端与移动端共用面板；实时刷新、聊天推送和通话信令有对应实现。</li>
+              <li>链路追踪、结构化日志、OpenAPI、容器镜像和持续集成配置已经放进仓库。</li>
+            </ul>
+          </article>
+          <article>
+            <h3>还不能写成已完成</h3>
+            <ul>
+              <li>MySQL 与 Nacos 实例联调。</li>
+              <li>真实短信或微信身份认证。</li>
+              <li>对象存储在真实环境中的验收。</li>
+              <li>公网 TURN 的实网穿透与压测，以及 8 人以上所需的 SFU。</li>
+              <li>两个小程序的真机回归。</li>
+              <li>监控告警，以及备份恢复演练。</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <section class="english" id="english">
+    <div class="wrap">
+      <h2>English</h2>
+      <p>family-platform is a household-scoped system: a Spring Cloud Alibaba backend, an admin console, a mobile client, and two WeChat mini programs. They share APIs and authorize by family and client. It is not a public social network.</p>
+      <p>The backend services cover gateway, members, content, files, archives, messaging, calls, and an optional family assistant that stays off until a model is configured. Source and notes live in the public repository.</p>
+      <p><a href="https://github.com/wangBoYi972/family-platform">github.com/wangBoYi972/family-platform</a></p>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div>家庭综合平台 · 静态介绍页 · 不收集个人信息</div>
+    <div><a href="https://github.com/wangBoYi972/family-platform">源码</a> · <a href="https://github.com/wangBoYi972/family-platform/blob/main/README.md">README</a></div>
+  </footer>
+  <script src="assets/site.js"></script>
+</body>
+</html>

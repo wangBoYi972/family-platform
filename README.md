@@ -2,6 +2,10 @@
 
 这是面向家庭内部使用的 Spring Cloud Alibaba 微服务项目。项目采用独立服务、独立数据归属与 Gateway 统一入口；Android APP 与两个微信小程序共享业务接口，但按客户端范围进行授权。
 
+## 公开介绍站
+
+静态介绍页在 [`docs/`](docs/index.html)。GitHub Pages 从 `main` 分支的 `/docs` 目录发布它，预期地址是 <https://wangBoYi972.github.io/family-platform/>。如何打开 Pages、以及为什么同目录的设计笔记不会进站点，见 [`docs/README.md`](docs/README.md)。尚未配置自定义域名。
+
 ## 首期服务
 
 - `family-gateway`：统一 API 入口、路由、跨域与后续 JWT 鉴权。
