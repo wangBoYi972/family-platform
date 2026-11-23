@@ -5,6 +5,17 @@ server:
 spring:
   application:
     name: family-ledger-svc
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            # 账本通过 MemberCacheService 调 user-svc 校验成员，超时须有界。
+            connectTimeout: 2000
+            readTimeout: 5000
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
   datasource:
     url: ${FAMILY_LEDGER_DB_URL:jdbc:mysql://127.0.0.1:3306/family_ledger?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
     username: ${FAMILY_LEDGER_DB_USERNAME:root}
@@ -20,10 +31,6 @@ spring:
   flyway:
     enabled: true
     table: flyway_schema_history_ledger
-  cloud:
-    nacos:
-      discovery:
-        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
 management:
   endpoints:
     web:

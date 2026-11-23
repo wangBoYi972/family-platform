@@ -8,8 +8,7 @@ import org.springframework.web.bind.annotation.*;
 @FeignClient(
         name = "family-file-svc",
         contextId = "familyFileClient",
-        url = "${family.clients.file-url:}",
-        fallback = FileFeignClientFallback.class)
+        url = "${family.clients.file-url:}")
 public interface FileFeignClient {
     @GetMapping("/api/files/{id}/metadata")
     ApiResponse<FileApiVO> metadata(

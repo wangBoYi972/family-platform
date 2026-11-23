@@ -51,6 +51,8 @@ public class AuthServiceImpl implements AuthService {
     private PasswordAttemptVerifier passwordVerifier;
     @Autowired
     private LoginRateLimiter loginRateLimiter;
+    @Autowired
+    private com.familyhome.user.config.DbClock clock;
 
     /** 同一手机号在限流窗口内的登录尝试上限，集成测试可调高以免 429 干扰断言。 */
     @Value("${family.auth.login-attempt-limit:10}")
@@ -125,8 +127,10 @@ public class AuthServiceImpl implements AuthService {
         session.setHouseholdId(entry.getHouseholdId());
         session.setRole(entry.getRole());
         session.setClient(client);
-        Instant expiresAt = Instant.now().plusSeconds(properties.getTokenExpirationMinutes() * 60);
-        session.setExpiresAt(LocalDateTime.ofInstant(expiresAt, java.time.ZoneId.systemDefault()));
+        // JWT 用绝对时刻（Instant）；数据库列改用数据库时钟推算，
+        // 与 AuthSessionMapper.countActive 的 CURRENT_TIMESTAMP 同源，不受 JVM 时区影响。
+        Instant expiresAt = Instant.now().plusSeconds(properties.getTokenExpirationMinutes() * 60L);
+        session.setExpiresAt(clock.now().plusMinutes(properties.getTokenExpirationMinutes()));
         session.setRevoked(false);
         sessions.insert(session);
         return new LoginVO(

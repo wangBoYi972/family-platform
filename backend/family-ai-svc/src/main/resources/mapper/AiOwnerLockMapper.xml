@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.familyhome.ai.mapper.AiOwnerLockMapper">
+    <!-- 行锁必须在事务内执行：调用方（AiHistoryService）已声明 @Transactional -->
+    <select id="lockForUpdate" resultType="com.familyhome.ai.model.AiOwnerLock">
+        SELECT household_id AS householdId, user_id AS userId
+        FROM ai_owner_lock
+        WHERE household_id = #{householdId} AND user_id = #{userId}
+        FOR UPDATE
+    </select>
+</mapper>

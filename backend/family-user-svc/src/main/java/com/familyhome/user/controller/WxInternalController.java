@@ -1,11 +1,10 @@
 package com.familyhome.user.controller;
 
 import com.familyhome.common.api.ApiResponse;
+import com.familyhome.user.dto.WxInternalNotifyDTO;
 import com.familyhome.user.service.WxService;
 import com.familyhome.user.vo.WxNotifyResultVO;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import java.util.Map;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,15 +22,8 @@ public class WxInternalController {
      * 由调用方保证业务合法性（如定时任务的离线提醒）。
      */
     @PostMapping("/notify")
-    public ApiResponse<WxNotifyResultVO> notifyInternal(@RequestBody NotifyRequest req) {
-        String result = service.notifyInternal(req.userId, req.templateKey, req.page, req.data);
+    public ApiResponse<WxNotifyResultVO> notifyInternal(@Valid @RequestBody WxInternalNotifyDTO req) {
+        String result = service.notifyInternal(req.userId(), req.templateKey(), req.page(), req.data());
         return ApiResponse.success(new WxNotifyResultVO(result));
     }
-
-    public record NotifyRequest(
-        @NotNull Long userId,
-        @NotBlank String templateKey,
-        String page,
-        Map<String, Object> data
-    ) {}
 }

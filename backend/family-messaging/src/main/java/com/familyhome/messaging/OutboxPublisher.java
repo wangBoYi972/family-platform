@@ -63,10 +63,15 @@ public class OutboxPublisher {
                     properties.retentionDays());
         if (removed > 0)
             log.info("outbox 清理已发布事件 rows={} retentionDays={}", removed, properties.retentionDays());
+        int failed = outboxMapper.countFailed();
+        if (failed > 0)
+            log.error("outbox 有 {} 条事件已达重试上限转为 FAILED，需人工处理", failed);
     }
 
     private void publish(Map<String, Object> event) {
         String id = String.valueOf(event.get("id"));
+        // 先认领：多实例同时轮询时只有一次 UPDATE 命中，其余实例直接跳过，避免重复投递。
+        if (outboxMapper.claim(id) != 1) return;
         int attempts = ((Number) event.get("attempts")).intValue();
         try {
             Map<String, Object> body = Map.of(
@@ -84,9 +89,17 @@ public class OutboxPublisher {
             outboxMapper.published(id);
             log.info("outbox event published id={} type={}", id, event.get("event_type"));
         } catch (Exception ex) {
+            int next = attempts + 1;
+            if (next >= properties.maxAttempts()) {
+                outboxMapper.markFailed(id, trim(ex.getMessage()));
+                log.error(
+                        "outbox event 达到重试上限，已转入 FAILED 待人工处理 id={} type={} attempts={}",
+                        id, event.get("event_type"), next, ex);
+                return;
+            }
             Duration delay = Duration.ofSeconds(Math.min(300, 1L << Math.min(attempts, 8)));
             outboxMapper.retry(id, Timestamp.from(Instant.now().plus(delay)), trim(ex.getMessage()));
-            log.warn("outbox event publish failed id={} attempt={}", id, attempts + 1, ex);
+            log.warn("outbox event publish failed id={} attempt={}", id, next, ex);
         }
     }
 

@@ -12,5 +12,7 @@ GRANT ALL PRIVILEGES ON family_archive.* TO 'family_app'@'%';
 GRANT ALL PRIVILEGES ON family_im.* TO 'family_app'@'%';
 GRANT ALL PRIVILEGES ON family_media.* TO 'family_app'@'%';
 GRANT ALL PRIVILEGES ON family_ai.* TO 'family_app'@'%';
+GRANT ALL PRIVILEGES ON family_iot.* TO 'family_app'@'%';
+GRANT ALL PRIVILEGES ON family_ledger.* TO 'family_app'@'%';
 FLUSH PRIVILEGES;
 EOSQL

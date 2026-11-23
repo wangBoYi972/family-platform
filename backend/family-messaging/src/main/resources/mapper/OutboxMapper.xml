@@ -9,16 +9,28 @@
     </insert>
     <select id="pending" resultType="map">
         SELECT id, aggregate_type, aggregate_id, event_type, household_id, payload, attempts
-        FROM event_outbox WHERE status = 'PENDING' AND next_attempt_at &lt;= CURRENT_TIMESTAMP
+        FROM event_outbox
+        WHERE status = 'PENDING' AND next_attempt_at &lt;= CURRENT_TIMESTAMP
+          AND (locked_at IS NULL OR locked_at &lt; DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 30 SECOND))
         ORDER BY created_at LIMIT 50
     </select>
+    <!-- 认领租约 30 秒：与 pending 的过滤条件必须保持一致，否则会认领到别人正在发的事件 -->
+    <update id="claim">
+        UPDATE event_outbox SET locked_at = CURRENT_TIMESTAMP
+        WHERE id = #{id} AND status = 'PENDING' AND next_attempt_at &lt;= CURRENT_TIMESTAMP
+          AND (locked_at IS NULL OR locked_at &lt; DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 30 SECOND))
+    </update>
     <update id="published">
-        UPDATE event_outbox SET status='PUBLISHED', published_at=CURRENT_TIMESTAMP
+        UPDATE event_outbox SET status='PUBLISHED', published_at=CURRENT_TIMESTAMP, locked_at=NULL
         WHERE id=#{id} AND status='PENDING'
     </update>
     <update id="retry">
         UPDATE event_outbox SET attempts=attempts+1, next_attempt_at=#{nextAttemptAt},
-            last_error=#{lastError} WHERE id=#{id} AND status='PENDING'
+            last_error=#{lastError}, locked_at=NULL WHERE id=#{id} AND status='PENDING'
+    </update>
+    <update id="markFailed">
+        UPDATE event_outbox SET attempts=attempts+1, status='FAILED',
+            last_error=#{lastError}, locked_at=NULL WHERE id=#{id} AND status='PENDING'
     </update>
     <!-- 外层的派生表是必须的：MySQL 不允许在 DELETE 的子查询里直接引用被删表 -->
     <delete id="purgePublished">
@@ -34,5 +46,9 @@
     <select id="countStalePending" resultType="int">
         SELECT COUNT(*) FROM event_outbox
         WHERE status = 'PENDING' AND created_at &lt; #{before}
+    </select>
+    <!-- 转入死信的事件不会自动消失，需要有人知道它堆积了 -->
+    <select id="countFailed" resultType="int">
+        SELECT COUNT(*) FROM event_outbox WHERE status = 'FAILED'
     </select>
 </mapper>

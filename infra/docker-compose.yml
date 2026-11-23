@@ -221,6 +221,42 @@ services:
       - family-file-svc
       - family-archive-svc
 
+  family-iot-svc:
+    build:
+      context: ..
+      dockerfile: backend/family-iot-svc/Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      NACOS_SERVER_ADDR: nacos:8848
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: family_app
+      MYSQL_PASSWORD: ${MYSQL_APP_PASSWORD:?}
+      FAMILY_JWT_SECRET: ${FAMILY_JWT_SECRET:?}
+      # 设备访问令牌用 AES 加密入库；留空时服务能启动，但保存设备会失败
+      FAMILY_IOT_ENCRYPTION_KEY: ${FAMILY_IOT_ENCRYPTION_KEY:-}
+    depends_on:
+      - nacos
+      - mysql
+      - family-user-svc
+
+  family-ledger-svc:
+    build:
+      context: ..
+      dockerfile: backend/family-ledger-svc/Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      NACOS_SERVER_ADDR: nacos:8848
+      FAMILY_LEDGER_DB_URL: jdbc:mysql://mysql:3306/family_ledger?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+      FAMILY_LEDGER_DB_USERNAME: family_app
+      FAMILY_LEDGER_DB_PASSWORD: ${MYSQL_APP_PASSWORD:?}
+      FAMILY_JWT_SECRET: ${FAMILY_JWT_SECRET:?}
+      FAMILY_USER_URL: http://family-user-svc:8081
+    depends_on:
+      - nacos
+      - mysql
+      - family-user-svc
+
   # NAT 穿透兜底。P2P 直连失败（对称型 NAT、移动网络）时媒体经 TURN 中继。
   # 使用 host 网络：UDP 中继端口段无法用 docker 端口映射高效覆盖，宿主即 coturn 所在机。
   coturn:

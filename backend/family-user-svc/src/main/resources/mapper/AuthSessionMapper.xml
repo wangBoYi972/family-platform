@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.familyhome.user.mapper.AuthSessionMapper">
+    <!-- expires_at 必须由 DbClock（即数据库 CURRENT_TIMESTAMP）推算后写入：
+         这里用数据库时钟比较，若写入方改用 JVM 的 systemDefault，两边时区不一致时会整体偏移。 -->
     <select id="countActive" resultType="int">
         SELECT COUNT(*)
         FROM auth_session s
@@ -10,5 +12,8 @@
           AND s.household_id = #{p.householdId} AND s.role = #{p.role}
           AND s.client = #{p.client} AND s.revoked = FALSE
           AND s.expires_at &gt; CURRENT_TIMESTAMP AND w.enabled = TRUE AND w.role = s.role
+    </select>
+    <select id="currentTimestamp" resultType="java.time.LocalDateTime">
+        SELECT CURRENT_TIMESTAMP
     </select>
 </mapper>

@@ -27,6 +27,7 @@ public class InviteCodeServiceImpl implements InviteCodeService {
     @Autowired private InviteCodeMapper inviteCodes;
     @Autowired private HouseholdMapper households;
     @Autowired private InviteCodeGenerator generator;
+    @Autowired private com.familyhome.user.config.DbClock clock;
 
     @Override
     @Transactional
@@ -38,7 +39,7 @@ public class InviteCodeServiceImpl implements InviteCodeService {
         LocalDateTime expiresAt =
                 request.expiresInHours() == null
                         ? null
-                        : LocalDateTime.now().plusHours(request.expiresInHours());
+                        : clock.now().plusHours(request.expiresInHours());
         if (inviteCodes.selectCount(
                         new LambdaQueryWrapper<InviteCode>()
                                 .eq(InviteCode::getHouseholdId, principal.householdId()))
