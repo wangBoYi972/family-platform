@@ -43,6 +43,9 @@ family:
     api-key: ${FAMILY_AI_API_KEY:}
     base-url: ${FAMILY_AI_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
     model: ${FAMILY_AI_MODEL:qwen-plus}
+    # 首选不可用时按顺序降级的候选（逗号分隔）。DashScope 的兼容端点不接受 model=auto
+    # （403 access_denied），自动选模型只能在客户端按顺序试，这就是那份候选表。
+    models: ${FAMILY_AI_MODELS:qwen-flash,qwen-max,qwen-long}
     # 通话录音转写模型：走 OpenAI 兼容 chat/completions 的 input_audio（支持 base64，不需要公网 URL）
     asr-model: ${FAMILY_AI_ASR_MODEL:qwen3-asr-flash}
     max-tool-rounds: ${FAMILY_AI_MAX_TOOL_ROUNDS:3}

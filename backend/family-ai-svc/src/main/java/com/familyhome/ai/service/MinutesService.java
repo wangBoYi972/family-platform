@@ -42,14 +42,16 @@ public class MinutesService {
 
     private final AiProperties properties;
     private final AiConfigStore config;
+    private final ModelSelector models;
     private final ObjectMapper json;
     private final HttpClient http =
             HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
     @Autowired
-    public MinutesService(AiProperties properties, AiConfigStore config, ObjectMapper json) {
+    public MinutesService(AiProperties properties, AiConfigStore config, ModelSelector models, ObjectMapper json) {
         this.properties = properties;
         this.config = config;
+        this.models = models;
         this.json = json;
     }
 
@@ -65,7 +67,6 @@ public class MinutesService {
             transcript = transcript.substring(0, MAX_TRANSCRIPT_CHARS) + "\n…（转写稿过长，后文已省略）";
 
         ObjectNode body = json.createObjectNode();
-        body.put("model", properties.model());
         body.put("stream", false);
         ArrayNode messages = body.putArray("messages");
         messages.addObject().put("role", "system").put("content", systemPrompt());
@@ -74,23 +75,48 @@ public class MinutesService {
         user.put("content", userPrompt(input, transcript));
 
         try {
-            HttpRequest request = HttpRequest.newBuilder(URI.create(properties.baseUrl() + "/chat/completions"))
-                    .timeout(Duration.ofSeconds(90))
-                    .header("Authorization", "Bearer " + settings.apiKey())
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body), StandardCharsets.UTF_8))
-                    .build();
-            HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            if (response.statusCode() != 200) {
-                log.warn("生成纪要失败 status={} body={}", response.statusCode(), brief(response.body()));
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_GATEWAY, "生成纪要失败（模型返回 " + response.statusCode() + "）");
+            HttpResponse<String> response = null;
+            String usedModel = null;
+            List<String> failures = new java.util.ArrayList<>();
+            boolean credential = false;
+            // 和对话一样按候选顺序试：纪要是一次性产物，重试不会产生半截内容
+            for (String model : models.candidates()) {
+                body.put("model", model);
+                HttpRequest request = HttpRequest.newBuilder(URI.create(properties.baseUrl() + "/chat/completions"))
+                        .timeout(Duration.ofSeconds(90))
+                        .header("Authorization", "Bearer " + settings.apiKey())
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body), StandardCharsets.UTF_8))
+                        .build();
+                HttpResponse<String> attempt =
+                        http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+                if (attempt.statusCode() == 200) {
+                    models.markSuccess(model);
+                    response = attempt;
+                    usedModel = model;
+                    break;
+                }
+                String code = UpstreamError.code(json, attempt.body());
+                log.warn("生成纪要的模型 {} 失败 status={} code={} body={}",
+                        model, attempt.statusCode(), code, UpstreamError.brief(attempt.body()));
+                failures.add(model + " " + attempt.statusCode() + (code.isBlank() ? "" : " " + code));
+                if (attempt.statusCode() == 401) {
+                    credential = true;
+                    break;
+                }
+                if (!(attempt.statusCode() == 403 || attempt.statusCode() == 404
+                        || attempt.statusCode() == 429 || attempt.statusCode() >= 500)) break;
+            }
+            if (response == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, credential
+                        ? "AI 模型密钥无效或已过期，请在管理端「AI 设置」中更新密钥"
+                        : "生成纪要失败：候选模型均不可用（" + String.join("；", failures) + "）");
             }
             JsonNode root = json.readTree(response.body());
             String minutes = root.path("choices").path(0).path("message").path("content").asText("").strip();
             if (minutes.isEmpty())
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "模型没有返回纪要内容");
-            return new MinutesVO(minutes, properties.model());
+            return new MinutesVO(minutes, usedModel);
         } catch (IOException e) {
             log.error("生成纪要请求失败", e);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "生成纪要失败，请稍后重试");
@@ -149,10 +175,5 @@ public class MinutesService {
                 %s
                 ---
                 """.formatted(LocalDate.now(), title, people, duration, transcript);
-    }
-
-    private static String brief(String body) {
-        if (body == null) return "";
-        return body.length() <= 300 ? body : body.substring(0, 300) + "…";
     }
 }

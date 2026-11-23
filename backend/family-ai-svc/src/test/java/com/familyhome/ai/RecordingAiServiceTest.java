@@ -9,6 +9,7 @@ import com.familyhome.ai.dto.MinutesRequest;
 import com.familyhome.ai.dto.TranscribeRequest;
 import com.familyhome.ai.service.AsrService;
 import com.familyhome.ai.service.MinutesService;
+import com.familyhome.ai.service.ModelSelector;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -35,7 +36,7 @@ class RecordingAiServiceTest {
             Path config = Files.createTempFile("ai-recording-test", ".json");
             Files.deleteIfExists(config);
             return new AiProperties(
-                    false, null, "http://127.0.0.1:1", "qwen-plus", 3, "qwen3-asr-flash",
+                    false, null, "http://127.0.0.1:1", "qwen-plus", null, 3, "qwen3-asr-flash",
                     null, "http://127.0.0.1:1", null, null, config.toString());
         } catch (Exception e) {
             throw new IllegalStateException(e);
@@ -83,7 +84,8 @@ class RecordingAiServiceTest {
     @DisplayName("AI 未配置时生成纪要直接 503")
     void minutesRequireConfiguration() {
         AiProperties properties = properties();
-        MinutesService service = new MinutesService(properties, store(properties), json);
+        MinutesService service = new MinutesService(properties, store(properties),
+                new ModelSelector(properties), json);
         MinutesRequest request = new MinutesRequest("周末安排", List.of("小明"), "周六上午去医院", 90_000);
         assertThatThrownBy(() -> service.generate(request))
                 .isInstanceOf(ResponseStatusException.class)

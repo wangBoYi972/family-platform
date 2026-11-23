@@ -7,6 +7,7 @@ import com.familyhome.ai.config.AiConfigStore;
 import com.familyhome.ai.config.AiProperties;
 import com.familyhome.ai.dto.ChatRequest;
 import com.familyhome.ai.service.AiService;
+import com.familyhome.ai.service.ModelSelector;
 import com.familyhome.ai.tool.ToolRegistry;
 import com.familyhome.ai.tool.impl.ListCalendarTool;
 import com.familyhome.ai.tool.impl.ListTasksTool;
@@ -110,9 +111,10 @@ class AiServiceTest {
     @Test
     @DisplayName("配置未启用时抛 503")
     void throws503WhenDisabled() {
-        AiProperties properties = new AiProperties(false, null, null, null, 3, null,
+        AiProperties properties = new AiProperties(false, null, null, null, null, 3, null,
                 null, null, null, null, tempConfig());
-        AiService service = new AiService(properties, new AiConfigStore(json, properties), mockRegistry());
+        AiService service = new AiService(properties, new AiConfigStore(json, properties),
+                mockRegistry(), new ModelSelector(properties));
         assertThatThrownBy(() -> run(service, "测试"))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("503");
@@ -147,11 +149,57 @@ class AiServiceTest {
         assertThat(sent).isEqualTo(21); // system + 最近 20 条
     }
 
+    @Test
+    @DisplayName("首选模型 403 access_denied 时自动降级到候选模型")
+    void fallsBackWhenPreferredModelDenied() {
+        List<String> asked = new CopyOnWriteArrayList<>();
+        fake.createContext("/chat/completions", ex -> {
+            String model = json(readBody(ex)).path("model").asText("");
+            asked.add(model);
+            if ("qwen-plus".equals(model)) fail(ex, 403, "access_denied");
+            else respond(ex, sse(delta("备用回答"), "[DONE]"));
+        });
+
+        List<String> events = new ArrayList<>();
+        noToolsService("qwen-plus", "qwen-flash")
+                .chat(List.of(new ChatRequest.Message("user", "hi")), "Bearer user-token", events::add);
+
+        assertThat(asked).containsExactly("qwen-plus", "qwen-flash");
+        assertThat(events).contains("{\"type\":\"delta\",\"text\":\"备用回答\"}", "{\"type\":\"done\"}");
+    }
+
+    @Test
+    @DisplayName("401 说明 key 本身无效，不逐个候选重试，也不误导成「模型不可用」")
+    void doesNotFallBackOnInvalidKey() {
+        AtomicInteger calls = new AtomicInteger();
+        fake.createContext("/chat/completions", ex -> {
+            calls.incrementAndGet();
+            fail(ex, 401, "invalid_api_key");
+        });
+
+        List<String> events = new ArrayList<>();
+        noToolsService("qwen-plus", "qwen-flash")
+                .chat(List.of(new ChatRequest.Message("user", "hi")), "Bearer user-token", events::add);
+
+        assertThat(calls.get()).isEqualTo(1);
+        assertThat(events).anyMatch(e -> e.contains("密钥无效"));
+    }
+
     // ---- 脚手架 ----
 
     private AiService service(int maxToolRounds) {
         AiProperties properties = properties(true, "test-key", maxToolRounds);
-        return new AiService(properties, new AiConfigStore(json, properties), mockRegistry());
+        return new AiService(properties, new AiConfigStore(json, properties), mockRegistry(),
+                new ModelSelector(properties));
+    }
+
+    /** 指定首选与降级候选，用于验证换模型的行为。 */
+    private AiService noToolsService(String model, String fallbacks) {
+        String baseUrl = "http://127.0.0.1:" + fake.getAddress().getPort();
+        AiProperties properties = new AiProperties(true, "test-key", baseUrl, model, fallbacks, 3,
+                "qwen3-asr-flash", null, null, null, null, tempConfig());
+        return new AiService(properties, new AiConfigStore(json, properties), mockRegistry(),
+                new ModelSelector(properties));
     }
 
     private ToolRegistry mockRegistry() {
@@ -184,7 +232,7 @@ class AiServiceTest {
 
     private AiProperties properties(boolean enabled, String apiKey, int maxToolRounds) {
         String baseUrl = "http://127.0.0.1:" + fake.getAddress().getPort();
-        return new AiProperties(enabled, apiKey, baseUrl, "qwen-plus", maxToolRounds, "qwen3-asr-flash",
+        return new AiProperties(enabled, apiKey, baseUrl, "qwen-plus", null, maxToolRounds, "qwen3-asr-flash",
                 null, null, null, null, tempConfig());
     }
 
@@ -245,5 +293,15 @@ class AiServiceTest {
 
     private static String readBody(HttpExchange ex) throws IOException {
         return new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+    }
+
+    /** 模拟上游拒绝：带 code 的错误体，用于区分 403 access_denied 与 401 invalid_api_key。 */
+    private static void fail(HttpExchange ex, int status, String code) throws IOException {
+        ex.getResponseHeaders().set("Content-Type", "application/json");
+        byte[] bytes = ("{\"error\":{\"code\":\"" + code + "\",\"message\":\"nope\"}}")
+                .getBytes(StandardCharsets.UTF_8);
+        ex.sendResponseHeaders(status, bytes.length);
+        ex.getResponseBody().write(bytes);
+        ex.close();
     }
 }

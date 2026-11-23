@@ -112,6 +112,7 @@ class AiAdminControllerTest {
         AiAdminController controller = new AiAdminController();
         setField(controller, "config", open(properties));
         setField(controller, "properties", properties);
+        setField(controller, "models", new com.familyhome.ai.service.ModelSelector(properties));
         return controller;
     }
 
@@ -130,7 +131,7 @@ class AiAdminControllerTest {
     }
 
     private AiProperties properties(Path configFile, String envKey) {
-        return new AiProperties(true, envKey, "http://model", "qwen-plus", 3, "qwen3-asr-flash",
+        return new AiProperties(true, envKey, "http://model", "qwen-plus", null, 3, "qwen3-asr-flash",
                 "http://content", "http://file", "http://archive", "http://user", configFile.toString());
     }
 

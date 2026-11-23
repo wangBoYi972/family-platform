@@ -46,8 +46,32 @@ public class AiConfigStore {
 
     @PostConstruct
     public void init() {
-        this.file = Path.of(properties.configFile());
+        this.file = resolve(properties.configFile());
         this.stored = read();
+        log.info("AI 运行时配置：{}（{}）", file,
+                stored == null ? "文件不存在或缺少 key，回退环境变量" : "已从文件加载");
+    }
+
+    /**
+     * 把配置路径钉成绝对路径，并在旧位置兜底。
+     *
+     * <p>相对路径是按进程工作目录解析的：从项目根启动时读 {@code .local/...}，从
+     * {@code backend/} 启动时读 {@code backend/.local/...}，同一个服务两种结果。之前就
+     * 因此出现过「文件明明在磁盘上，服务却说 AI 未配置」——文件在 {@code backend/.local}，
+     * 而启动脚本在项目根。这里保留旧位置的读取兜底，同时把实际路径打进日志，
+     * 下次再错位能一眼看出来。
+     */
+    private static Path resolve(String configured) {
+        Path direct = Path.of(configured).toAbsolutePath().normalize();
+        if (Files.isRegularFile(direct)) return direct;
+        if (!Path.of(configured).isAbsolute()) {
+            Path legacy = Path.of("backend").resolve(configured).toAbsolutePath().normalize();
+            if (Files.isRegularFile(legacy)) {
+                log.warn("{} 不存在，改用旧位置 {}；建议把文件挪到前者，避免两处并存", direct, legacy);
+                return legacy;
+            }
+        }
+        return direct;
     }
 
     /** 当前生效的配置：管理端设置 > 环境变量（有效时）> 缺省关闭。 */

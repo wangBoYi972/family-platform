@@ -4,6 +4,7 @@ import com.familyhome.ai.config.AiConfigStore;
 import com.familyhome.ai.config.AiProperties;
 import com.familyhome.ai.dto.AiSettingsDTO;
 import com.familyhome.ai.dto.AiSettingsVO;
+import com.familyhome.ai.service.ModelSelector;
 import com.familyhome.common.api.ApiResponse;
 import com.familyhome.security.SessionPrincipal;
 import jakarta.servlet.http.HttpServletRequest;
@@ -34,6 +35,9 @@ public class AiAdminController {
     @Autowired
     private AiProperties properties;
 
+    @Autowired
+    private ModelSelector models;
+
     @GetMapping
     public ApiResponse<AiSettingsVO> get(HttpServletRequest request) {
         SessionPrincipal.from(request).requireAdmin();
@@ -54,7 +58,8 @@ public class AiAdminController {
                 settings.usable(),
                 AiConfigStore.mask(settings.apiKey()),
                 settings.source(),
-                properties.model(),
+                models.current(),
+                models.configured(),
                 properties.baseUrl());
     }
 }

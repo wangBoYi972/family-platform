@@ -4,7 +4,7 @@ import { ElMessage } from "element-plus";
 import { getAiSettings, saveAiSettings } from "../api/ai";
 
 const loading = ref(false), saving = ref(false), error = ref("");
-const settings = ref({ enabled: false, ready: false, maskedKey: "", source: "env", model: "", baseUrl: "" });
+const settings = ref({ enabled: false, ready: false, maskedKey: "", source: "env", model: "", models: [], baseUrl: "" });
 // 输入框独立于服务端状态：key 一旦保存就再也读不回来，所以输入框永远是空的，只提示已存尾号
 const apiKeyInput = ref("");
 const enabledInput = ref(false);
@@ -84,6 +84,9 @@ onMounted(load);
             <el-descriptions-item label="Key">{{ keyLabel }}</el-descriptions-item>
             <el-descriptions-item label="来源">{{ sourceLabel }}</el-descriptions-item>
             <el-descriptions-item label="模型">{{ settings.model || "—" }}</el-descriptions-item>
+            <el-descriptions-item label="候选模型">
+              {{ (settings.models || []).join(" → ") || "—" }}
+            </el-descriptions-item>
             <el-descriptions-item label="服务端点" :span="2">{{ settings.baseUrl || "—" }}</el-descriptions-item>
           </el-descriptions>
         </el-card>

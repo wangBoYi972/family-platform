@@ -46,14 +46,17 @@ public class AiService {
     private final AiProperties properties;
     private final AiConfigStore config;
     private final ToolRegistry toolRegistry;
+    private final ModelSelector models;
     private final ObjectMapper json;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
     @Autowired
-    public AiService(AiProperties properties, AiConfigStore config, ToolRegistry toolRegistry) {
+    public AiService(AiProperties properties, AiConfigStore config, ToolRegistry toolRegistry,
+                     ModelSelector models) {
         this.properties = properties;
         this.config = config;
         this.toolRegistry = toolRegistry;
+        this.models = models;
         this.json = new ObjectMapper();
     }
 
@@ -105,6 +108,12 @@ public class AiService {
             emitter.accept("{\"type\":\"done\"}");
         } catch (ResponseStatusException e) {
             throw e;
+        } catch (ModelCallException e) {
+            // 候选模型全试过了：把可执行的原因推给前端气泡，比抛 500 让用户看到
+            // 「服务器错误」有用得多——这里响应已经是 SSE，写不出 JSON 错误体。
+            log.error("AI 对话失败：{}", e.getMessage());
+            emitter.accept(event("error", "message", e.getMessage()));
+            emitter.accept("{\"type\":\"done\"}");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();   // 恢复中断状态，让线程池能正确处理停机信号
             log.error("AI 对话被中断", e);
@@ -257,6 +266,56 @@ public class AiService {
     }
 
     /**
+     * 依次尝试候选模型，返回第一个 200 的响应。
+     *
+     * <p>换模型发生在响应体还没开始消费的时候，所以不会把上一家模型的半截回答混进用户的
+     * 界面。401 直接终止：key 本身无效，把候选表跑一遍只会得到同样的 401。
+     */
+    private HttpResponse<java.io.InputStream> sendWithFallback(ObjectNode body,
+                                                              AiConfigStore.Effective settings,
+                                                              Duration timeout)
+            throws IOException, InterruptedException {
+        List<String> failures = new java.util.ArrayList<>();
+        boolean credential = false;
+        for (String model : models.candidates()) {
+            body.put("model", model);
+            HttpRequest request = HttpRequest.newBuilder(URI.create(properties.baseUrl() + "/chat/completions"))
+                    .timeout(timeout)
+                    .header("Authorization", "Bearer " + settings.apiKey())
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body), StandardCharsets.UTF_8))
+                    .build();
+            HttpResponse<java.io.InputStream> response =
+                    http.send(request, HttpResponse.BodyHandlers.ofInputStream());
+            if (response.statusCode() == 200) {
+                models.markSuccess(model);
+                return response;
+            }
+            String raw = new String(response.body().readAllBytes(), StandardCharsets.UTF_8);
+            String code = UpstreamError.code(json, raw);
+            log.warn("模型 {} 调用失败 status={} code={} body={}",
+                    model, response.statusCode(), code, UpstreamError.brief(raw));
+            failures.add(model + " " + response.statusCode() + (code.isBlank() ? "" : " " + code));
+            if (response.statusCode() == 401) {
+                credential = true;
+                break;
+            }
+            // 400 是请求体本身不合规，换模型也不会变；其余（403/404/429/5xx）都值得换一家再试
+            if (!retryableStatus(response.statusCode())) break;
+        }
+        throw new ModelCallException(summary(failures, credential), credential);
+    }
+
+    private static boolean retryableStatus(int status) {
+        return status == 403 || status == 404 || status == 429 || status >= 500;
+    }
+
+    private static String summary(List<String> failures, boolean credential) {
+        if (credential) return "AI 模型密钥无效或已过期，请在管理端「AI 设置」中更新密钥";
+        return "候选模型均不可用（" + String.join("；", failures) + "），请检查「AI 设置」里的模型名或账号配额";
+    }
+
+    /**
      * 流式调用一轮模型。普通回答边收边发给 emitter；模型要调工具时收集完整 tool_calls 返回。
      * 注意：带 tool_calls 的 assistant 消息必须是「非流式完整结构」，所以这轮走非流式——
      * 工具轮没有可展示的正文，流式与否对体验无差。
@@ -264,27 +323,10 @@ public class AiService {
     private StreamOutcome callModel(ArrayNode messages, Consumer<String> emitter,
                                    AiConfigStore.Effective settings) throws Exception {
         ObjectNode body = json.createObjectNode();
-        body.put("model", properties.model());
         body.set("messages", messages);
         body.put("stream", true);
         body.set("tools", json.valueToTree(toolRegistry.getDefinitions()));
-        HttpRequest request = HttpRequest.newBuilder(URI.create(properties.baseUrl() + "/chat/completions"))
-                .timeout(Duration.ofSeconds(60))
-                .header("Authorization", "Bearer " + settings.apiKey())
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body), StandardCharsets.UTF_8))
-                .build();
-        HttpResponse<java.io.InputStream> response =
-                http.send(request, HttpResponse.BodyHandlers.ofInputStream());
-        if (response.statusCode() != 200) {
-            String error = new String(response.body().readAllBytes(), StandardCharsets.UTF_8);
-            if (response.statusCode() == 401 || response.statusCode() == 403) {
-                // 密钥失效是配置问题，重试没有意义；原文进日志，界面只给可执行的提示
-                log.warn("模型鉴权失败 status={} body={}", response.statusCode(), error);
-                throw new IllegalStateException("AI 模型密钥无效或已过期，请在管理端「AI 设置」中更新密钥");
-            }
-            throw new IllegalStateException("模型服务返回 " + response.statusCode() + ": " + error);
-        }
+        HttpResponse<java.io.InputStream> response = sendWithFallback(body, settings, Duration.ofSeconds(60));
         StringBuilder content = new StringBuilder();
         ObjectNode toolCalls = null;
         try (BufferedReader reader = new BufferedReader(
@@ -337,18 +379,9 @@ public class AiService {
     private ObjectNode callModelWithoutTools(ArrayNode messages, Consumer<String> emitter,
                                             AiConfigStore.Effective settings) throws Exception {
         ObjectNode body = json.createObjectNode();
-        body.put("model", properties.model());
         body.set("messages", messages);
         body.put("stream", true);
-        HttpRequest request = HttpRequest.newBuilder(URI.create(properties.baseUrl() + "/chat/completions"))
-                .timeout(Duration.ofSeconds(60))
-                .header("Authorization", "Bearer " + settings.apiKey())
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body), StandardCharsets.UTF_8))
-                .build();
-        HttpResponse<java.io.InputStream> response =
-                http.send(request, HttpResponse.BodyHandlers.ofInputStream());
-        if (response.statusCode() != 200) return null;
+        HttpResponse<java.io.InputStream> response = sendWithFallback(body, settings, Duration.ofSeconds(60));
         ObjectNode assistant = json.createObjectNode();
         assistant.put("role", "assistant");
         StringBuilder content = new StringBuilder();
