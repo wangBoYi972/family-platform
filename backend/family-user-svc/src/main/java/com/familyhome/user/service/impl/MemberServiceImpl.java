@@ -74,47 +74,70 @@ public class MemberServiceImpl implements MemberService {
                 .toList();
     }
 
+    /** 单次批量查询允许的最大 ID 数，防止枚举拖库。 */
+    private static final int BATCH_USER_ID_LIMIT = 200;
+
     @Override
     public Map<Long, MemberVO> batchGetUsers(SessionPrincipal p, String userIds) {
         if (userIds == null || userIds.isBlank()) {
             return Map.of();
         }
 
-        // 解析用户ID列表
-        List<Long> ids = Arrays.stream(userIds.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .map(Long::parseLong)
-                .distinct()
-                .toList();
-
+        // 解析用户ID列表：容忍非法片段（非数字直接跳过），避免坏参数导致 500
+        List<Long> ids;
+        try {
+            ids = Arrays.stream(userIds.split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .map(s -> {
+                        try {
+                            return Long.parseLong(s);
+                        } catch (NumberFormatException e) {
+                            return null;
+                        }
+                    })
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .limit(BATCH_USER_ID_LIMIT + 1)   // 多取一个用于超限判断
+                    .toList();
+        } catch (Exception e) {
+            return Map.of();
+        }
         if (ids.isEmpty()) {
             return Map.of();
         }
+        if (ids.size() > BATCH_USER_ID_LIMIT) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "一次最多查询 " + BATCH_USER_ID_LIMIT + " 个用户");
+        }
 
-        // 批量查询用户信息
-        List<FamilyUser> userList = users.selectList(
-                new LambdaQueryWrapper<FamilyUser>()
-                        .in(FamilyUser::getId, ids)
-        );
-
-        // 查询角色信息
+        // 安全边界：先取本家庭启用中的白名单电话与角色，查询只允许落在本家庭成员范围内。
+        // FamilyUser 是全局表且无 householdId，不能只按 id 查——否则任何成员都能枚举全库用户信息。
         List<WhitelistEntry> entries = whitelist.selectList(
                 new LambdaQueryWrapper<WhitelistEntry>()
                         .eq(WhitelistEntry::getHouseholdId, p.householdId())
                         .eq(WhitelistEntry::getEnabled, true)
         );
-
+        if (entries.isEmpty()) {
+            return Map.of();
+        }
         Map<String, String> phoneToRole = new HashMap<>();
         entries.forEach(e -> phoneToRole.put(e.getPhone(), e.getRole()));
 
-        // 构造返回映射
+        // 按 id + 本家庭电话双重过滤；非本家庭的 id 不会出现在结果里
+        List<FamilyUser> userList = users.selectList(
+                new LambdaQueryWrapper<FamilyUser>()
+                        .in(FamilyUser::getId, ids)
+                        .in(FamilyUser::getPhone, phoneToRole.keySet())
+        );
+
         Map<Long, MemberVO> result = new HashMap<>();
         for (FamilyUser user : userList) {
-            String role = phoneToRole.getOrDefault(user.getPhone(), "MEMBER");
+            String role = phoneToRole.get(user.getPhone());
+            if (role == null) {   // 双重保险：即便 SQL 条件失效也不泄露非本家庭成员
+                continue;
+            }
             result.put(user.getId(), new MemberVO(user.getId(), user.getDisplayName(), role));
         }
-
         return result;
     }
 

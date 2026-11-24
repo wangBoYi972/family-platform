@@ -78,7 +78,7 @@ onShow(load);
     </view>
     <view class="tabs"><text v-for="item in (isArchive ? ['档案'] : ['任务','动态','公告','家居'])" :key="item" :class="['tab',tab===item?'active':'']" @click="tab=item">{{ item }}</text></view>
     <TaskPanel v-if="tab === '任务' && !isArchive" ref="taskPanel" @session-ended="clearSession" />
-    <IotPanel v-else-if="tab === '家居' && !isArchive" ref="iotPanel" :is-admin="principal?.role === 'ADMIN'" @session-ended="clearSession" />
+    <IotPanel v-else-if="tab === '家居' && !isArchive" ref="iotPanel" @session-ended="clearSession" />
     <view v-else-if="loading" class="empty">加载中…</view>
     <view v-else-if="tab==='任务'||isArchive" class="list"><view v-for="item in tasks" :key="item.id" class="row"><text class="row-title">{{ item.title }}</text><text class="row-meta">{{ item.status || item.category || item.visibility }}</text></view><view v-if="!tasks.length" class="empty">暂无记录</view></view>
     <view v-else class="list"><view v-for="item in entries" :key="item.id" class="row"><text class="row-title">{{ item.title }}</text><text class="row-meta">{{ item.body || "家庭成员可见" }}</text></view><view v-if="!entries.length" class="empty">暂无记录</view></view>

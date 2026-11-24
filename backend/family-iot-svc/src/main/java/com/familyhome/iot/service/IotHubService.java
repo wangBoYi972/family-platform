@@ -32,4 +32,10 @@ public interface IotHubService {
    * 获取中枢配置（内部用，包含令牌）
    */
   com.familyhome.iot.model.IotHub getHubInternal(Long householdId);
+
+  /**
+   * 列出所有已绑定中枢的家庭编号（供启动时建立实时连接用）。
+   * 演示中枢不在此列——它没有可连接的 WebSocket 地址。
+   */
+  java.util.List<Long> listBoundHouseholdIds();
 }

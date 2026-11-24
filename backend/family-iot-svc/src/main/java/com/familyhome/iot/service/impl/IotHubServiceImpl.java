@@ -35,6 +35,11 @@ public class IotHubServiceImpl implements IotHubService {
   @Autowired
   private IotDeviceSnapshotMapper deviceSnapshotMapper;
 
+  /** @Lazy 打破与 IotWebSocketServiceImpl 的循环依赖（后者依赖本服务读取中枢配置）。 */
+  @Autowired
+  @org.springframework.context.annotation.Lazy
+  private com.familyhome.iot.service.IotWebSocketService wsService;
+
   @Override
   public IotHubVO getHub(Long householdId) {
     IotHub hub = hubMapper.selectByHouseholdId(householdId);
@@ -87,11 +92,28 @@ public class IotHubServiceImpl implements IotHubService {
       hubMapper.insert(hub);
     }
 
+    // 绑定成功后尝试建立实时连接（演示中枢跳过；失败不影响绑定结果）
+    if (!demo) {
+      final Long hid = householdId;
+      Thread t = new Thread(() -> {
+        try {
+          wsService.connect(hid);
+        } catch (Exception e) {
+          log.warn("家庭 {} 绑定后实时连接未建立（可依赖轮询兜底）: {}", hid, e.getMessage());
+        }
+      }, "iot-ws-connect-" + hid);
+      t.setDaemon(true);
+      t.start();
+    }
+
     return getHub(householdId);
   }
 
   @Override
   public void unbindHub(Long householdId) {
+    // 先断开实时连接，避免解绑后仍在接收并写入已清除的快照
+    wsService.disconnect(householdId);
+
     QueryWrapper<IotHub> qw = new QueryWrapper<>();
     qw.eq("household_id", householdId);
     hubMapper.delete(qw);
@@ -128,5 +150,16 @@ public class IotHubServiceImpl implements IotHubService {
       }
     }
     return hub;
+  }
+
+  @Override
+  public java.util.List<Long> listBoundHouseholdIds() {
+    // 排除演示中枢：demo:// 没有可连接的 WebSocket 地址
+    return hubMapper.selectList(null).stream()
+        .filter(hub -> !DemoHub.isDemo(hub.getBaseUrl()))
+        .map(IotHub::getHouseholdId)
+        .filter(java.util.Objects::nonNull)
+        .distinct()
+        .toList();
   }
 }
