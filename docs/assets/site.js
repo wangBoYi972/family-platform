@@ -54,8 +54,21 @@
   }
 
   function bindSwitch(buttons, onSelect) {
-    buttons.forEach(function (button) {
+    buttons.forEach(function (button, index) {
       button.addEventListener("click", function () { onSelect(button); });
+      if (button.getAttribute("role") !== "tab") return;
+      button.addEventListener("keydown", function (event) {
+        var key = event.key;
+        var next = null;
+        if (key === "ArrowRight" || key === "ArrowDown") next = buttons[(index + 1) % buttons.length];
+        else if (key === "ArrowLeft" || key === "ArrowUp") next = buttons[(index - 1 + buttons.length) % buttons.length];
+        else if (key === "Home") next = buttons[0];
+        else if (key === "End") next = buttons[buttons.length - 1];
+        if (!next || next === button) return;
+        event.preventDefault();
+        onSelect(next);
+        next.focus();
+      });
     });
   }
 

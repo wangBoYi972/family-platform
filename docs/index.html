@@ -451,59 +451,59 @@
           </div>
           <div class="matrix-row" role="row">
             <h3>登录与会话</h3>
-            <div class="cell yes"><b>管理员</b><span>role=ADMIN 且 client=admin</span></div>
-            <div class="cell yes"><b>家庭成员</b><span>client=family</span></div>
-            <div class="cell yes"><b>家庭成员</b><span>client=family</span></div>
-            <div class="cell mid"><b>档案身份</b><span>client=archive</span></div>
+            <div class="cell yes"><span class="who">管理端</span><b>管理员</b><span>role=ADMIN 且 client=admin</span></div>
+            <div class="cell yes"><span class="who">移动端</span><b>家庭成员</b><span>client=family</span></div>
+            <div class="cell yes"><span class="who">家庭小程序</span><b>家庭成员</b><span>client=family</span></div>
+            <div class="cell mid"><span class="who">档案小程序</span><b>档案身份</b><span>client=archive</span></div>
           </div>
           <div class="matrix-row" role="row">
             <h3>任务 / 公告 / 日历</h3>
-            <div class="cell yes"><b>已接入</b><span>工作台、公告、日历</span></div>
-            <div class="cell yes"><b>已接入</b><span>任务、日程、公告</span></div>
-            <div class="cell yes"><b>已接入</b><span>任务、日历、公告</span></div>
-            <div class="cell mid"><b>公告只在服务端</b><span>界面没有；GET 公告放行</span></div>
+            <div class="cell yes"><span class="who">管理端</span><b>已接入</b><span>工作台、公告、日历</span></div>
+            <div class="cell yes"><span class="who">移动端</span><b>已接入</b><span>任务、日程、公告</span></div>
+            <div class="cell yes"><span class="who">家庭小程序</span><b>已接入</b><span>任务、日历、公告</span></div>
+            <div class="cell mid"><span class="who">档案小程序</span><b>公告只在服务端</b><span>界面没有；GET 公告放行</span></div>
           </div>
           <div class="matrix-row" role="row">
             <h3>档案与用药复诊</h3>
-            <div class="cell yes"><b>档案已接入</b><span>没有用药复诊页</span></div>
-            <div class="cell yes"><b>已接入</b><span>档案 + 用药复诊</span></div>
-            <div class="cell yes"><b>已接入</b><span>档案 + 用药复诊</span></div>
-            <div class="cell mid"><b>只显示档案</b><span>列表可读，没有用药页</span></div>
+            <div class="cell yes"><span class="who">管理端</span><b>档案已接入</b><span>没有用药复诊页</span></div>
+            <div class="cell yes"><span class="who">移动端</span><b>已接入</b><span>档案 + 用药复诊</span></div>
+            <div class="cell yes"><span class="who">家庭小程序</span><b>已接入</b><span>档案 + 用药复诊</span></div>
+            <div class="cell mid"><span class="who">档案小程序</span><b>只显示档案</b><span>列表可读，没有用药页</span></div>
           </div>
           <div class="matrix-row" role="row">
             <h3>账本</h3>
-            <div class="cell no"><b>无入口</b><span>路由存在，界面未做</span></div>
-            <div class="cell yes"><b>主标签</b><span>共享 LedgerPanel</span></div>
-            <div class="cell yes"><b>主标签</b><span>同一块面板</span></div>
-            <div class="cell no"><b>拒绝</b><span>不在 archive 白名单</span></div>
+            <div class="cell no"><span class="who">管理端</span><b>无入口</b><span>路由存在，界面未做</span></div>
+            <div class="cell yes"><span class="who">移动端</span><b>主标签</b><span>共享 LedgerPanel</span></div>
+            <div class="cell yes"><span class="who">家庭小程序</span><b>主标签</b><span>同一块面板</span></div>
+            <div class="cell no"><span class="who">档案小程序</span><b>拒绝</b><span>不在 archive 白名单</span></div>
           </div>
           <div class="matrix-row" role="row">
             <h3>家居</h3>
-            <div class="cell no"><b>无入口</b><span>路由存在，界面未做</span></div>
-            <div class="cell yes"><b>主标签</b><span>刷新主题尚未列入 iot</span></div>
-            <div class="cell yes"><b>主标签</b><span>iot 事件会刷新</span></div>
-            <div class="cell no"><b>拒绝</b><span>不在 archive 白名单</span></div>
+            <div class="cell no"><span class="who">管理端</span><b>无入口</b><span>路由存在，界面未做</span></div>
+            <div class="cell yes"><span class="who">移动端</span><b>主标签</b><span>刷新主题尚未列入 iot</span></div>
+            <div class="cell yes"><span class="who">家庭小程序</span><b>主标签</b><span>iot 事件会刷新</span></div>
+            <div class="cell no"><span class="who">档案小程序</span><b>拒绝</b><span>不在 archive 白名单</span></div>
           </div>
           <div class="matrix-row" role="row">
             <h3>消息与通话</h3>
-            <div class="cell no"><b>无入口</b><span>管理端不挂聊天</span></div>
-            <div class="cell yes"><b>消息分组</b><span>含通话与未读角标</span></div>
-            <div class="cell yes"><b>聊天标签</b><span>含通话与小助手</span></div>
-            <div class="cell no"><b>拒绝</b><span>不在 archive 白名单</span></div>
+            <div class="cell no"><span class="who">管理端</span><b>无入口</b><span>管理端不挂聊天</span></div>
+            <div class="cell yes"><span class="who">移动端</span><b>消息分组</b><span>含通话与未读角标</span></div>
+            <div class="cell yes"><span class="who">家庭小程序</span><b>聊天标签</b><span>含通话与小助手</span></div>
+            <div class="cell no"><span class="who">档案小程序</span><b>拒绝</b><span>不在 archive 白名单</span></div>
           </div>
           <div class="matrix-row" role="row">
             <h3>文件</h3>
-            <div class="cell no"><b>无入口</b><span>下载仍要授权</span></div>
-            <div class="cell yes"><b>我的家</b><span>共享文件面板</span></div>
-            <div class="cell yes"><b>我的家</b><span>同一块面板</span></div>
-            <div class="cell mid"><b>服务端可读</b><span>界面没有文件页</span></div>
+            <div class="cell no"><span class="who">管理端</span><b>无入口</b><span>下载仍要授权</span></div>
+            <div class="cell yes"><span class="who">移动端</span><b>我的家</b><span>共享文件面板</span></div>
+            <div class="cell yes"><span class="who">家庭小程序</span><b>我的家</b><span>同一块面板</span></div>
+            <div class="cell mid"><span class="who">档案小程序</span><b>服务端可读</b><span>界面没有文件页</span></div>
           </div>
           <div class="matrix-row" role="row">
             <h3>小助手</h3>
-            <div class="cell yes"><b>设置页</b><span>未配置则关闭</span></div>
-            <div class="cell yes"><b>聊天内</b><span>置顶入口</span></div>
-            <div class="cell yes"><b>聊天内</b><span>置顶入口</span></div>
-            <div class="cell no"><b>无</b><span>不在档案端范围</span></div>
+            <div class="cell yes"><span class="who">管理端</span><b>设置页</b><span>未配置则关闭</span></div>
+            <div class="cell yes"><span class="who">移动端</span><b>聊天内</b><span>置顶入口</span></div>
+            <div class="cell yes"><span class="who">家庭小程序</span><b>聊天内</b><span>置顶入口</span></div>
+            <div class="cell no"><span class="who">档案小程序</span><b>无</b><span>不在档案端范围</span></div>
           </div>
         </div>
         <p class="matrix-foot">家庭编号不信任客户端自己传。注册要管理员发放的邀请码：管理端注册只接受管理员邀请码，成员邀请码在小程序端使用。矩阵里的「无入口」指界面，不是声称网关对管理员令牌做了额外封禁。</p>
