@@ -57,16 +57,28 @@
 
 ## 3. 服务端改造
 
-### 3.1 依赖
-`backend/family-media-svc/pom.xml` 增加官方 Java 服务端 SDK：
+### 3.1 依赖（实际实现：复用 jjwt，不引入 livekit-server SDK）
+`backend/family-media-svc/pom.xml` 增加项目已统一使用的 jjwt 0.12.6（与 gateway / user-svc / security 同版本）：
 ```xml
 <dependency>
-  <groupId>io.livekit</groupId>
-  <artifactId>livekit-server</artifactId>
-  <version>0.14.0</version>
+  <groupId>io.jsonwebtoken</groupId>
+  <artifactId>jjwt-api</artifactId>
+  <version>0.12.6</version>
+</dependency>
+<dependency>
+  <groupId>io.jsonwebtoken</groupId>
+  <artifactId>jjwt-impl</artifactId>
+  <version>0.12.6</version>
+  <scope>runtime</scope>
+</dependency>
+<dependency>
+  <groupId>io.jsonwebtoken</groupId>
+  <artifactId>jjwt-jackson</artifactId>
+  <version>0.12.6</version>
+  <scope>runtime</scope>
 </dependency>
 ```
-> 该库提供 `AccessToken`、`VideoGrant`、`RoomServiceClient`、`EgressServiceClient`、`WebhookReceiver`。仅需签 Token 时只依赖轻量部分；如需主动删房/录制，用 `RoomServiceClient`/`EgressServiceClient`。
+> **为什么不用官方 `io.livekit:livekit-server` SDK**：LiveKit 的 JoinToken 本质就是标准 HS256 JWT，claims 里的 `video` 段是 LiveKit 的 VideoGrant（`roomJoin`/`room`/`canPublish`/`canSubscribe`/`canPublishData` 等）。复用 jjwt 可避免引入一个无法在本环境验证版本的额外依赖，编译可靠、代码可控、测试可覆盖，签出的 token 与官方 `AccessToken.toJwt()` 完全兼容。若后续要做服务端主动删房（`RoomServiceClient`）、Egress 录制或 Webhook 校验，可届时再按实际版本引入官方 SDK，不影响当前签发逻辑。
 
 ### 3.2 配置（`application.yml` + 环境变量）
 新增 `family.livekit.*`，全部可被环境变量覆盖：
@@ -85,41 +97,51 @@ family:
 
 ### 3.3 JoinToken 签发接口（核心）
 
-新增 `POST /api/media/calls/{id}/livekit-token`，返回 `{ token, url, roomName }`。**鉴权是这个接口的安全命门**：必须确认"当前登录用户确实是这通通话的参与者"，否则任何登录用户都能凭 callId 拿到进房凭证。
+新增 `POST /api/media/calls/{id}/livekit-token`，返回 `{ token, url, roomName, ttlSeconds }`。**鉴权是这个接口的安全命门**：必须确认"当前登录用户确实是这通通话的参与者"，否则任何登录用户都能凭 callId 拿到进房凭证。
 
-实现要点（复用现有 `CallService.detail()` 已做的家庭隔离校验）：
+实际实现落位于 `LiveKitTokenService.issue()` + `LiveKitController`，核心逻辑如下（与代码一致）：
 ```java
-@PostMapping("/calls/{id}/livekit-token")
-public ApiResponse<LiveKitTokenVO> liveKitToken(HttpServletRequest request, @PathVariable String id) {
-    SessionPrincipal principal = principals.from(request);
-    if (!properties.isEnabled()) throw new ResponseStatusException(HttpStatus.CONFLICT, "SFU 未启用");
-    CallVO call = calls.detail(principal, id);           // 内部已校验家庭归属 + 参与者身份
-    boolean isParticipant = call.participants().stream()
-            .anyMatch(p -> p.userId() == principal.userId()
-                    && ("JOINED".equals(p.state()) || "INVITED".equals(p.state())));
-    if (!isParticipant) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "你不在该通话中");
+public LiveKitTokenVO issue(SessionPrincipal principal, String callId) {
+    requireEnabled();     // 未开启 SFU -> 409
+    requireConfigured();  // 密钥不全或 secret < 32 字节 -> 快速失败
+    CallVO call = calls.detail(principal, callId);  // detail() 已按 householdId 校验家庭归属
+    requireParticipant(call, principal);  // 二次校验：管理员也不能旁听
+    requireLive(call);                    // 已结束 -> 409
+    String room = properties.roomName(callId);
+    return new LiveKitTokenVO(sign(principal, call, room),
+            properties.getPublicUrl(), room, properties.getTokenTtlSeconds());
+}
 
-    String room = properties.getRoomPrefix() + id;
-    AccessToken token = new AccessToken(properties.getApiKey(), properties.getApiSecret());
-    token.setIdentity(String.valueOf(principal.userId()));       // identity = userId，与参与者表对齐
-    token.setName(principal.displayName());
-    token.setTtl(properties.getTokenTtlSeconds() * 1000L);
-    token.addGrants(
-        new RoomJoin(true),
-        new RoomName(room),
-        new CanPublish(true),
-        new CanSubscribe(true),
-        new CanPublishData(true),
-        new RoomCreate(false)                                    // 禁止客户端建房，房间由服务端控制
-    );
-    return ApiResponse.ok(new LiveKitTokenVO(token.toJwt(), properties.getPublicUrl(), room));
+private String sign(SessionPrincipal principal, CallVO call, String room) {
+    SecretKey key = Keys.hmacShaKeyFor(apiSecret.getBytes(UTF_8));
+    long now = System.currentTimeMillis();
+    Map<String, Object> video = new LinkedHashMap<>();
+    video.put("roomJoin", true);
+    video.put("room", room);
+    video.put("canPublish", true);
+    video.put("canSubscribe", true);
+    video.put("canPublishData", true);
+    // roomCreate 省略即 false；语音通话只允许发布麦克风
+    if (Calls.KIND_AUDIO.equals(call.kind())) video.put("canPublishSources", List.of("microphone"));
+    return Jwts.builder()
+            .issuer(apiKey)
+            .subject(Long.toString(principal.userId()))  // identity = 会话 userId
+            .claim("name", "成员" + principal.userId())
+            .claim("video", video)
+            .issuedAt(new Date(now))
+            .notBefore(new Date(now - 60_000L))          // 与官方 AccessToken 一致的时钟回退
+            .expiration(new Date(now + ttlSeconds * 1000L))
+            .signWith(key, Jwts.SIG.HS256)
+            .compact();
 }
 ```
 安全约束：
-- `identity` 用服务端会话里的 `userId`，**绝不信任客户端上报的 userId**（与 `CallSocket` 现有原则一致）；
-- `RoomCreate(false)` + `livekit.yaml` 的 `room.auto_create: false`：客户端不能自己造房间；
-- Token 有效期 1 小时，覆盖单通通话时长；过期需重新签发；
-- 若 `call.kind == AUDIO`，仍可 `CanPublish(true)` 但前端只开麦克风轨道；权限在服务端按 `kind` 细化可选。
+- `identity` 用服务端会话里的 `userId`，**绝不信任客户端上报的 userId**（与 `CallSocket` 现有原则一致）；`SessionPrincipal` 没有 `displayName()`，显示名用「成员 + userId」占位，UI 上的姓名仍由家庭花名册渲染；
+- 房间名由服务端固定为 `family-<callId>` 且 grant 中没有 `roomCreate`，客户端无法自建任意房间；`livekit.yaml` 的 `room.auto_create` 必须为 **true**——否则在服务端没有 RoomService 建房调用的情况下，客户端 join 会直接失败（房间名仍受 token 约束，安全性不受影响）；
+- Token 有效期默认 1 小时，覆盖单通通话时长；过期需重新签发；
+- 语音通话在服务端就限制 `canPublishSources=["microphone"]`，不依赖前端自觉关摄像头。
+
+对应的鉴权测试 `LiveKitTokenServiceTest` 覆盖 9 个场景：合法签发与 claims 校验、被叫 INVITED 可签发、同家庭非参与者 403、管理员非参与者 403、跨家庭 404、拒接后 403、语音轨限制、flag 关闭 409、密钥过短快速失败。
 
 ### 3.4 可选：服务端主动删房
 通话结束时使用 `RoomServiceClient.deleteRoom(room)`，避免等待空房间超时：
@@ -127,7 +149,7 @@ public ApiResponse<LiveKitTokenVO> liveKitToken(HttpServletRequest request, @Pat
 RoomServiceClient rooms = RoomServiceClient.createClient(internalUrl, apiKey, apiSecret);
 rooms.deleteRoom(room).execute();
 ```
-非必须（空房间超时会回收），但能让资源立即释放，建议在 `CallService.end()` 里异步调用，失败只记日志、不影响状态机。
+非必须（空房间超时会回收），但能让资源立即释放，建议在 `CallService.end()` 里异步调用，失败只记日志、不影响状态机。**当前 P0 未实现此项**：它需要通过 LiveKit 服务端 REST API 调用，届时应按环境可验证的具体版本引入官方 SDK（或自行用 jjwt 签发 roomAdmin token + HTTP 调用），不影响已有的入房凭证签发逻辑。
 
 ### 3.5 Webhook（可选但推荐）
 LiveKit 可通过 webhook 推送 `participant_connected`/`participant_disconnected`/`track_published` 等事件。接入 `WebhookReceiver` 校验签名后，可用于：
