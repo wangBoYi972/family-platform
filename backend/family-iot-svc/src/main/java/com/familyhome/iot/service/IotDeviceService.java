@@ -1,5 +1,6 @@
 package com.familyhome.iot.service;
 
+import com.familyhome.iot.dto.IotDeviceUpsertDTO;
 import com.familyhome.iot.vo.AreaDevicesVO;
 import com.familyhome.iot.vo.IotDeviceVO;
 import java.util.List;
@@ -34,4 +35,19 @@ public interface IotDeviceService {
    * 标记中枢离线，所有设备离线
    */
   void markHubOffline(Long householdId);
+
+  /**
+   * 手动添加一个设备（本地模拟，不依赖中枢）
+   */
+  IotDeviceVO addManualDevice(Long householdId, IotDeviceUpsertDTO dto);
+
+  /**
+   * 编辑手动设备。只能编辑 device_source=MANUAL 的设备。
+   */
+  IotDeviceVO updateManualDevice(Long householdId, String entityId, IotDeviceUpsertDTO dto);
+
+  /**
+   * 删除手动设备。只能删除 device_source=MANUAL 的设备。
+   */
+  void deleteManualDevice(Long householdId, String entityId);
 }

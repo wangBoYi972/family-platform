@@ -30,13 +30,21 @@ import java.util.Set;
 @Service
 public class IotCommandServiceImpl implements IotCommandService {
 
-  // 白名单：只允许这些命令
+  // 白名单：只允许这些命令。命名与 Home Assistant domain.service 一致，
+  // 空调=climate，电视/音响=media_player。
   private static final String[] ALLOWED_COMMANDS = {
-      "light.turn_on",
-      "light.turn_off",
-      "switch.turn_on",
-      "switch.turn_off",
-      "scene.turn_on"
+      "light.turn_on", "light.turn_off",
+      "switch.turn_on", "switch.turn_off",
+      "scene.turn_on",
+      // 空调：开关 / 设定温度 / 运行模式 / 风速
+      "climate.turn_on", "climate.turn_off",
+      "climate.set_temperature", "climate.set_hvac_mode", "climate.set_fan_mode",
+      // 电视/音响：开关 / 音量 / 静音 / 频道(音源) / 播放控制
+      "media_player.turn_on", "media_player.turn_off",
+      "media_player.volume_set", "media_player.volume_mute",
+      "media_player.select_source", "media_player.media_play",
+      "media_player.media_pause", "media_player.media_next_track",
+      "media_player.media_previous_track"
   };
 
   @Autowired
@@ -75,12 +83,18 @@ public class IotCommandServiceImpl implements IotCommandService {
       throw new IllegalArgumentException("不支持的命令");
     }
 
-    // 获取中枢配置
-    IotHub hub = hubService.getHubInternal(householdId);
-    if (hub == null) {
-      throw new RuntimeException("中枢未配置");
+    // 手动设备是本地模拟设备：不需要中枢，也不把命令转发给 HA（HA 里没有这个 entity_id）。
+    boolean manual = "MANUAL".equals(device.getDeviceSource());
+    boolean demo = false;
+    IotHub hub = null;
+    if (!manual) {
+      // 中枢同步设备必须有已配置的中枢才能下发命令
+      hub = hubService.getHubInternal(householdId);
+      if (hub == null) {
+        throw new RuntimeException("中枢未配置");
+      }
+      demo = DemoHub.isDemo(hub.getBaseUrl());
     }
-    boolean demo = DemoHub.isDemo(hub.getBaseUrl());
 
     // 构建命令日志记录
     IotCommandLog cmdLog = new IotCommandLog();
@@ -105,14 +119,18 @@ public class IotCommandServiceImpl implements IotCommandService {
       ((com.fasterxml.jackson.databind.node.ObjectNode) parameters).put("entity_id", entityId);
       cmdLog.setRequestData(parameters);
 
-      // 调用 Home Assistant（演示中枢只改本地状态）
-      boolean success = demo
+      // 手动设备 / 演示中枢 / 演示设备 → 只改本地状态；
+      // 真实中枢同步的设备 → 下发到 Home Assistant。
+      boolean success = (demo || manual)
           ? applyDemoCommand(device, dto.getCommandType(), parameters)
           : homeAssistantClient.callService(hub, device.getEntityType(), dto.getCommandType(), parameters);
       cmdLog.setSuccess(success);
 
       if (!success) {
-        cmdLog.setErrorMessage(demo ? "演示设备不支持该操作" : "Home Assistant 返回失败状态");
+        String reason = (demo || manual) ? "设备不支持该操作或参数不合法" : "Home Assistant 返回失败状态";
+        cmdLog.setErrorMessage(reason);
+        // 必须抛异常让接口返回失败：否则前端收到 2xx 会以为设置成功，实际状态没变。
+        throw new IllegalArgumentException(reason);
       }
     } catch (Exception e) {
       cmdLog.setSuccess(false);
@@ -173,31 +191,98 @@ public class IotCommandServiceImpl implements IotCommandService {
   }
 
   /**
-   * 演示中枢：本地翻转设备状态，模拟一次成功的服务调用。
+   * 本地模拟命令：演示中枢和手动设备都走这里，模拟一次成功的服务调用并更新快照状态。
+   *
+   * <p>支持开关、灯光亮度、空调温度/模式/风速、电视音响音量/静音/频道/播放控制。
+   * 状态字段约定：普通设备 state=on/off；空调 state=hvac_mode（cool/heat/off...）。
    */
   @SuppressWarnings("unchecked")
   private boolean applyDemoCommand(IotDeviceSnapshot device, String commandType, JsonNode parameters)
       throws Exception {
-    String state;
-    if ("turn_on".equals(commandType)) {
-      state = "on";
-    } else if ("turn_off".equals(commandType)) {
-      state = "off";
-    } else {
-      return false;
-    }
-
+    String type = device.getEntityType();
     Map<String, Object> attributes = new HashMap<>();
     if (device.getAttributes() != null && !device.getAttributes().isBlank()) {
       attributes.putAll(objectMapper.readValue(device.getAttributes(), Map.class));
     }
-    if ("light".equals(device.getEntityType()) && "on".equals(state) && parameters.hasNonNull("brightness")) {
-      attributes.put("brightness", parameters.get("brightness").asInt());
+    String state = device.getState();
+
+    switch (commandType) {
+      case "turn_on" -> {
+        state = "on";
+        // 空调用模式作为 state，开启时恢复上次模式或默认制冷
+        if ("climate".equals(type)) {
+          state = str(attributes.get("hvac_mode"), "cool");
+          if ("off".equals(state)) state = "cool";
+        }
+        // 灯光亮度随 turn_on 一起下发（前端拖动亮度条就是这种）
+        if ("light".equals(type) && parameters.hasNonNull("brightness")) {
+          attributes.put("brightness", parameters.get("brightness").asInt());
+        }
+      }
+      case "turn_off" -> {
+        state = "off";
+        if ("climate".equals(type)) attributes.put("hvac_mode", "off");
+      }
+      case "set_temperature" -> {
+        if (!parameters.hasNonNull("temperature")) return false;
+        double t = parameters.get("temperature").asDouble();
+        if (t < 16 || t > 35) return false; // 合理温度区间，防止误操作/越界
+        attributes.put("temperature", t);
+        // 调温即视为开机
+        if ("off".equals(state)) state = str(attributes.get("hvac_mode"), "cool");
+      }
+      case "set_hvac_mode" -> {
+        if (!parameters.hasNonNull("hvac_mode")) return false;
+        String mode = parameters.get("hvac_mode").asText();
+        if (!java.util.Set.of("cool", "heat", "dry", "fan_only", "auto", "off").contains(mode)) return false;
+        attributes.put("hvac_mode", mode);
+        state = mode;
+      }
+      case "set_fan_mode" -> {
+        if (!parameters.hasNonNull("fan_mode")) return false;
+        String fan = parameters.get("fan_mode").asText();
+        if (!java.util.Set.of("auto", "low", "mid", "high").contains(fan)) return false;
+        attributes.put("fan_mode", fan);
+      }
+      case "volume_set" -> {
+        if (!parameters.hasNonNull("volume_level")) return false;
+        double v = parameters.get("volume_level").asDouble();
+        if (v < 0 || v > 1) return false;
+        attributes.put("volume_level", v);
+      }
+      case "volume_mute" -> {
+        if (!parameters.hasNonNull("is_volume_muted")) return false;
+        attributes.put("is_volume_muted", parameters.get("is_volume_muted").asBoolean());
+      }
+      case "select_source" -> {
+        if (!parameters.hasNonNull("source")) return false;
+        attributes.put("source", parameters.get("source").asText());
+      }
+      case "media_play" -> state = "on";
+      case "media_pause" -> state = "paused";
+      case "media_next_track", "media_previous_track" -> {
+        // 无真实曲目源，仅在标题上留痕，避免看起来"点了没反应"
+        String title = str(attributes.get("media_title"), "");
+        attributes.put("media_title", "media_next_track".equals(commandType)
+            ? (title.isEmpty() ? "下一曲" : title + " ›") : "上一曲");
+      }
+      default -> {
+        // 灯光亮度走这里（turn_on 已处理，这里兼容历史前端直接发 set brightness 的调用）
+        if ("light".equals(type) && parameters.hasNonNull("brightness")) {
+          attributes.put("brightness", parameters.get("brightness").asInt());
+          state = "on";
+        } else {
+          return false;
+        }
+      }
     }
 
-    deviceService.updateDeviceState(
-        device.getHouseholdId(), device.getEntityId(), state, attributes.isEmpty() ? null : attributes);
+    deviceService.updateDeviceState(device.getHouseholdId(), device.getEntityId(), state, attributes);
     return true;
+  }
+
+  private static String str(Object value, String fallback) {
+    return value == null ? fallback : String.valueOf(value);
   }
 
   private boolean isCommandAllowed(String command) {

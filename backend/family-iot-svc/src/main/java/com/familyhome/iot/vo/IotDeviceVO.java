@@ -15,8 +15,14 @@ public class IotDeviceVO {
   // 设备名称
   private String deviceName;
 
-  // 实体类型（light/switch/sensor/scene）
+  // 设备品牌
+  private String brand;
+
+  // 实体类型（light/switch/sensor/scene/climate/media_player）
   private String entityType;
+
+  // 设备来源：HUB（中枢同步）/ MANUAL（手动添加，可编辑删除）
+  private String deviceSource;
 
   // 区域名称
   private String areaName;

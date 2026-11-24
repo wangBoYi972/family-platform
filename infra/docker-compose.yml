@@ -244,6 +244,8 @@ services:
       FAMILY_JWT_SECRET: ${FAMILY_JWT_SECRET:?}
       # 设备访问令牌用 AES 加密入库；留空时服务能启动，但保存设备会失败
       FAMILY_IOT_ENCRYPTION_KEY: ${FAMILY_IOT_ENCRYPTION_KEY:-}
+      # 远程中枢白名单：不在家要控制设备时填家里 HA 的主机名（逗号分隔）
+      FAMILY_IOT_ALLOWED_HOSTS: ${FAMILY_IOT_ALLOWED_HOSTS:-}
     depends_on:
       - nacos
       - mysql

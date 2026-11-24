@@ -19,11 +19,14 @@ public class IotDeviceSnapshot {
   // Home Assistant entity_id（如 light.living_room_light）
   private String entityId;
 
-  // 实体类型（light/switch/sensor/scene）
+  // 实体类型（light/switch/sensor/scene/climate/media_player）
   private String entityType;
 
   // 设备名称
   private String deviceName;
+
+  // 设备品牌（如：米家 / 格力 / 海尔 / Sony）
+  private String brand;
 
   // 区域名称（用于分组）
   private String areaName;
@@ -36,6 +39,10 @@ public class IotDeviceSnapshot {
   // 这里刻意用 String 而不是 JsonNode：MyBatis-Plus 的 JacksonTypeHandler 对 JsonNode
   // 只能写不能读（select 回来恒为 null，前端亮度条永远是 0），换成文本字段在 VO 层再解析。
   private String attributes;
+
+  // 设备来源：HUB（中枢同步）/ MANUAL（手动添加）
+  // 手动设备是本地模拟设备，不依赖真实中枢，同步时不会被覆盖。
+  private String deviceSource;
 
   // 中枢是否在线
   @TableField(value = "is_online", fill = FieldFill.INSERT)

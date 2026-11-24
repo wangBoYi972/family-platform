@@ -3,7 +3,7 @@ package com.familyhome.iot.client;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.familyhome.iot.model.IotHub;
-import com.familyhome.iot.util.UrlValidator;
+import com.familyhome.iot.util.HubUrlValidator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import java.net.URI;
@@ -25,11 +25,14 @@ public class HomeAssistantClient {
   private final HttpClient httpClient;
   private final int commandTimeout;
   private final ObjectMapper objectMapper;
+  private final HubUrlValidator hubUrlValidator;
 
-  public HomeAssistantClient(com.familyhome.iot.config.IotConfig iotConfig) {
+  public HomeAssistantClient(
+      com.familyhome.iot.config.IotConfig iotConfig, HubUrlValidator hubUrlValidator) {
     this.httpClient = HttpClient.newHttpClient();
     this.commandTimeout = iotConfig.getCommandTimeout();
     this.objectMapper = new ObjectMapper();
+    this.hubUrlValidator = hubUrlValidator;
   }
 
   /**
@@ -37,7 +40,7 @@ public class HomeAssistantClient {
    */
   public boolean testConnection(String baseUrl, String accessToken) {
     try {
-      if (!UrlValidator.isSafeUrl(baseUrl)) {
+      if (!hubUrlValidator.isAllowed(baseUrl)) {
         log.warn("不安全的 URL: {}", baseUrl);
         return false;
       }
@@ -62,7 +65,7 @@ public class HomeAssistantClient {
    * 获取所有实体状态
    */
   public JsonNode getStates(IotHub hub) throws Exception {
-    if (!UrlValidator.isSafeUrl(hub.getBaseUrl())) {
+    if (!hubUrlValidator.isAllowed(hub.getBaseUrl())) {
       throw new IllegalArgumentException("不安全的 URL");
     }
 
@@ -86,7 +89,7 @@ public class HomeAssistantClient {
    * 执行服务调用
    */
   public boolean callService(IotHub hub, String domain, String service, JsonNode data) throws Exception {
-    if (!UrlValidator.isSafeUrl(hub.getBaseUrl())) {
+    if (!hubUrlValidator.isAllowed(hub.getBaseUrl())) {
       throw new IllegalArgumentException("不安全的 URL");
     }
 

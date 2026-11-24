@@ -2,6 +2,7 @@ package com.familyhome.iot.controller;
 
 import com.familyhome.common.api.ApiResponse;
 import com.familyhome.iot.dto.IotCommandDTO;
+import com.familyhome.iot.dto.IotDeviceUpsertDTO;
 import com.familyhome.iot.dto.IotHubBindDTO;
 import com.familyhome.iot.service.IotCommandService;
 import com.familyhome.iot.service.IotDeviceService;
@@ -133,6 +134,51 @@ public class IotController {
 
     List<IotDeviceVO> scenes = deviceService.getScenes(householdId);
     return ApiResponse.success(scenes);
+  }
+
+  /**
+   * 手动添加设备（本地模拟，不依赖中枢）。家庭成员均可操作。
+   */
+  @PostMapping("/devices")
+  public ApiResponse<IotDeviceVO> addDevice(
+      HttpServletRequest r,
+      @Valid @RequestBody IotDeviceUpsertDTO dto) {
+    long householdId = SessionPrincipal.from(r).householdId();
+    try {
+      return ApiResponse.success(deviceService.addManualDevice(householdId, dto));
+    } catch (IllegalArgumentException e) {
+      return ApiResponse.failure(400, e.getMessage());
+    }
+  }
+
+  /**
+   * 编辑手动设备。只能改 device_source=MANUAL 的设备。
+   */
+  @PutMapping("/devices/{entityId}")
+  public ApiResponse<IotDeviceVO> updateDevice(
+      HttpServletRequest r,
+      @PathVariable String entityId,
+      @Valid @RequestBody IotDeviceUpsertDTO dto) {
+    long householdId = SessionPrincipal.from(r).householdId();
+    try {
+      return ApiResponse.success(deviceService.updateManualDevice(householdId, entityId, dto));
+    } catch (IllegalArgumentException e) {
+      return ApiResponse.failure(400, e.getMessage());
+    }
+  }
+
+  /**
+   * 删除手动设备。只能删 device_source=MANUAL 的设备。
+   */
+  @DeleteMapping("/devices/{entityId}")
+  public ApiResponse<Void> deleteDevice(HttpServletRequest r, @PathVariable String entityId) {
+    long householdId = SessionPrincipal.from(r).householdId();
+    try {
+      deviceService.deleteManualDevice(householdId, entityId);
+      return ApiResponse.success(null);
+    } catch (IllegalArgumentException e) {
+      return ApiResponse.failure(400, e.getMessage());
+    }
   }
 
   /**

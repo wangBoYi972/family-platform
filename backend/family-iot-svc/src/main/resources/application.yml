@@ -29,5 +29,9 @@ family:
     ws-timeout: ${FAMILY_IOT_WS_TIMEOUT:10}
     # 命令执行超时（秒）
     command-timeout: ${FAMILY_IOT_COMMAND_TIMEOUT:5}
+    # 远程中枢白名单（逗号分隔的主机名，精确匹配）。
+    # 默认只允许私网地址防 SSRF；不在家要控制设备时，把 Tailscale 域名 / HA Cloud 域名 / 内网穿透域名填进来。
+    # 例：abc123.ts.net,myhome.ui.nabu.casa
+    allowed-hosts: ${FAMILY_IOT_ALLOWED_HOSTS:}
     # 加密密钥（从环境变量读取，本地开发环境需设置）
     encryption-key: ${FAMILY_IOT_ENCRYPTION_KEY:}

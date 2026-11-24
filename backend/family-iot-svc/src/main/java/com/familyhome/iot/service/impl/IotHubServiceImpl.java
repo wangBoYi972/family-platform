@@ -8,8 +8,8 @@ import com.familyhome.iot.model.IotDeviceSnapshot;
 import com.familyhome.iot.model.IotHub;
 import com.familyhome.iot.service.IotHubService;
 import com.familyhome.iot.util.DemoHub;
+import com.familyhome.iot.util.HubUrlValidator;
 import com.familyhome.iot.util.TokenEncryptor;
-import com.familyhome.iot.util.UrlValidator;
 import com.familyhome.iot.vo.IotHubVO;
 import com.familyhome.iot.client.HomeAssistantClient;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +25,9 @@ public class IotHubServiceImpl implements IotHubService {
 
   @Autowired
   private IotHubMapper hubMapper;
+
+  @Autowired
+  private HubUrlValidator hubUrlValidator;
 
   @Autowired
   private TokenEncryptor tokenEncryptor;
@@ -64,8 +67,8 @@ public class IotHubServiceImpl implements IotHubService {
     boolean demo = DemoHub.isDemo(dto.getBaseUrl());
 
     // 1. 验证 URL 安全性（演示中枢不走网络，不需要校验地址）
-    if (!demo && !UrlValidator.isSafeUrl(dto.getBaseUrl())) {
-      throw new IllegalArgumentException("中枢地址必须为私网或 localhost");
+    if (!demo && !hubUrlValidator.isAllowed(dto.getBaseUrl())) {
+      throw new IllegalArgumentException("中枢地址不在允许范围内（私网地址，或已加入远程白名单的主机）");
     }
 
     // 2. 测试连接
@@ -131,8 +134,8 @@ public class IotHubServiceImpl implements IotHubService {
     if (DemoHub.isDemo(dto.getBaseUrl())) {
       return true;
     }
-    if (!UrlValidator.isSafeUrl(dto.getBaseUrl())) {
-      throw new IllegalArgumentException("中枢地址必须为私网或 localhost");
+    if (!hubUrlValidator.isAllowed(dto.getBaseUrl())) {
+      throw new IllegalArgumentException("中枢地址不在允许范围内（私网地址，或已加入远程白名单的主机）");
     }
     return homeAssistantClient.testConnection(dto.getBaseUrl(), dto.getAccessToken());
   }
