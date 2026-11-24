@@ -74,7 +74,7 @@
         <p class="lede">面向家庭内部使用：微服务后端、管理端、移动端和两个微信小程序共用业务接口，并按家庭与客户端范围授权。</p>
         <div class="hero-actions">
           <a class="button" href="https://github.com/wangBoYi972/family-platform">查看 GitHub 仓库</a>
-          <a class="button ghost" href="#services">八个业务服务</a>
+          <a class="button ghost" href="#services">十个业务服务</a>
         </div>
       </div>
       <aside class="ledger" aria-label="服务目录">
@@ -88,6 +88,8 @@
           <li><span>消息</span><code>family-im-svc</code></li>
           <li><span>通话</span><code>family-media-svc</code></li>
           <li><span>家庭小助手</span><code>family-ai-svc</code></li>
+          <li><span>家居</span><code>family-iot-svc</code></li>
+          <li><span>账本</span><code>family-ledger-svc</code></li>
         </ol>
       </aside>
     </div>
@@ -115,7 +117,7 @@
           <div class="chapter">贰</div>
           <div>
             <h2>后端服务</h2>
-            <p>首期业务服务都在 <code>backend/</code>。旁边还有公共模块 <code>family-common</code>、<code>family-security</code>、<code>family-messaging</code> 和 <code>family-api</code>。</p>
+            <p>这些服务都在 <code>backend/</code>。旁边还有公共模块 <code>family-common</code>、<code>family-security</code>、<code>family-messaging</code> 和 <code>family-api</code>。</p>
           </div>
         </div>
         <div class="service-list">
@@ -157,7 +159,7 @@
               <h3>档案</h3>
               <p class="id">family-archive-svc</p>
             </div>
-            <p>家庭档案、健康记录和访问审计。管理员可以查看近一段时间的访问汇总。</p>
+            <p>家庭档案、健康记录和访问审计。管理员可以查看近一段时间的访问汇总。用药计划与复诊也在这个服务里：药名等内容加密保存，设为仅本人时其他成员和管理员都看不到。家庭端和移动端当天会提醒一次未服用的药和当天的复诊。微信订阅模板还没接上，不会因此发出订阅消息。</p>
           </article>
           <article class="service">
             <div class="index">06</div>
@@ -183,6 +185,22 @@
             </div>
             <p>对话助手，用当前用户自己的令牌查询本家庭的任务、日程和纪念日，并搜索动态、相册、公告、档案与文件。未配置模型时关闭。历史按用户和家庭保存，不写入即时消息库。</p>
           </article>
+          <article class="service">
+            <div class="index">09</div>
+            <div>
+              <h3>家居设备</h3>
+              <p class="id">family-iot-svc</p>
+            </div>
+            <p>家庭成员可以绑定 Home Assistant 中枢，每家一条。地址只接受本机和私网，公网地址会被拒绝。访问令牌加密后保存，接口不回传令牌，也不回传中枢地址。绑定后按区域同步灯、开关、传感器和场景；控制只开放开灯、关灯、开关和触发场景，结果写入命令日志。没有真实中枢时可以用内置演示设备，命令只改本地快照、不向外发请求。接到真实中枢后，后续状态变化还不会写回快照：仓库里的 WebSocket 监听没有从绑定或启动流程接上，页面定时重读的仍是这份快照。</p>
+          </article>
+          <article class="service">
+            <div class="index">10</div>
+            <div>
+              <h3>家庭账本</h3>
+              <p class="id">family-ledger-svc</p>
+            </div>
+            <p>记录支出和收入，金额用整数分。分类固定为餐饮、日用、住房、交通、医疗、教育、其他。支出要写垫付人和分摊，分摊合计必须等于这笔账；收入记在收款人名下、不分摊。本月收支和每位成员的净额由服务端按整月计算，不按当前页加总。列表可按月份、分类、垫付人或关键字分页。改删只限记账人或管理员。家庭编号只取已校验会话。</p>
+          </article>
         </div>
       </div>
     </section>
@@ -205,7 +223,7 @@
           <article class="card">
             <span class="path">apps/mini-family</span>
             <h3>家庭综合小程序</h3>
-            <p>uni-app（Vue 3）。页面是首页、日历、任务、聊天、家庭圈和我的家，与移动端共用共享面板。</p>
+            <p>uni-app（Vue 3）。页面是首页、日历、任务、账本、聊天、家庭圈、家居和我的家（成员、公告、档案、用药复诊、文件、设置），与移动端共用共享面板。</p>
           </article>
           <article class="card">
             <span class="path">apps/mini-archive</span>
@@ -215,12 +233,12 @@
           <article class="card">
             <span class="path">apps/mobile-app</span>
             <h3>移动端</h3>
-            <p>uni-app 壳。五个分组：任务、日程（日历与纪念日）、家庭圈（动态、相册、时光轴）、消息、我的家（公告、文件、档案、成员）。顶栏有全局搜索，并接入通话和实时刷新。</p>
+            <p>uni-app 壳。七个分组：任务、账本、日程（日历与纪念日）、家庭圈（动态、相册、时光轴）、消息、家居、我的家（公告、文件、档案、用药复诊、成员、设置）。顶栏有全局搜索，并接入通话和实时刷新。</p>
           </article>
           <article class="card wide">
             <span class="path">apps/shared</span>
             <h3>跨端共享</h3>
-            <p>通话组件、任务 / 日历 / 动态 / 相册 / 公告 / 文件 / 档案 / 成员 / 聊天等面板、分页、实时通道和请求错误文案。改一处，家庭端与移动端一起生效。管理端是另一套 Vue 应用，不走这套 uni-app 面板。</p>
+            <p>通话组件、任务 / 日历 / 动态 / 相册 / 公告 / 文件 / 档案 / 成员 / 聊天 / 账本 / 家居 / 用药复诊等面板、分页、实时通道和请求错误文案。改一处，家庭端与移动端一起生效。管理端是另一套 Vue 应用，不走这套 uni-app 面板，目前也没有账本和家居入口。</p>
           </article>
         </div>
       </div>
@@ -238,7 +256,9 @@
         <ul class="capability-list">
           <li><strong>进入家庭</strong><span>白名单与邀请码注册，角色区分管理员和成员。密码只保存 BCrypt 哈希。每个家庭最多十位启用成员。</span></li>
           <li><strong>过日子</strong><span>任务可指派、开始、完成；日历和纪念日、动态、相册、公告都按家庭存放。相册时光轴可以导出一份单文件 HTML 纪念册。</span></li>
-          <li><strong>文件与档案</strong><span>文件下载需要授权。档案有访问记录；管理端用纯样式画出近 30 天的访问概览。</span></li>
+          <li><strong>文件与档案</strong><span>文件下载需要授权。档案有访问记录；管理端用纯样式画出近 30 天的访问概览。用药计划与复诊放在同一服务里，正文加密，可设为仅本人可见。</span></li>
+          <li><strong>记账</strong><span>支出和收入按整数分记账。分类是餐饮、日用、住房、交通、医疗、教育、其他。支出要指定垫付人和分摊，合计必须等于这笔账；收入不分摊。本月收支和每人净额由服务端按整月计算。改删只限记账人或管理员。</span></li>
+          <li><strong>家居</strong><span>家庭成员可以绑定 Home Assistant 中枢。地址只接受本机和私网，令牌加密保存，接口不回传令牌和中枢地址。同步灯、开关、传感器和场景；控制只开放开灯、关灯、开关和触发场景。没有真实中枢时可用内置演示设备。真实中枢的后续状态还不会写回快照。</span></li>
           <li><strong>说话</strong><span>消息支持文本、图片、语音和文件。新消息走实时帧，断线时退回轮询。已读回执会推送。自己发出的消息可在两分钟内撤回，界面留一句「此消息已撤回」。</span></li>
           <li><strong>见面</strong><span>一对一和最多 8 人的家庭通话。信令在服务端，音视频走 WebRTC。超过 8 人所需的 SFU 仍在上线验收里，还没有当作完成项。</span></li>
           <li><strong>问家里的事</strong><span>家庭小助手只查询这个用户原本就能看到的数据。回答以流式输出。微信订阅消息同样是：没配凭证就自动关闭，不假装已经接通。</span></li>
@@ -282,7 +302,7 @@
           </div>
           <div>
             <dt>工程化</dt>
-            <dd>GitHub Actions 跑后端校验、管理端构建和依赖扫描。各服务有多阶段、非 root 的 Dockerfile。<code>infra/docker-compose.yml</code> 编排 MySQL、Nacos、Redis 以及各服务。</dd>
+            <dd>GitHub Actions 跑后端校验、管理端构建和依赖扫描。网关、成员、内容、文件、档案、消息、通话和家庭小助手这八个服务有多阶段、非 root 的 Dockerfile。<code>infra/docker-compose.yml</code> 编排 MySQL、Nacos、Redis 以及这八个服务。家居和账本已在 Maven 模块和网关路由里，编排文件和 Prometheus 抓取名单还没有它们。</dd>
           </div>
           <div>
             <dt>仓库地图</dt>
@@ -306,9 +326,9 @@
             <h3>仓库里已经有的</h3>
             <ul>
               <li>网关路由与 JWT 前置校验，用户服务的登录、会话和成员管理。</li>
-              <li>内容、文件、档案、消息、通话和家庭小助手各自的数据表与迁移。</li>
-              <li>管理端接到成员、任务、公告、日历、档案和助手设置。</li>
-              <li>家庭端与移动端共用面板；实时刷新、聊天推送和通话信令有对应实现。</li>
+              <li>内容、文件、档案、消息、通话、家庭小助手、家居和账本各自的数据表与迁移。</li>
+              <li>管理端接到成员、任务、公告、日历、档案和助手设置。账本和家居还没有管理端入口。</li>
+              <li>家庭端与移动端共用面板，账本和家居已接到这两个端；实时刷新、聊天推送和通话信令有对应实现。</li>
               <li>链路追踪、结构化日志、OpenAPI、容器镜像和持续集成配置已经放进仓库。</li>
             </ul>
           </article>
@@ -332,7 +352,7 @@
     <div class="wrap">
       <h2>English</h2>
       <p>family-platform is a household-scoped system: a Spring Cloud Alibaba backend, an admin console, a mobile client, and two WeChat mini programs. They share APIs and authorize by family and client. It is not a public social network.</p>
-      <p>The backend services cover gateway, members, content, files, archives, messaging, calls, and an optional family assistant that stays off until a model is configured. Source and notes live in the public repository.</p>
+      <p>The backend services are the gateway, members, content, files, archives, messaging, calls, an optional family assistant that stays off until a model is configured, home devices, and a family ledger. Home devices bind to Home Assistant, or to a built-in demo hub that does not call the network. The ledger records income and shared expenses in integer cents, and the monthly totals are computed on the server. These two services are in the Maven modules and gateway routes. The container compose file and the Prometheus scrape list do not include them yet. Source and notes live in the public repository.</p>
       <p><a href="https://github.com/wangBoYi972/family-platform">github.com/wangBoYi972/family-platform</a></p>
     </div>
   </section>
