@@ -1,0 +1,43 @@
+# Alertmanager 路由与通知配置
+# 默认使用 Webhook 通道：企业微信/钉钉群机器人的中转服务，或直接对接自建告警网关。
+# 如需邮件，取消 receivers.email 注释并把 route.receiver 改为 email。
+global:
+  resolve_timeout: 5m
+  # 邮件示例（如用邮件，取消注释并填 .env 对应值）
+  # smtp_smarthost: 'smtp.qq.com:465'
+  # smtp_from: 'family-alert@example.com'
+  # smtp_auth_username: 'family-alert@example.com'
+  # smtp_auth_password: '${SMTP_PASSWORD}'
+
+route:
+  receiver: webhook
+  group_by: ['alertname', 'job']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - receiver: webhook
+      matchers:
+        - severity = "critical"
+      group_wait: 10s
+      repeat_interval: 1h
+
+receivers:
+  - name: webhook
+    webhook_configs:
+      # 企业微信/钉钉群机器人中转地址，或自建网关；${ALERT_WEBHOOK_URL} 由 compose 注入。
+      - url: 'http://alert-gateway:8080/family-alert'
+        send_resolved: true
+
+  # - name: email
+  #   email_configs:
+  #     - to: 'ops@example.com'
+  #       send_resolved: true
+
+inhibit_rules:
+  # 服务整体下线时，抑制该服务的其它告警，避免告警风暴
+  - source_matchers:
+      - alertname = "ServiceDown"
+    target_matchers:
+      - job =~ "family-.*"
+    equal: ['job']

@@ -3,11 +3,25 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+rule_files:
+  - /etc/prometheus/alert.rules.yml
+
 scrape_configs:
   - job_name: family-gateway
     metrics_path: /actuator/prometheus
     static_configs:
       - targets: ["family-gateway:8080"]
+
+  - job_name: livekit
+    metrics_path: /metrics
+    static_configs:
+      # LiveKit 用 host 网络，容器名不可达；用 .env 注入的宿主地址或默认值
+      - targets: ["${LIVEKIT_METRICS_HOST:-127.0.0.1}:6789"]
 
   - job_name: family-services
     metrics_path: /actuator/prometheus
@@ -20,3 +34,5 @@ scrape_configs:
           - "family-im-svc:8089"
           - "family-media-svc:8090"
           - "family-ai-svc:8091"
+          - "family-iot-svc:8092"
+          - "family-ledger-svc:8093"

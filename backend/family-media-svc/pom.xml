@@ -18,6 +18,10 @@
   <dependency><groupId>com.familyhome</groupId><artifactId>family-messaging</artifactId><version>0.1.0-SNAPSHOT</version></dependency>
   <!-- 通话目标成员必须由用户服务校验，不能用客户端传入的家庭标识。 -->
   <dependency><groupId>com.familyhome</groupId><artifactId>family-api</artifactId><version>0.1.0-SNAPSHOT</version></dependency>
+  <!-- LiveKit JoinToken 是标准 HS256 JWT，复用项目统一版本自行签发，无需额外 SDK。 -->
+  <dependency><groupId>io.jsonwebtoken</groupId><artifactId>jjwt-api</artifactId><version>0.12.6</version></dependency>
+  <dependency><groupId>io.jsonwebtoken</groupId><artifactId>jjwt-impl</artifactId><version>0.12.6</version><scope>runtime</scope></dependency>
+  <dependency><groupId>io.jsonwebtoken</groupId><artifactId>jjwt-jackson</artifactId><version>0.12.6</version><scope>runtime</scope></dependency>
   <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
  </dependencies>
  <build><plugins><plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId></plugin></plugins></build>

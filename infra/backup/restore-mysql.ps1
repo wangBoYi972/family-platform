@@ -1,4 +1,4 @@
-# 家庭综合平台 MySQL 恢复脚本（Windows / PowerShell）
+﻿# 家庭综合平台 MySQL 恢复脚本（Windows / PowerShell）
 # 用法：$env:MYSQL_ROOT_PASSWORD="..." ; ./restore-mysql.ps1 <备份目录>
 # 示例：./restore-mysql.ps1 .\backups\20260928-123456
 $ErrorActionPreference = 'Stop'
