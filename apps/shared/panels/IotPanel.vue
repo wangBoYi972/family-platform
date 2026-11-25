@@ -2,7 +2,7 @@
   <div class="iot-panel">
     <div v-if="loading" class="mf-empty">正在读取家里的设备…</div>
 
-    <!-- 未配置：演示优先，真实 HA 收到折叠区 -->
+    <!-- 未配置：真控走家庭网关，演示与 HA 次之 -->
     <template v-else-if="!hubConfigured">
       <div class="mf-card setup-card mf-rise">
         <div class="setup-head">
@@ -10,15 +10,28 @@
           <div class="setup-copy">
             <div class="setup-title">家里的设备</div>
             <div class="setup-desc">
-              先用演示设备体验空调、电视、音响和灯光的开关控制。真实中枢（Home Assistant）可在下方展开连接。
+              想控制真实空调/电视：在家里电脑或树莓派跑网关进程，用配对码连上。也可先用演示设备熟悉界面。
             </div>
           </div>
         </div>
 
-        <button class="solid-btn demo-primary" :disabled="binding" @click="bindDemo">
-          {{ binding ? "准备中…" : "用演示设备体验" }}
+        <button class="solid-btn demo-primary" :disabled="pairingBusy" @click="createPairingCode">
+          {{ pairingBusy ? "生成中…" : "配对家庭网关（真机控制）" }}
         </button>
-        <p class="demo-hint">演示数据在本平台内，不依赖家里路由器或红外扫描。</p>
+        <div v-if="pairingCode" class="pairing-box">
+          <div class="pairing-code">{{ pairingCode }}</div>
+          <p class="pairing-hint">
+            15 分钟内有效。在家里机器执行：
+            <code>PAIRING_CODE={{ pairingCode }} npm start</code>
+            （目录 <code>infra/iot-gateway</code>）
+          </p>
+          <button class="ghost-btn" :disabled="pairingBusy" @click="createPairingCode">重新生成</button>
+        </div>
+
+        <button class="ghost-btn demo-secondary" :disabled="binding" @click="bindDemo">
+          {{ binding ? "准备中…" : "先用演示设备体验" }}
+        </button>
+        <p class="demo-hint">演示不依赖家里硬件；真控需网关在线并上报设备。</p>
 
         <p v-if="error" class="error-line">{{ error }}</p>
 
@@ -58,11 +71,14 @@
     <!-- 已配置 -->
     <template v-else>
       <div class="panel-bar">
-        <span class="mf-chip">{{ hubIsDemo ? "演示设备" : "已连接中枢" }}</span>
+        <span class="mf-chip">{{ hubModeLabel }}</span>
         <button class="mini-btn" @click="showUnbindConfirm = true">更换中枢</button>
       </div>
 
-      <div v-if="hubOffline" class="offline-banner">中枢暂时连不上，设备状态可能不是最新的</div>
+      <div v-if="hubIsGateway && !gatewayOnline" class="offline-banner">
+        家庭网关未在线，请确认家里的网关进程已启动
+      </div>
+      <div v-else-if="hubOffline" class="offline-banner">中枢暂时连不上，设备状态可能不是最新的</div>
       <p v-if="error" class="error-line">{{ error }}</p>
       <div v-if="loadError" class="mf-empty">{{ loadError }}</div>
 
@@ -111,7 +127,10 @@
 
         <div v-if="!areaKeys.length" class="mf-empty">
           <span class="mf-empty__mark">🛋️</span>
-          <span>还没有设备，稍等片刻或重新连接中枢</span>
+          <span v-if="hubIsGateway">
+            {{ gatewayOnline ? "网关已在线，等待上报设备…" : "网关未连接，请在家里启动网关进程" }}
+          </span>
+          <span v-else>还没有设备，稍等片刻或重新连接中枢</span>
         </div>
 
         <div v-if="scenes.length" class="area-block">
@@ -280,10 +299,15 @@ export default {
       loading: true,
       hubConfigured: false,
       hubIsDemo: false,
+      hubIsGateway: false,
+      gatewayOnline: false,
       hubForm: { baseUrl: "", accessToken: "" },
       connected: false,
       testing: false,
       binding: false,
+      pairingBusy: false,
+      pairingCode: "",
+      pairingExpiresAt: null,
       error: "",
       loadError: "",
       devicesByArea: {},
@@ -316,7 +340,13 @@ export default {
     areaKeys() {
       return Object.keys(this.devicesByArea);
     },
+    hubModeLabel() {
+      if (this.hubIsDemo) return "演示设备";
+      if (this.hubIsGateway) return this.gatewayOnline ? "家庭网关在线" : "家庭网关离线";
+      return "已连接中枢";
+    },
     hubOffline() {
+      if (this.hubIsGateway) return !this.gatewayOnline;
       const all = this.areaKeys.flatMap(area => this.devicesByArea[area] || []);
       return all.length > 0 && all.every(device => device.isOnline === false);
     },
@@ -402,7 +432,22 @@ export default {
         const hub = await request("/iot/hub");
         this.hubConfigured = !!hub?.configured;
         this.hubIsDemo = !!hub?.demo;
-        if (this.hubConfigured) await this.loadDevices();
+        this.hubIsGateway = !!hub?.gateway;
+        this.gatewayOnline = !!hub?.gatewayOnline;
+        if (this.hubConfigured) {
+          this.pairingCode = "";
+          await this.loadDevices();
+        } else if (this.pairingCode) {
+          // 配对码已生成：轮询等待网关注册成功
+          const again = await request("/iot/hub");
+          if (again?.configured) {
+            this.hubConfigured = true;
+            this.hubIsGateway = !!again.gateway;
+            this.gatewayOnline = !!again.gatewayOnline;
+            this.pairingCode = "";
+            await this.loadDevices();
+          }
+        }
       } catch (e) {
         if (e.status === 401) {
           this.$emit("session-ended");
@@ -411,6 +456,25 @@ export default {
         this.loadError = e.message || "读取中枢配置失败";
       } finally {
         this.loading = false;
+      }
+    },
+
+    async createPairingCode() {
+      this.pairingBusy = true;
+      this.error = "";
+      try {
+        const vo = await request("/iot/hub/pairing-code", { method: "POST" });
+        this.pairingCode = vo?.code || "";
+        this.pairingExpiresAt = vo?.expiresAt || null;
+        if (!this.pairingCode) this.error = "未能生成配对码";
+      } catch (e) {
+        if (e.status === 401) {
+          this.$emit("session-ended");
+          return;
+        }
+        this.error = e.message || "生成配对码失败";
+      } finally {
+        this.pairingBusy = false;
       }
     },
 
@@ -448,6 +512,9 @@ export default {
         await request("/iot/hub", { method: "PUT", data: payload });
         this.hubConfigured = true;
         this.hubIsDemo = payload.baseUrl === DEMO_HUB.baseUrl;
+        this.hubIsGateway = false;
+        this.gatewayOnline = false;
+        this.pairingCode = "";
         this.connected = false;
         this.hubForm = { baseUrl: "", accessToken: "" };
         await this.loadDevices();
@@ -465,6 +532,9 @@ export default {
         await request("/iot/hub", { method: "DELETE" });
         this.hubConfigured = false;
         this.hubIsDemo = false;
+        this.hubIsGateway = false;
+        this.gatewayOnline = false;
+        this.pairingCode = "";
         this.devicesByArea = {};
         this.scenes = [];
       } catch (e) {
@@ -475,10 +545,18 @@ export default {
     async loadDevices() {
       this.loadError = "";
       try {
-        const [areas, scenes] = await Promise.all([
+        const tasks = [
           request("/iot/devices"),
           request("/iot/scenes"),
-        ]);
+        ];
+        if (this.hubIsGateway) {
+          tasks.push(request("/iot/gateway/status").catch(() => null));
+        }
+        const [areas, scenes, status] = await Promise.all(tasks);
+        if (status) {
+          this.gatewayOnline = !!status.online;
+          this.hubIsGateway = !!status.gateway || this.hubIsGateway;
+        }
         const grouped = {};
         for (const group of areas || []) {
           grouped[group.areaName || "未分组"] = group.devices || [];
@@ -618,7 +696,9 @@ export default {
   mounted() {
     this.init();
     this.pollTimer = setInterval(() => {
-      if (this.hubConfigured && !this.loading) this.loadDevices();
+      if (this.loading) return;
+      if (this.hubConfigured) this.loadDevices();
+      else if (this.pairingCode) this.init();
     }, 5000);
   },
 
@@ -676,6 +756,46 @@ export default {
   border-radius: 30px;
   font-size: 15px;
   font-weight: 650;
+}
+
+.demo-secondary {
+  width: 100%;
+  height: 44px;
+  margin-top: 12px;
+  border-radius: 22px;
+  font-size: 14px;
+}
+
+.pairing-box {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid var(--c-glass-line);
+}
+
+.pairing-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-align: center;
+  color: var(--c-ink);
+}
+
+.pairing-hint {
+  margin: 10px 0 12px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--c-muted);
+  word-break: break-all;
+}
+
+.pairing-hint code {
+  font-size: 11px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .demo-hint {

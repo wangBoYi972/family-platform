@@ -1,0 +1,5 @@
+node_modules/
+gateway-state.json
+config.json
+ir-codes/
+*.log

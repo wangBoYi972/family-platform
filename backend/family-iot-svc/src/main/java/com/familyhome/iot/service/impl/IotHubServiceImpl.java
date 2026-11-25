@@ -3,11 +3,15 @@ package com.familyhome.iot.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.familyhome.iot.dto.IotHubBindDTO;
 import com.familyhome.iot.mapper.IotDeviceSnapshotMapper;
+import com.familyhome.iot.mapper.IotGatewayMapper;
 import com.familyhome.iot.mapper.IotHubMapper;
 import com.familyhome.iot.model.IotDeviceSnapshot;
+import com.familyhome.iot.model.IotGateway;
 import com.familyhome.iot.model.IotHub;
 import com.familyhome.iot.service.IotHubService;
+import com.familyhome.iot.gateway.GatewaySessionRegistry;
 import com.familyhome.iot.util.DemoHub;
+import com.familyhome.iot.util.GatewayHub;
 import com.familyhome.iot.util.TokenEncryptor;
 import com.familyhome.iot.util.UrlValidator;
 import com.familyhome.iot.vo.IotHubVO;
@@ -35,10 +39,16 @@ public class IotHubServiceImpl implements IotHubService {
   @Autowired
   private IotDeviceSnapshotMapper deviceSnapshotMapper;
 
+  @Autowired
+  private IotGatewayMapper gatewayMapper;
+
   /** @Lazy 打破与 IotWebSocketServiceImpl 的循环依赖（后者依赖本服务读取中枢配置）。 */
   @Autowired
   @org.springframework.context.annotation.Lazy
   private com.familyhome.iot.service.IotWebSocketService wsService;
+
+  @Autowired(required = false)
+  private GatewaySessionRegistry gatewaySessionRegistry;
 
   @Override
   public IotHubVO getHub(Long householdId) {
@@ -47,6 +57,8 @@ public class IotHubServiceImpl implements IotHubService {
       IotHubVO vo = new IotHubVO();
       vo.setConfigured(false);
       vo.setDemo(false);
+      vo.setGateway(false);
+      vo.setGatewayOnline(false);
       return vo;
     }
 
@@ -54,7 +66,11 @@ public class IotHubServiceImpl implements IotHubService {
     vo.setId(hub.getId());
     vo.setConfigured(true);
     vo.setDemo(DemoHub.isDemo(hub.getBaseUrl()));
-    // 注意：不返回 baseUrl 给客户端，只返回 configured 状态
+    boolean gateway = GatewayHub.isGateway(hub.getBaseUrl());
+    vo.setGateway(gateway);
+    vo.setGatewayOnline(
+        gateway && gatewaySessionRegistry != null && gatewaySessionRegistry.isOnline(householdId));
+    // 注意：不返回 baseUrl/令牌给客户端
     vo.setUpdatedAt(hub.getUpdatedAt());
     return vo;
   }
@@ -123,6 +139,9 @@ public class IotHubServiceImpl implements IotHubService {
     devices.eq("household_id", householdId);
     deviceSnapshotMapper.delete(devices);
 
+    // 家侧网关凭据一并清除，下次需重新配对
+    gatewayMapper.delete(new QueryWrapper<IotGateway>().eq("household_id", householdId));
+
     log.info("家庭 {} 的中枢已解绑", householdId);
   }
 
@@ -154,9 +173,10 @@ public class IotHubServiceImpl implements IotHubService {
 
   @Override
   public java.util.List<Long> listBoundHouseholdIds() {
-    // 排除演示中枢：demo:// 没有可连接的 WebSocket 地址
+    // 排除演示/网关：二者都不是云端主动拨号去连 HA
     return hubMapper.selectList(null).stream()
         .filter(hub -> !DemoHub.isDemo(hub.getBaseUrl()))
+        .filter(hub -> !GatewayHub.isGateway(hub.getBaseUrl()))
         .map(IotHub::getHouseholdId)
         .filter(java.util.Objects::nonNull)
         .distinct()

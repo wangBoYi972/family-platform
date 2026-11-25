@@ -1,0 +1,20 @@
+{
+  "name": "family-iot-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "家侧 IoT 网关：配对云端、上报设备、执行开关/红外命令",
+  "bin": {
+    "family-iot-gateway": "./src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "register": "node src/index.js --register"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

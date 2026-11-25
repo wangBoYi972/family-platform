@@ -11,6 +11,7 @@ import com.familyhome.iot.vo.DeviceStateEventVO;
 import com.familyhome.iot.vo.IotDeviceVO;
 import com.familyhome.iot.client.HomeAssistantClient;
 import com.familyhome.iot.util.DemoHub;
+import com.familyhome.iot.util.GatewayHub;
 import com.familyhome.messaging.OutboxEventStore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -83,6 +84,12 @@ public class IotDeviceServiceImpl implements IotDeviceService {
     if (DemoHub.isDemo(hub.getBaseUrl())) {
       seedDemoDevices(householdId);
       log.info("演示中枢：已为家庭 {} 生成示例设备", householdId);
+      return;
+    }
+
+    if (GatewayHub.isGateway(hub.getBaseUrl())) {
+      // 设备由家侧网关上报，云端不主动拉取
+      log.info("网关中枢：家庭 {} 等待网关上报设备", householdId);
       return;
     }
 

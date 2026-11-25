@@ -13,9 +13,13 @@ import com.familyhome.iot.service.IotCommandService;
 import com.familyhome.iot.service.IotDeviceService;
 import com.familyhome.iot.service.IotHubService;
 import com.familyhome.iot.client.HomeAssistantClient;
+import com.familyhome.iot.gateway.GatewaySessionRegistry;
 import com.familyhome.iot.util.DemoHub;
+import com.familyhome.iot.util.GatewayHub;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import java.util.HashMap;
 import java.util.Map;
@@ -67,6 +71,12 @@ public class IotCommandServiceImpl implements IotCommandService {
   @Autowired
   private IotDeviceService deviceService;
 
+  @Autowired(required = false)
+  private GatewaySessionRegistry gatewaySessionRegistry;
+
+  @Value("${family.iot.command-timeout:5}")
+  private int commandTimeoutSeconds;
+
   private final ObjectMapper objectMapper = new ObjectMapper();
 
   @Override
@@ -94,6 +104,7 @@ public class IotCommandServiceImpl implements IotCommandService {
       throw new RuntimeException("中枢未配置");
     }
     boolean demo = DemoHub.isDemo(hub.getBaseUrl());
+    boolean gateway = GatewayHub.isGateway(hub.getBaseUrl());
 
     // 构建命令日志记录
     IotCommandLog cmdLog = new IotCommandLog();
@@ -115,18 +126,23 @@ public class IotCommandServiceImpl implements IotCommandService {
       if (!parameters.isObject()) {
         throw new IllegalArgumentException("命令参数格式不正确");
       }
-      ((com.fasterxml.jackson.databind.node.ObjectNode) parameters).put("entity_id", entityId);
+      ((ObjectNode) parameters).put("entity_id", entityId);
       cmdLog.setRequestData(parameters);
 
-      // 调用 Home Assistant（演示中枢只改本地状态）
-      boolean success = demo
-          ? applyDemoCommand(device, dto.getCommandType(), parameters)
-          : homeAssistantClient.callService(hub, device.getEntityType(), dto.getCommandType(), parameters);
-      cmdLog.setSuccess(success);
-
-      if (!success) {
-        cmdLog.setErrorMessage(demo ? "演示设备不支持该操作" : "Home Assistant 返回失败状态");
+      boolean success;
+      if (demo) {
+        success = applyDemoCommand(device, dto.getCommandType(), parameters);
+        if (!success) cmdLog.setErrorMessage("演示设备不支持该操作");
+      } else if (gateway) {
+        success = applyGatewayCommand(householdId, entityId, dto.getCommandType(), parameters);
+        if (!success) cmdLog.setErrorMessage("家庭网关执行失败");
+      } else {
+        success =
+            homeAssistantClient.callService(
+                hub, device.getEntityType(), dto.getCommandType(), parameters);
+        if (!success) cmdLog.setErrorMessage("Home Assistant 返回失败状态");
       }
+      cmdLog.setSuccess(success);
     } catch (Exception e) {
       cmdLog.setSuccess(false);
       cmdLog.setErrorMessage(e.getMessage());
@@ -135,6 +151,37 @@ public class IotCommandServiceImpl implements IotCommandService {
       // 记录命令日志（成功和失败都记）
       commandLogMapper.insert(cmdLog);
     }
+  }
+
+  private boolean applyGatewayCommand(
+      Long householdId, String entityId, String commandType, JsonNode parameters) throws Exception {
+    if (gatewaySessionRegistry == null || !gatewaySessionRegistry.isOnline(householdId)) {
+      throw new IllegalStateException("家庭网关未在线。请确认家里的网关进程已启动并完成配对。");
+    }
+    JsonNode ack =
+        gatewaySessionRegistry.sendCommand(
+            householdId, entityId, commandType, parameters, commandTimeoutSeconds * 1000L);
+    boolean ok = ack.path("ok").asBoolean(false);
+    if (!ok) {
+      String err = ack.path("error").asText("网关拒绝执行");
+      throw new IllegalArgumentException(err);
+    }
+    // 网关 ACK 可携带最终状态；没有则等网关 HTTP 上报
+    if (ack.hasNonNull("state")) {
+      Map<String, Object> attributes = new HashMap<>();
+      JsonNode attrs = ack.path("attributes");
+      if (attrs.isObject()) {
+        attrs.fields().forEachRemaining(e -> {
+          JsonNode v = e.getValue();
+          if (v.isNumber()) attributes.put(e.getKey(), v.numberValue());
+          else if (v.isBoolean()) attributes.put(e.getKey(), v.booleanValue());
+          else attributes.put(e.getKey(), v.asText());
+        });
+      }
+      deviceService.updateDeviceState(
+          householdId, entityId, ack.path("state").asText(), attributes.isEmpty() ? null : attributes);
+    }
+    return true;
   }
 
   @Override
@@ -156,6 +203,7 @@ public class IotCommandServiceImpl implements IotCommandService {
       throw new RuntimeException("中枢未配置");
     }
     boolean demo = DemoHub.isDemo(hub.getBaseUrl());
+    boolean gateway = GatewayHub.isGateway(hub.getBaseUrl());
 
     IotCommandLog cmdLog = new IotCommandLog();
     cmdLog.setHouseholdId(householdId);
@@ -167,15 +215,19 @@ public class IotCommandServiceImpl implements IotCommandService {
 
     try {
       JsonNode parameters = objectMapper.createObjectNode();
-      ((com.fasterxml.jackson.databind.node.ObjectNode) parameters).put("entity_id", sceneEntityId);
+      ((ObjectNode) parameters).put("entity_id", sceneEntityId);
       cmdLog.setRequestData(parameters);
 
-      boolean success = demo || homeAssistantClient.callService(hub, "scene", "turn_on", parameters);
-      cmdLog.setSuccess(success);
-
-      if (!success) {
-        cmdLog.setErrorMessage("Home Assistant 返回失败状态");
+      boolean success;
+      if (demo) {
+        success = true;
+      } else if (gateway) {
+        success = applyGatewayCommand(householdId, sceneEntityId, "turn_on", parameters);
+      } else {
+        success = homeAssistantClient.callService(hub, "scene", "turn_on", parameters);
+        if (!success) cmdLog.setErrorMessage("Home Assistant 返回失败状态");
       }
+      cmdLog.setSuccess(success);
     } catch (Exception e) {
       cmdLog.setSuccess(false);
       cmdLog.setErrorMessage(e.getMessage());
