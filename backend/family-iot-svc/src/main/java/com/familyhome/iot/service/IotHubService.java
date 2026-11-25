@@ -1,6 +1,7 @@
 package com.familyhome.iot.service;
 
 import com.familyhome.iot.dto.IotHubBindDTO;
+import com.familyhome.iot.vo.IotHubAccessVO;
 import com.familyhome.iot.vo.IotHubVO;
 
 /**
@@ -38,4 +39,9 @@ public interface IotHubService {
    * 演示中枢不在此列——它没有可连接的 WebSocket 地址。
    */
   java.util.List<Long> listBoundHouseholdIds();
+
+  /**
+   * 手机局域网直连所需地址与令牌（仅私网/phone-local；演示与网关不返回）。
+   */
+  IotHubAccessVO getLocalAccess(Long householdId);
 }

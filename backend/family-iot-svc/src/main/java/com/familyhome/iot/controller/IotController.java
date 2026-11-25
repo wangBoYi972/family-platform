@@ -1,6 +1,7 @@
 package com.familyhome.iot.controller;
 
 import com.familyhome.common.api.ApiResponse;
+import com.familyhome.iot.dto.GatewayDeviceReportDTO;
 import com.familyhome.iot.dto.IotCommandDTO;
 import com.familyhome.iot.dto.IotHubBindDTO;
 import com.familyhome.iot.service.IotCommandService;
@@ -8,6 +9,7 @@ import com.familyhome.iot.service.IotDeviceService;
 import com.familyhome.iot.service.IotHubService;
 import com.familyhome.iot.vo.AreaDevicesVO;
 import com.familyhome.iot.vo.IotDeviceVO;
+import com.familyhome.iot.vo.IotHubAccessVO;
 import com.familyhome.iot.vo.IotHubVO;
 import com.familyhome.security.SessionPrincipal;
 import jakarta.servlet.http.HttpServletRequest;
@@ -95,6 +97,8 @@ public class IotController {
 
   /**
    * 测试中枢连接（家庭成员）
+   *
+   * <p>手机局域网模式请在手机本机测通，不必调此接口（云端测私网会失败）。
    */
   @PostMapping("/hub/test")
   public ApiResponse<Boolean> testConnection(
@@ -103,11 +107,41 @@ public class IotController {
     SessionPrincipal.from(r);
 
     try {
+      if (Boolean.TRUE.equals(dto.getPhoneLocal())) {
+        return ApiResponse.success(true);
+      }
       boolean ok = hubService.testConnection(dto);
       return ApiResponse.success(ok);
     } catch (Exception e) {
       log.error("测试连接失败", e);
       return ApiResponse.failure(500, "测试失败");
+    }
+  }
+
+  /** 手机直连家里中枢所需地址与令牌（仅家庭成员、仅私网模式）。 */
+  @GetMapping("/hub/local-access")
+  public ApiResponse<IotHubAccessVO> localAccess(HttpServletRequest r) {
+    SessionPrincipal principal = SessionPrincipal.from(r);
+    try {
+      return ApiResponse.success(hubService.getLocalAccess(principal.householdId()));
+    } catch (IllegalArgumentException e) {
+      return ApiResponse.failure(400, e.getMessage());
+    }
+  }
+
+  /** 手机在局域网拉完设备后回写快照。 */
+  @PutMapping("/devices/local-sync")
+  public ApiResponse<Void> localSync(
+      HttpServletRequest r, @Valid @RequestBody GatewayDeviceReportDTO report) {
+    SessionPrincipal principal = SessionPrincipal.from(r);
+    try {
+      deviceService.replaceLocalDevices(principal.householdId(), report);
+      return ApiResponse.success(null);
+    } catch (IllegalArgumentException e) {
+      return ApiResponse.failure(400, e.getMessage());
+    } catch (Exception e) {
+      log.error("本机设备同步失败", e);
+      return ApiResponse.failure(500, "同步失败");
     }
   }
 

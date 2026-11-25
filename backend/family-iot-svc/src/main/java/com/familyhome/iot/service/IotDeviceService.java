@@ -1,5 +1,6 @@
 package com.familyhome.iot.service;
 
+import com.familyhome.iot.dto.GatewayDeviceReportDTO;
 import com.familyhome.iot.vo.AreaDevicesVO;
 import com.familyhome.iot.vo.IotDeviceVO;
 import java.util.List;
@@ -34,4 +35,9 @@ public interface IotDeviceService {
    * 标记中枢离线，所有设备离线
    */
   void markHubOffline(Long householdId);
+
+  /**
+   * 手机在局域网拉完设备后回写云端快照，供家人共同查看。
+   */
+  void replaceLocalDevices(Long householdId, GatewayDeviceReportDTO report);
 }

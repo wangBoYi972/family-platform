@@ -2,7 +2,7 @@
   <div class="iot-panel">
     <div v-if="loading" class="mf-empty">正在读取家里的设备…</div>
 
-    <!-- 未配置：演示人人可用；真机走「找家里人帮装一次」向导 -->
+    <!-- 未配置：手机直接用；真机靠家里 WiFi 直连中枢 -->
     <template v-else-if="!hubConfigured">
       <div class="mf-card setup-card mf-rise">
         <div class="setup-head">
@@ -10,57 +10,23 @@
           <div class="setup-copy">
             <div class="setup-title">家里的设备</div>
             <div class="setup-desc">
-              手机连不上你家路由器，所以真空调/电视要靠家里一台常开电脑当「小助手」。不会装软件也没关系——先体验演示，或把配对说明发给会操作电脑的家人。
+              用手机就能操作。没有真实中枢时先用演示；家里已有 Home Assistant 时，请连着家里 WiFi，由手机直接访问中枢。
             </div>
           </div>
         </div>
 
         <button class="solid-btn demo-primary" :disabled="binding" @click="bindDemo">
-          {{ binding ? "准备中…" : "先用演示设备体验" }}
+          {{ binding ? "准备中…" : "用手机开始（演示设备）" }}
         </button>
-        <p class="demo-hint">演示立刻能开关空调/电视界面，不需要家里装任何东西。</p>
-
-        <button
-          class="ghost-btn demo-secondary"
-          :disabled="pairingBusy"
-          @click="startPairingWizard"
-        >
-          {{ pairingBusy ? "生成中…" : "控制真空调/电视（需家里人帮忙）" }}
-        </button>
-
-        <div v-if="pairingCode" class="pairing-box">
-          <p class="pairing-step-title">把下面配对码交给家里人</p>
-          <div class="pairing-code">{{ pairingCode }}</div>
-          <ol class="pairing-steps">
-            <li>找一台<strong>家里常开</strong>的电脑（笔记本、台式或树莓派都行）。</li>
-            <li>打开平台里的 <code>infra/iot-gateway</code> 文件夹，双击
-              <strong>「启动网关」</strong>（Windows 用 <code>启动网关.bat</code>，Mac 用 <code>启动网关.command</code>）。</li>
-            <li>程序用中文问你配对码时，输入上面这 8 位，回车。</li>
-            <li>看到「配对成功」后回到本页，稍等几秒即可出现设备。</li>
-          </ol>
-          <div class="pairing-actions">
-            <button class="solid-btn" type="button" @click="copyFamilyGuide">
-              {{ copiedGuide ? "已复制，去发给家人" : "复制给家人的说明" }}
-            </button>
-            <button class="ghost-btn" type="button" :disabled="pairingBusy" @click="createPairingCode">
-              重新生成配对码
-            </button>
-          </div>
-          <p class="pairing-hint">配对码 15 分钟内有效，用过一次就作废。本页会自动检测是否连上。</p>
-          <details class="advanced-ha pairing-tech">
-            <summary>给会用命令行的人</summary>
-            <p class="pairing-hint">
-              <code>cd infra/iot-gateway && npm i && npm start</code>
-              ，按提示输入配对码即可；也可用
-              <code>PAIRING_CODE={{ pairingCode }} npm start</code>。
-            </p>
-          </details>
-        </div>
+        <p class="demo-hint">演示在手机里就能开关空调/电视界面，不依赖其它设备。</p>
 
         <p v-if="error" class="error-line">{{ error }}</p>
 
-        <details class="advanced-ha">
-          <summary>我有 Home Assistant，连接真实中枢</summary>
+        <details class="advanced-ha" open>
+          <summary>家里有中枢（手机连 WiFi 直连）</summary>
+          <p class="field-hint setup-wifi-hint">
+            请确认手机已连<strong>家里 WiFi</strong>（不要用流量）。云端进不了你家路由器，但手机在家里可以。
+          </p>
           <label class="field">
             <span class="field-label">中枢地址</span>
             <input
@@ -69,7 +35,6 @@
               type="url"
               placeholder="http://192.168.1.100:8123"
             />
-            <span class="field-hint">仅支持私网地址或 localhost；云端无法扫描你家局域网</span>
           </label>
           <label class="field">
             <span class="field-label">访问令牌</span>
@@ -82,10 +47,10 @@
           </label>
           <div class="setup-actions">
             <button class="ghost-btn" :disabled="testing" @click="testConnection">
-              {{ testing ? "测试中…" : "测试连接" }}
+              {{ testing ? "测试中…" : "用手机测试" }}
             </button>
             <button class="solid-btn" :disabled="binding || !connected" @click="bindHub">
-              {{ binding ? "绑定中…" : "绑定中枢" }}
+              {{ binding ? "连接中…" : "用手机连接" }}
             </button>
           </div>
         </details>
@@ -99,7 +64,10 @@
         <button class="mini-btn" @click="showUnbindConfirm = true">更换中枢</button>
       </div>
 
-      <div v-if="hubIsGateway && !gatewayOnline" class="offline-banner">
+      <div v-if="hubIsPhoneLocal && localHaUnreachable" class="offline-banner">
+        连不上家里中枢。请把手机连到家里 WiFi 后再下拉刷新。
+      </div>
+      <div v-else-if="hubIsGateway && !gatewayOnline" class="offline-banner">
         家里的「小助手」还没连上。请让电脑上的「启动网关」窗口保持打开。
       </div>
       <div v-else-if="hubOffline" class="offline-banner">中枢暂时连不上，设备状态可能不是最新的</div>
@@ -154,8 +122,11 @@
 
         <div v-if="!areaKeys.length" class="mf-empty">
           <span class="mf-empty__mark">🛋️</span>
-          <span v-if="hubIsGateway">
-            {{ gatewayOnline ? "网关已在线，等待上报设备…" : "网关未连接，请在家里启动网关进程" }}
+          <span v-if="hubIsPhoneLocal">
+            {{ localHaUnreachable ? "请连家里 WiFi 后刷新" : "正在从家里中枢读取设备…" }}
+          </span>
+          <span v-else-if="hubIsGateway">
+            {{ gatewayOnline ? "网关已在线，等待上报设备…" : "网关未连接" }}
           </span>
           <span v-else>还没有设备，稍等片刻或重新连接中枢</span>
         </div>
@@ -324,6 +295,7 @@ import {
   getMediaVolumePct,
   deviceTypeLabel,
 } from "./iot-logic.mjs";
+import { testHaLocal, fetchHaDevicesForSync, callHaService } from "./ha-local.mjs";
 
 const DEMO_HUB = { baseUrl: "demo://local", accessToken: "demo" };
 
@@ -336,15 +308,14 @@ export default {
       hubConfigured: false,
       hubIsDemo: false,
       hubIsGateway: false,
+      hubIsPhoneLocal: false,
       gatewayOnline: false,
+      localHaUnreachable: false,
+      localHa: null,
       hubForm: { baseUrl: "", accessToken: "" },
       connected: false,
       testing: false,
       binding: false,
-      pairingBusy: false,
-      pairingCode: "",
-      pairingExpiresAt: null,
-      copiedGuide: false,
       error: "",
       loadError: "",
       devicesByArea: {},
@@ -378,11 +349,13 @@ export default {
       return Object.keys(this.devicesByArea);
     },
     hubModeLabel() {
-      if (this.hubIsDemo) return "演示设备";
+      if (this.hubIsDemo) return "手机演示";
+      if (this.hubIsPhoneLocal) return this.localHaUnreachable ? "未连家里 WiFi" : "手机直连家里";
       if (this.hubIsGateway) return this.gatewayOnline ? "家庭网关在线" : "家庭网关离线";
       return "已连接中枢";
     },
     hubOffline() {
+      if (this.hubIsPhoneLocal) return this.localHaUnreachable;
       if (this.hubIsGateway) return !this.gatewayOnline;
       const all = this.areaKeys.flatMap(area => this.devicesByArea[area] || []);
       return all.length > 0 && all.every(device => device.isOnline === false);
@@ -466,19 +439,49 @@ export default {
       return this.init();
     },
 
+    applyHubMeta(hub) {
+      this.hubConfigured = !!hub?.configured;
+      this.hubIsDemo = !!hub?.demo;
+      this.hubIsGateway = !!hub?.gateway;
+      this.gatewayOnline = !!hub?.gatewayOnline;
+      this.hubIsPhoneLocal = !!hub?.phoneLocal;
+      if (hub?.baseUrl && this.hubIsPhoneLocal) {
+        this.localHa = {
+          ...(this.localHa || {}),
+          baseUrl: hub.baseUrl,
+          accessToken: this.localHa?.accessToken || "",
+        };
+      }
+    },
+
+    async ensureLocalHaAccess() {
+      if (!this.hubIsPhoneLocal) return null;
+      if (this.localHa?.baseUrl && this.localHa?.accessToken) return this.localHa;
+      const access = await request("/iot/hub/local-access");
+      this.localHa = {
+        baseUrl: access.baseUrl,
+        accessToken: access.accessToken,
+      };
+      return this.localHa;
+    },
+
+    async syncFromPhoneHa() {
+      const creds = await this.ensureLocalHaAccess();
+      const { devices } = await fetchHaDevicesForSync(creds.baseUrl, creds.accessToken);
+      await request("/iot/devices/local-sync", {
+        method: "PUT",
+        data: { devices },
+      });
+      this.localHaUnreachable = false;
+    },
+
     async init() {
       this.loading = true;
       this.loadError = "";
       try {
         const hub = await request("/iot/hub");
-        this.hubConfigured = !!hub?.configured;
-        this.hubIsDemo = !!hub?.demo;
-        this.hubIsGateway = !!hub?.gateway;
-        this.gatewayOnline = !!hub?.gatewayOnline;
-        if (this.hubConfigured) {
-          this.pairingCode = "";
-          await this.loadDevices();
-        }
+        this.applyHubMeta(hub);
+        if (this.hubConfigured) await this.loadDevices();
       } catch (e) {
         if (e.status === 401) {
           this.$emit("session-ended");
@@ -487,86 +490,6 @@ export default {
         this.loadError = e.message || "读取中枢配置失败";
       } finally {
         this.loading = false;
-      }
-    },
-
-    /** 等待网关注册时静默轮询，不打 loading，避免配对码被遮住。 */
-    async pollWhilePairing() {
-      if (!this.pairingCode || this.hubConfigured || this.loading || this.pairingBusy) return;
-      try {
-        const hub = await request("/iot/hub");
-        if (!hub?.configured) return;
-        this.hubConfigured = true;
-        this.hubIsDemo = !!hub.demo;
-        this.hubIsGateway = !!hub.gateway;
-        this.gatewayOnline = !!hub.gatewayOnline;
-        this.pairingCode = "";
-        await this.loadDevices();
-      } catch (e) {
-        if (e.status === 401) this.$emit("session-ended");
-      }
-    },
-
-    async startPairingWizard() {
-      this.copiedGuide = false;
-      await this.createPairingCode();
-    },
-
-    async createPairingCode() {
-      this.pairingBusy = true;
-      this.error = "";
-      this.copiedGuide = false;
-      try {
-        const vo = await request("/iot/hub/pairing-code", { method: "POST" });
-        this.pairingCode = vo?.code || "";
-        this.pairingExpiresAt = vo?.expiresAt || null;
-        if (!this.pairingCode) this.error = "未能生成配对码";
-      } catch (e) {
-        if (e.status === 401) {
-          this.$emit("session-ended");
-          return;
-        }
-        this.error = e.message || "生成配对码失败";
-      } finally {
-        this.pairingBusy = false;
-      }
-    },
-
-    familyGuideText() {
-      const code = this.pairingCode || "（请先在 App 生成）";
-      return [
-        "【家庭设备配对】请帮家里手机 App 装一次「家庭网关」",
-        "",
-        "1. 用家里常开的电脑打开文件夹：infra/iot-gateway",
-        "2. 双击「启动网关」（Windows：启动网关.bat；Mac：启动网关.command）",
-        "3. 若提示安装 Node.js，按提示打开官网装 LTS 后，再双击一次",
-        `4. 程序问配对码时输入：${code}`,
-        "5. 看到「配对成功」后告诉手机这边的人，在「家居」页等几秒",
-        "",
-        "配对码约 15 分钟有效，输错过期就让对方在 App 里点「重新生成」。",
-      ].join("\n");
-    },
-
-    async copyFamilyGuide() {
-      const text = this.familyGuideText();
-      try {
-        if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(text);
-        } else if (typeof uni !== "undefined" && uni.setClipboardData) {
-          await new Promise((resolve, reject) => {
-            uni.setClipboardData({
-              data: text,
-              success: resolve,
-              fail: reject,
-            });
-          });
-        } else {
-          throw new Error("clipboard unavailable");
-        }
-        this.copiedGuide = true;
-        this.error = "";
-      } catch {
-        this.error = "复制失败，请手动把配对码和步骤发给家人";
       }
     },
 
@@ -579,10 +502,12 @@ export default {
       this.connected = false;
       this.error = "";
       try {
-        await request("/iot/hub/test", { method: "POST", data: this.hubForm });
+        // 手机在家里 WiFi 直连探测，不经云端
+        await testHaLocal(this.hubForm.baseUrl, this.hubForm.accessToken);
         this.connected = true;
       } catch (e) {
-        this.error = e.message || "连接失败，请检查地址和令牌";
+        this.error =
+          e.message || "手机连不上中枢。请确认已连家里 WiFi，地址和令牌正确。";
       } finally {
         this.testing = false;
       }
@@ -590,7 +515,7 @@ export default {
 
     async bindHub() {
       if (!this.connected) return;
-      await this.submitHub(this.hubForm);
+      await this.submitHub({ ...this.hubForm, phoneLocal: true });
     },
 
     async bindDemo() {
@@ -601,12 +526,16 @@ export default {
     async submitHub(payload) {
       this.binding = true;
       try {
-        await request("/iot/hub", { method: "PUT", data: payload });
-        this.hubConfigured = true;
-        this.hubIsDemo = payload.baseUrl === DEMO_HUB.baseUrl;
-        this.hubIsGateway = false;
-        this.gatewayOnline = false;
-        this.pairingCode = "";
+        const isDemo = payload.baseUrl === DEMO_HUB.baseUrl;
+        const hub = await request("/iot/hub", { method: "PUT", data: payload });
+        this.applyHubMeta(hub || { configured: true, demo: isDemo, phoneLocal: !isDemo && payload.phoneLocal });
+        if (!isDemo && payload.phoneLocal) {
+          this.localHa = {
+            baseUrl: payload.baseUrl,
+            accessToken: payload.accessToken,
+          };
+          this.hubIsPhoneLocal = true;
+        }
         this.connected = false;
         this.hubForm = { baseUrl: "", accessToken: "" };
         await this.loadDevices();
@@ -625,8 +554,10 @@ export default {
         this.hubConfigured = false;
         this.hubIsDemo = false;
         this.hubIsGateway = false;
+        this.hubIsPhoneLocal = false;
         this.gatewayOnline = false;
-        this.pairingCode = "";
+        this.localHa = null;
+        this.localHaUnreachable = false;
         this.devicesByArea = {};
         this.scenes = [];
       } catch (e) {
@@ -637,11 +568,15 @@ export default {
     async loadDevices() {
       this.loadError = "";
       try {
-        const tasks = [
-          request("/iot/devices"),
-          request("/iot/scenes"),
-        ];
-        // 网关在线状态走需登录的 /iot/hub（含 gatewayOnline），避免匿名路径误放行
+        if (this.hubIsPhoneLocal) {
+          try {
+            await this.syncFromPhoneHa();
+          } catch (e) {
+            this.localHaUnreachable = true;
+            // 仍展示云端上次快照，并提示连家里 WiFi
+          }
+        }
+        const tasks = [request("/iot/devices"), request("/iot/scenes")];
         if (this.hubIsGateway) {
           tasks.push(request("/iot/hub").catch(() => null));
         }
@@ -769,12 +704,20 @@ export default {
       this.pending = { ...this.pending, [device.entityId]: true };
       this.error = "";
       try {
-        await request(`/iot/devices/${device.entityId}/command`, {
-          method: "POST",
-          data: { commandType, parameters },
-        });
+        if (this.hubIsPhoneLocal) {
+          const creds = await this.ensureLocalHaAccess();
+          const domain = device.entityType;
+          const data = { entity_id: device.entityId, ...(parameters || {}) };
+          await callHaService(creds.baseUrl, creds.accessToken, domain, commandType, data);
+        } else {
+          await request(`/iot/devices/${device.entityId}/command`, {
+            method: "POST",
+            data: { commandType, parameters },
+          });
+        }
         await this.loadDevices();
       } catch (e) {
+        if (this.hubIsPhoneLocal) this.localHaUnreachable = true;
         this.error = e.message || "操作失败，请稍后再试";
       } finally {
         const next = { ...this.pending };
@@ -787,9 +730,17 @@ export default {
       this.pending = { ...this.pending, [scene.entityId]: true };
       this.error = "";
       try {
-        await request(`/iot/scenes/${scene.entityId}/activate`, { method: "POST" });
+        if (this.hubIsPhoneLocal) {
+          const creds = await this.ensureLocalHaAccess();
+          await callHaService(creds.baseUrl, creds.accessToken, "scene", "turn_on", {
+            entity_id: scene.entityId,
+          });
+        } else {
+          await request(`/iot/scenes/${scene.entityId}/activate`, { method: "POST" });
+        }
         await this.loadDevices();
       } catch (e) {
+        if (this.hubIsPhoneLocal) this.localHaUnreachable = true;
         this.error = e.message || "场景触发失败";
       } finally {
         const next = { ...this.pending };
@@ -804,7 +755,6 @@ export default {
     this.pollTimer = setInterval(() => {
       if (this.loading) return;
       if (this.hubConfigured) this.loadDevices();
-      else if (this.pairingCode) this.pollWhilePairing();
     }, 5000);
   },
 
@@ -951,6 +901,14 @@ export default {
   line-height: 1.7;
   color: var(--c-muted);
   text-align: center;
+}
+
+.setup-wifi-hint {
+  display: block;
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--c-muted);
 }
 
 .advanced-ha {

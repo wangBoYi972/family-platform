@@ -26,5 +26,10 @@ public class IotHubVO {
   // 网关当前是否在线（仅 gateway=true 时有意义）
   private Boolean gatewayOnline;
 
+  /**
+   * 手机局域网直连模式：命令由手机在家里 WiFi 下发给中枢，云端不转发。
+   */
+  private Boolean phoneLocal;
+
   private LocalDateTime updatedAt;
 }

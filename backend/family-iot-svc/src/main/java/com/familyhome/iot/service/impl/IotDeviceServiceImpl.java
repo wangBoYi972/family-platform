@@ -10,8 +10,10 @@ import com.familyhome.iot.vo.AreaDevicesVO;
 import com.familyhome.iot.vo.DeviceStateEventVO;
 import com.familyhome.iot.vo.IotDeviceVO;
 import com.familyhome.iot.client.HomeAssistantClient;
+import com.familyhome.iot.dto.GatewayDeviceReportDTO;
 import com.familyhome.iot.util.DemoHub;
 import com.familyhome.iot.util.GatewayHub;
+import com.familyhome.iot.util.UrlValidator;
 import com.familyhome.messaging.OutboxEventStore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -113,6 +115,12 @@ public class IotDeviceServiceImpl implements IotDeviceService {
     if (GatewayHub.isGateway(hub.getBaseUrl())) {
       // 设备由家侧网关上报，云端不主动拉取
       log.info("网关中枢：家庭 {} 等待网关上报设备", householdId);
+      return;
+    }
+
+    if (UrlValidator.isSafeUrl(hub.getBaseUrl())) {
+      // 私网 HA：云端进不了家，由手机在 WiFi 下拉设备后 local-sync
+      log.info("手机局域网中枢：家庭 {} 等待手机同步设备", householdId);
       return;
     }
 
@@ -223,6 +231,36 @@ public class IotDeviceServiceImpl implements IotDeviceService {
 
     deviceSnapshotMapper.update(update, qw);
     log.warn("家庭 {} 中枢已离线，所有设备标记为离线", householdId);
+  }
+
+  @Override
+  public void replaceLocalDevices(Long householdId, GatewayDeviceReportDTO report) {
+    deviceSnapshotMapper.delete(
+        new QueryWrapper<IotDeviceSnapshot>().eq("household_id", householdId));
+    if (report == null || report.getDevices() == null) return;
+    for (GatewayDeviceReportDTO.DeviceItem item : report.getDevices()) {
+      IotDeviceSnapshot snapshot = new IotDeviceSnapshot();
+      snapshot.setHouseholdId(householdId);
+      snapshot.setEntityId(item.getEntityId());
+      snapshot.setEntityType(item.getEntityType());
+      snapshot.setDeviceName(
+          item.getDeviceName() == null || item.getDeviceName().isBlank()
+              ? item.getEntityId()
+              : item.getDeviceName());
+      snapshot.setAreaName(
+          item.getAreaName() == null || item.getAreaName().isBlank() ? "未分组" : item.getAreaName());
+      snapshot.setState(item.getState() == null ? "off" : item.getState());
+      try {
+        snapshot.setAttributes(
+            item.getAttributes() == null
+                ? null
+                : objectMapper.writeValueAsString(item.getAttributes()));
+      } catch (Exception e) {
+        throw new IllegalArgumentException("设备属性无法序列化");
+      }
+      snapshot.setIsOnline(item.getOnline() == null || item.getOnline());
+      deviceSnapshotMapper.insert(snapshot);
+    }
   }
 
   /**
