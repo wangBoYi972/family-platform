@@ -54,6 +54,39 @@
             </button>
           </div>
         </details>
+
+        <details class="advanced-ha">
+          <summary>进阶：外出时用家里电脑网关</summary>
+          <p class="field-hint setup-wifi-hint">
+            人不在家、手机不在家里 WiFi 时，可让家里常开电脑跑网关。日常在家请优先用上面的手机直连。
+          </p>
+          <button
+            class="ghost-btn demo-secondary"
+            type="button"
+            :disabled="pairingBusy"
+            @click="startPairingWizard"
+          >
+            {{ pairingBusy ? "生成中…" : "生成网关配对码" }}
+          </button>
+          <div v-if="pairingCode" class="pairing-box">
+            <p class="pairing-step-title">把下面配对码交给家里人</p>
+            <div class="pairing-code">{{ pairingCode }}</div>
+            <ol class="pairing-steps">
+              <li>找一台<strong>家里常开</strong>的电脑。</li>
+              <li>打开 <code>infra/iot-gateway</code>，双击「启动网关」。</li>
+              <li>按提示输入上面这 8 位配对码。</li>
+              <li>看到「配对成功」后回到本页稍等。</li>
+            </ol>
+            <div class="pairing-actions">
+              <button class="solid-btn" type="button" @click="copyFamilyGuide">
+                {{ copiedGuide ? "已复制，去发给家人" : "复制给家人的说明" }}
+              </button>
+              <button class="ghost-btn" type="button" :disabled="pairingBusy" @click="createPairingCode">
+                重新生成配对码
+              </button>
+            </div>
+          </div>
+        </details>
       </div>
     </template>
 
@@ -312,10 +345,15 @@ export default {
       gatewayOnline: false,
       localHaUnreachable: false,
       localHa: null,
+      syncingLocal: false,
       hubForm: { baseUrl: "", accessToken: "" },
       connected: false,
       testing: false,
       binding: false,
+      pairingBusy: false,
+      pairingCode: "",
+      pairingExpiresAt: null,
+      copiedGuide: false,
       error: "",
       loadError: "",
       devicesByArea: {},
@@ -466,13 +504,19 @@ export default {
     },
 
     async syncFromPhoneHa() {
-      const creds = await this.ensureLocalHaAccess();
-      const { devices } = await fetchHaDevicesForSync(creds.baseUrl, creds.accessToken);
-      await request("/iot/devices/local-sync", {
-        method: "PUT",
-        data: { devices },
-      });
-      this.localHaUnreachable = false;
+      if (this.syncingLocal) return;
+      this.syncingLocal = true;
+      try {
+        const creds = await this.ensureLocalHaAccess();
+        const { devices } = await fetchHaDevicesForSync(creds.baseUrl, creds.accessToken);
+        await request("/iot/devices/local-sync", {
+          method: "PUT",
+          data: { devices: devices || [] },
+        });
+        this.localHaUnreachable = false;
+      } finally {
+        this.syncingLocal = false;
+      }
     },
 
     async init() {
@@ -481,7 +525,10 @@ export default {
       try {
         const hub = await request("/iot/hub");
         this.applyHubMeta(hub);
-        if (this.hubConfigured) await this.loadDevices();
+        if (this.hubConfigured) {
+          this.pairingCode = "";
+          await this.loadDevices();
+        }
       } catch (e) {
         if (e.status === 401) {
           this.$emit("session-ended");
@@ -490,6 +537,83 @@ export default {
         this.loadError = e.message || "读取中枢配置失败";
       } finally {
         this.loading = false;
+      }
+    },
+
+    /** 等待网关注册时静默轮询，不打 loading。 */
+    async pollWhilePairing() {
+      if (!this.pairingCode || this.hubConfigured || this.loading || this.pairingBusy) return;
+      try {
+        const hub = await request("/iot/hub");
+        if (!hub?.configured) return;
+        this.applyHubMeta(hub);
+        this.pairingCode = "";
+        await this.loadDevices();
+      } catch (e) {
+        if (e.status === 401) this.$emit("session-ended");
+      }
+    },
+
+    async startPairingWizard() {
+      this.copiedGuide = false;
+      await this.createPairingCode();
+    },
+
+    async createPairingCode() {
+      this.pairingBusy = true;
+      this.error = "";
+      this.copiedGuide = false;
+      try {
+        const vo = await request("/iot/hub/pairing-code", { method: "POST" });
+        this.pairingCode = vo?.code || "";
+        this.pairingExpiresAt = vo?.expiresAt || null;
+        if (!this.pairingCode) this.error = "未能生成配对码";
+      } catch (e) {
+        if (e.status === 401) {
+          this.$emit("session-ended");
+          return;
+        }
+        this.error = e.message || "生成配对码失败";
+      } finally {
+        this.pairingBusy = false;
+      }
+    },
+
+    familyGuideText() {
+      const code = this.pairingCode || "（请先在 App 生成）";
+      return [
+        "【家庭设备配对】请帮家里手机 App 装一次「家庭网关」",
+        "",
+        "1. 用家里常开的电脑打开文件夹：infra/iot-gateway",
+        "2. 双击「启动网关」（Windows：启动网关.bat；Mac：启动网关.command）",
+        "3. 若提示安装 Node.js，按提示打开官网装 LTS 后，再双击一次",
+        `4. 程序问配对码时输入：${code}`,
+        "5. 看到「配对成功」后告诉手机这边的人，在「家居」页等几秒",
+        "",
+        "配对码约 15 分钟有效。日常在家优先用「手机连家里 WiFi 直连中枢」。",
+      ].join("\n");
+    },
+
+    async copyFamilyGuide() {
+      const text = this.familyGuideText();
+      try {
+        if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else if (typeof uni !== "undefined" && uni.setClipboardData) {
+          await new Promise((resolve, reject) => {
+            uni.setClipboardData({
+              data: text,
+              success: resolve,
+              fail: reject,
+            });
+          });
+        } else {
+          throw new Error("clipboard unavailable");
+        }
+        this.copiedGuide = true;
+        this.error = "";
+      } catch {
+        this.error = "复制失败，请手动把配对码和步骤发给家人";
       }
     },
 
@@ -571,7 +695,7 @@ export default {
         if (this.hubIsPhoneLocal) {
           try {
             await this.syncFromPhoneHa();
-          } catch (e) {
+          } catch {
             this.localHaUnreachable = true;
             // 仍展示云端上次快照，并提示连家里 WiFi
           }
@@ -753,8 +877,9 @@ export default {
   mounted() {
     this.init();
     this.pollTimer = setInterval(() => {
-      if (this.loading) return;
+      if (this.loading || this.syncingLocal) return;
       if (this.hubConfigured) this.loadDevices();
+      else if (this.pairingCode) this.pollWhilePairing();
     }, 5000);
   },
 

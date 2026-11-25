@@ -10,10 +10,11 @@ import com.familyhome.iot.vo.AreaDevicesVO;
 import com.familyhome.iot.vo.DeviceStateEventVO;
 import com.familyhome.iot.vo.IotDeviceVO;
 import com.familyhome.iot.client.HomeAssistantClient;
-import com.familyhome.iot.dto.GatewayDeviceReportDTO;
+import com.familyhome.iot.dto.LocalDeviceSyncDTO;
 import com.familyhome.iot.util.DemoHub;
 import com.familyhome.iot.util.GatewayHub;
 import com.familyhome.iot.util.UrlValidator;
+import org.springframework.transaction.annotation.Transactional;
 import com.familyhome.messaging.OutboxEventStore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -234,11 +235,23 @@ public class IotDeviceServiceImpl implements IotDeviceService {
   }
 
   @Override
-  public void replaceLocalDevices(Long householdId, GatewayDeviceReportDTO report) {
+  @Transactional
+  public void replaceLocalDevices(Long householdId, LocalDeviceSyncDTO report) {
+    IotHub hub = hubService.getHubInternal(householdId);
+    if (hub == null) {
+      throw new IllegalArgumentException("中枢未配置");
+    }
+    if (DemoHub.isDemo(hub.getBaseUrl()) || GatewayHub.isGateway(hub.getBaseUrl())) {
+      throw new IllegalArgumentException("仅手机直连家里中枢时可同步本机设备");
+    }
+    if (!UrlValidator.isSafeUrl(hub.getBaseUrl())) {
+      throw new IllegalArgumentException("仅私网中枢支持本机同步");
+    }
+
     deviceSnapshotMapper.delete(
         new QueryWrapper<IotDeviceSnapshot>().eq("household_id", householdId));
     if (report == null || report.getDevices() == null) return;
-    for (GatewayDeviceReportDTO.DeviceItem item : report.getDevices()) {
+    for (LocalDeviceSyncDTO.DeviceItem item : report.getDevices()) {
       IotDeviceSnapshot snapshot = new IotDeviceSnapshot();
       snapshot.setHouseholdId(householdId);
       snapshot.setEntityId(item.getEntityId());

@@ -1,5 +1,6 @@
 /**
  * 手机在家里 WiFi 下直连 Home Assistant（不经云端转发到局域网）。
+ * 优先 uni.request（小程序 / App），否则回退 fetch（浏览器 H5）。
  */
 
 const RELEVANT = new Set(["light", "switch", "sensor", "scene", "climate", "media_player"]);
@@ -8,12 +9,44 @@ function normalizeBase(baseUrl) {
   return String(baseUrl || "").replace(/\/+$/, "");
 }
 
+function resolveUni() {
+  if (typeof uni !== "undefined" && typeof uni.request === "function") return uni;
+  return null;
+}
+
 async function haFetch(baseUrl, accessToken, path, { method = "GET", body } = {}) {
   const url = `${normalizeBase(baseUrl)}${path.startsWith("/") ? path : `/${path}`}`;
   const headers = {
     Authorization: `Bearer ${accessToken}`,
     "Content-Type": "application/json",
   };
+  const uniApi = resolveUni();
+  if (uniApi) {
+    const response = await new Promise((resolve, reject) => {
+      uniApi.request({
+        url,
+        method,
+        data: body != null ? body : undefined,
+        header: headers,
+        success: resolve,
+        fail: err => reject(new Error(err?.errMsg || "连不上家里中枢，请确认已连家里 WiFi")),
+      });
+    });
+    const status = response.statusCode ?? response.status;
+    if (status < 200 || status >= 300) {
+      const msg =
+        typeof response.data === "string"
+          ? response.data
+          : response.data?.message || `家庭中枢返回 ${status}`;
+      throw new Error(msg);
+    }
+    if (status === 204) return null;
+    return response.data ?? null;
+  }
+
+  if (typeof fetch !== "function") {
+    throw new Error("当前环境无法直连家里中枢");
+  }
   const res = await fetch(url, {
     method,
     headers,

@@ -1,9 +1,9 @@
 package com.familyhome.iot.controller;
 
 import com.familyhome.common.api.ApiResponse;
-import com.familyhome.iot.dto.GatewayDeviceReportDTO;
 import com.familyhome.iot.dto.IotCommandDTO;
 import com.familyhome.iot.dto.IotHubBindDTO;
+import com.familyhome.iot.dto.LocalDeviceSyncDTO;
 import com.familyhome.iot.service.IotCommandService;
 import com.familyhome.iot.service.IotDeviceService;
 import com.familyhome.iot.service.IotHubService;
@@ -129,10 +129,10 @@ public class IotController {
     }
   }
 
-  /** 手机在局域网拉完设备后回写快照。 */
+  /** 手机在局域网拉完设备后回写快照（允许空列表）。 */
   @PutMapping("/devices/local-sync")
   public ApiResponse<Void> localSync(
-      HttpServletRequest r, @Valid @RequestBody GatewayDeviceReportDTO report) {
+      HttpServletRequest r, @Valid @RequestBody LocalDeviceSyncDTO report) {
     SessionPrincipal principal = SessionPrincipal.from(r);
     try {
       deviceService.replaceLocalDevices(principal.householdId(), report);

@@ -1,6 +1,6 @@
 package com.familyhome.iot.service;
 
-import com.familyhome.iot.dto.GatewayDeviceReportDTO;
+import com.familyhome.iot.dto.LocalDeviceSyncDTO;
 import com.familyhome.iot.vo.AreaDevicesVO;
 import com.familyhome.iot.vo.IotDeviceVO;
 import java.util.List;
@@ -38,6 +38,7 @@ public interface IotDeviceService {
 
   /**
    * 手机在局域网拉完设备后回写云端快照，供家人共同查看。
+   * 仅允许 phone-local（私网 HA）中枢；演示/网关会拒绝。
    */
-  void replaceLocalDevices(Long householdId, GatewayDeviceReportDTO report);
+  void replaceLocalDevices(Long householdId, LocalDeviceSyncDTO report);
 }
