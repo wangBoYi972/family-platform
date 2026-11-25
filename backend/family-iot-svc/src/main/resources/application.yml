@@ -33,5 +33,10 @@ family:
     # 默认只允许私网地址防 SSRF；不在家要控制设备时，把 Tailscale 域名 / HA Cloud 域名 / 内网穿透域名填进来。
     # 例：abc123.ts.net,myhome.ui.nabu.casa
     allowed-hosts: ${FAMILY_IOT_ALLOWED_HOSTS:}
+    # 后台静默发现中枢：地址与令牌由服务端底层自动获取并封装，绝不经过 UI。
+    # 生产环境可替换为 mDNS/SSDP 局域网发现模块（JmDNS / HA zeroconf）写入这两个值。
+    # 留空时前端提示"请检查中枢是否通电/连接同一WiFi"并提供重新扫描。
+    auto-hub-url: ${FAMILY_IOT_AUTO_HUB_URL:}
+    auto-hub-token: ${FAMILY_IOT_AUTO_HUB_TOKEN:}
     # 加密密钥（从环境变量读取，本地开发环境需设置）
     encryption-key: ${FAMILY_IOT_ENCRYPTION_KEY:}

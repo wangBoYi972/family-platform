@@ -9,6 +9,7 @@ import com.familyhome.iot.service.IotDeviceService;
 import com.familyhome.iot.service.IotHubService;
 import com.familyhome.iot.vo.AreaDevicesVO;
 import com.familyhome.iot.vo.DeviceStateEventVO;
+import com.familyhome.iot.vo.DeviceTestResultVO;
 import com.familyhome.iot.vo.IotDeviceVO;
 import com.familyhome.iot.client.HomeAssistantClient;
 import com.familyhome.iot.util.DemoHub;
@@ -424,5 +425,51 @@ public class IotDeviceServiceImpl implements IotDeviceService {
     if (attributes == null || attributes.isNull()) return null;
     if (!attributes.isObject()) throw new IllegalArgumentException("设备属性必须是 JSON 对象");
     return attributes.toString();
+  }
+
+  // ---------------------------------------------------------------- 设备响应探测
+
+  @Override
+  public DeviceTestResultVO testDevice(Long householdId, String entityId) {
+    // 家庭隔离：只能探测本家庭名下的设备
+    IotDeviceSnapshot snapshot = deviceSnapshotMapper.selectOne(
+        new QueryWrapper<IotDeviceSnapshot>()
+            .eq("household_id", householdId)
+            .eq("entity_id", entityId));
+    if (snapshot == null) {
+      throw new IllegalArgumentException("设备不存在");
+    }
+
+    String name = snapshot.getDeviceName() != null ? snapshot.getDeviceName() : entityId;
+
+    // 手动设备：本地模拟，不涉及真实硬件
+    if ("MANUAL".equals(snapshot.getDeviceSource())) {
+      return DeviceTestResultVO.simulated(name);
+    }
+
+    // 中枢设备：需要已配置的中枢
+    IotHub hub = hubService.getHubInternal(householdId);
+    if (hub == null) {
+      throw new IllegalStateException("中枢未配置");
+    }
+
+    // 演示中枢：本地模拟
+    if (DemoHub.isDemo(hub.getBaseUrl())) {
+      return DeviceTestResultVO.simulated(name);
+    }
+
+    // 真实中枢：实际读取该实体在 Home Assistant 上的实时状态
+    try {
+      JsonNode stateNode = homeAssistantClient.getState(hub, entityId);
+      if (stateNode == null || stateNode.isNull()) {
+        return DeviceTestResultVO.noResponse("Home Assistant 中不存在该实体，可能已被删除或改名");
+      }
+      JsonNode s = stateNode.get("state");
+      String state = (s != null && !s.isNull()) ? s.asText() : null;
+      return DeviceTestResultVO.responded(state);
+    } catch (Exception e) {
+      log.warn("探测设备响应失败: {} 家庭 {}", entityId, householdId, e);
+      return DeviceTestResultVO.noResponse(e.getMessage() == null ? "无法连接中枢" : e.getMessage());
+    }
   }
 }

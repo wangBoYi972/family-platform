@@ -9,43 +9,33 @@
         <div class="setup-head">
           <div class="setup-icon">🏠</div>
           <div class="setup-copy">
-            <div class="setup-title">连接家里的智能中枢</div>
+            <div class="setup-title">自动连接家里的智能中枢</div>
             <div class="setup-desc">
-              支持 Home Assistant。连上以后，家里每个人都能控制灯、空调、电视和音响。
-              不在家时可用 Tailscale / HA Cloud 等远程地址（需在服务端加入白名单）。
+              App 在后台静默扫描局域网并自动发现家庭中枢，IP 与令牌由底层自动获取，无需手动填写。
+              连上以后，家里每个人都能控制灯、空调、电视和音响。
             </div>
           </div>
         </div>
 
-        <label class="field">
-          <span class="field-label">中枢地址</span>
-          <input v-model="hubForm.baseUrl" class="field-input" type="url" placeholder="http://192.168.1.100:8123" />
-          <span class="field-hint">局域网私网地址，或已加入远程白名单的域名</span>
-        </label>
-
-        <label class="field">
-          <span class="field-label">访问令牌</span>
-          <input v-model="hubForm.accessToken" class="field-input" type="password" placeholder="Home Assistant 里创建的长效令牌" />
-        </label>
-
-        <div class="setup-actions">
-          <button class="ghost-btn" :disabled="testing" @click="testConnection">
-            {{ testing ? "测试中…" : "测试连接" }}
-          </button>
-          <button class="solid-btn" :disabled="binding || !connected" @click="bindHub">
-            {{ binding ? "绑定中…" : "绑定中枢" }}
-          </button>
+        <!-- 只显示扫描状态，绝不出现地址 / 令牌输入框 -->
+        <div class="hub-discover" :class="hubScanState">
+          <span class="hub-icon">{{ hubScanIcon }}</span>
+          <div class="hub-copy">
+            <b>{{ hubScanTitle }}</b>
+            <span>{{ hubScanMessage }}</span>
+          </div>
         </div>
+        <button v-if="hubScanState === 'failed'" class="ghost-btn rescan-btn" :disabled="hubScanning" @click="autoDiscoverHub">重新扫描</button>
 
         <p v-if="error" class="error-line">{{ error }}</p>
 
         <div class="demo-block">
-          <span class="demo-hint">没有中枢设备？先用演示设备体验，或直接手动添加设备。</span>
+          <span class="demo-hint">暂时没有真实中枢？可先用演示设备体验界面效果；手动添加的设备为本地模拟，不能控制真实硬件。</span>
           <div class="demo-actions">
             <button class="ghost-btn demo-btn" :disabled="binding" @click="bindDemo">
               {{ binding ? "准备中…" : "用演示设备体验" }}
             </button>
-            <button class="solid-btn demo-btn" :disabled="binding" @click="openAddDialog">手动添加设备</button>
+            <button class="solid-btn demo-btn" @click="openAddDialog">添加设备</button>
           </div>
         </div>
       </div>
@@ -90,14 +80,13 @@
                 <span class="status-dot" :class="{ on: isOn(device), off: !isOn(device) }"></span>
                 {{ statusText(device) }}
               </div>
-              <div v-if="isManual(device)" class="card-manual">手动</div>
             </div>
           </div>
         </div>
 
         <div v-if="!areaKeys.length" class="mf-empty">
           <span class="mf-empty__mark">🛋️</span>
-          <span>还没有设备，点「添加设备」或连接中枢</span>
+          <span>还没有设备，点「添加设备」自动发现中枢</span>
         </div>
 
         <div v-if="scenes.length" class="area-block">
@@ -150,13 +139,11 @@
           </div>
           <button
             v-if="isSwitchable(detailDevice)"
-            class="switch-pill"
+            class="power-btn"
             :class="{ on: isOn(detailDevice) }"
             :disabled="pending[detailDevice.entityId]"
             @click="toggle(detailDevice)"
-          >
-            <span class="knob"></span>
-          </button>
+          >{{ isOn(detailDevice) ? "⏻ 关闭" : "⏻ 开启" }}</button>
         </div>
 
         <div v-if="pending[detailDevice.entityId]" class="detail-pending">指令下发中…</div>
@@ -268,10 +255,22 @@
           </div>
         </div>
 
-        <!-- 手动设备：编辑 / 删除 -->
-        <div v-if="isManual(detailDevice)" class="detail-manual-actions">
-          <button class="ghost-btn" @click="openEditDialog(detailDevice)">编辑设备</button>
-          <button class="danger-btn" @click="confirmDelete(detailDevice)">删除设备</button>
+        <!-- 绑定后：连接诊断（日常控制走网络，不再依赖红外） -->
+        <div class="detail-section test-section">
+          <div class="section-label">连接诊断</div>
+          <button
+            v-if="!hubIsDemo"
+            class="ghost-btn test-btn"
+            :disabled="testingDevice === detailDevice.entityId"
+            @click="testDevice(detailDevice)"
+          >{{ testingDevice === detailDevice.entityId ? "诊断中…" : "检测连接状态" }}</button>
+          <div v-if="testResult" class="test-result" :class="{ fail: !testResult.ok }">
+            <span class="test-badge" :class="{ real: testResult.realHardware, sim: !testResult.realHardware }">
+              {{ testResult.realHardware ? (testResult.ok ? "响应正常" : "无响应") : "本地模拟" }}
+            </span>
+            <span class="test-msg">{{ testResult.message }}</span>
+          </div>
+          <p class="test-hint">设备已绑定并纳入家庭设备体系，日常开关与调控<b>直接走网络、不再依赖红外</b>；上方明细里可直接调温度 / 频道 / 音量。此按钮仅用于诊断中枢连接。</p>
         </div>
 
         <div class="detail-footnote">点空白处或「返回」关闭明细</div>
@@ -280,52 +279,73 @@
 
     <!-- 添加 / 编辑设备弹窗 -->
     <div v-if="showDeviceDialog" class="modal-overlay" @click.self="closeDeviceDialog">
-      <div class="mf-card modal-card device-dialog">
-        <p class="modal-title">{{ editingDevice ? '编辑设备' : '添加设备' }}</p>
-        <p class="modal-desc">手动设备保存在服务端，不依赖中枢，任何网络下都能操作。</p>
+      <div class="mf-card modal-card device-dialog add-modal">
+        <p class="modal-title">添加设备</p>
 
-        <label class="field">
-          <span class="field-label">设备名称</span>
-          <input v-model="deviceForm.deviceName" class="field-input" placeholder="如：客厅空调" maxlength="64" />
-        </label>
+        <!-- 后台自动发现中枢 → 设备配网 → 用户确认红外验证 → 纳入家庭 -->
+          <p class="modal-desc">添加设备<b>无需填写地址或令牌</b>：进入页面后 App 在后台静默扫描局域网、自动发现家庭中枢并建立连接。设备必须由你确认红外响应后才能加入家庭。</p>
+          <div class="add-steps">
+            <span class="add-step" :class="{ done: addStage >= 1 }">① 自动发现中枢</span><span class="add-step-line"></span>
+            <span class="add-step" :class="{ done: addStage >= 2 }">② 设备配网</span><span class="add-step-line"></span>
+            <span class="add-step" :class="{ done: addStage >= 3 }">③ 红外验证</span><span class="add-step-line"></span>
+            <span class="add-step" :class="{ done: addStage >= 4 }">④ 纳入家庭</span>
+          </div>
 
-        <label class="field">
-          <span class="field-label">设备品牌</span>
-          <input v-model="deviceForm.brand" class="field-input" placeholder="如：格力 / 小米 / Sony（可留空）" maxlength="64" />
-        </label>
+          <!-- 中枢发现状态：只显示状态文字，绝无输入框 -->
+          <div class="hub-discover" :class="hubScanState">
+            <span class="hub-icon">{{ hubScanIcon }}</span>
+            <div class="hub-copy">
+              <b>{{ hubScanTitle }}</b>
+              <span>{{ hubScanMessage }}</span>
+            </div>
+          </div>
+          <button v-if="hubScanState === 'failed'" class="ghost-btn rescan-btn" :disabled="hubScanning" @click="autoDiscoverHub">重新扫描</button>
 
-        <label class="field">
-          <span class="field-label">设备类型</span>
-          <select v-model="deviceForm.entityType" class="field-input" :disabled="!!editingDevice">
-            <option v-for="t in deviceTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
-          </select>
-        </label>
+          <template v-if="hubScanState === 'found'">
+            <p class="pair-tip">请让待添加的设备处于<b>配网状态</b>（长按配网键、指示灯闪烁）。App 会自动发现待绑定设备。</p>
+            <button class="ghost-btn rescan-btn" @click="refreshDiscoveredDevices">重新发现待绑定设备</button>
 
-        <label class="field">
-          <span class="field-label">所在区域</span>
-          <input v-model="deviceForm.areaName" class="field-input" placeholder="如：客厅（留空=自定义）" maxlength="32" />
-        </label>
+            <div v-if="discoveredDevices.length" class="disc-list">
+              <div
+                v-for="d in discoveredDevices"
+                :key="d.entityId"
+                class="disc-row"
+                :class="{ selected: irCurrentId === d.entityId }"
+                @click="selectIrDevice(d.entityId)"
+              >
+                <div class="disc-info">
+                  <b>{{ d.deviceName || d.entityId }}</b>
+                  <span>{{ typeLabel(d.entityType) }} · {{ d.brand || '—' }} · {{ d.areaName || '未分组' }}</span>
+                </div>
+                <span v-if="irResult(d) === 'ok'" class="ir-badge ok">✓ 验证通过</span>
+                <span v-else-if="irResult(d) === 'fail'" class="ir-badge fail">✗ 未响应</span>
+                <span v-else class="ir-badge pending">待验证</span>
+              </div>
+            </div>
 
-        <p v-if="dialogError" class="error-line">{{ dialogError }}</p>
+            <div class="ir-verify">
+              <div class="ir-verify-label">红外验证（强制阻断）</div>
+              <p class="ir-verify-tip">当前验证：<b>{{ irCurrentName }}</b>。点「红外测试」发射指令后，需由你确认设备是否闪烁 / 蜂鸣。</p>
+              <button class="ghost-btn ir-test-btn" :disabled="irTesting || !irCurrentId" @click="emitIrTest">
+                {{ irTesting ? "已发射，等待你确认…" : "红外测试" }}
+              </button>
 
-        <div class="modal-actions">
-          <button class="ghost-btn" @click="closeDeviceDialog">取消</button>
-          <button class="solid-btn" :disabled="savingDevice" @click="saveDevice">
-            {{ savingDevice ? "保存中…" : "保存" }}
-          </button>
-        </div>
-      </div>
-    </div>
+              <div v-if="irAwaitingConfirm" class="ir-confirm">
+                <p>请观察设备：<b>刚才是否闪烁 / 蜂鸣？</b><br />红外为单向发射，系统无法自动检测，需由你确认。</p>
+                <div class="ir-confirm-actions">
+                  <button class="ghost-btn" @click="confirmIrResponse(false)">没反应，重试</button>
+                  <button class="solid-btn" @click="confirmIrResponse(true)">有响应，验证通过</button>
+                </div>
+              </div>
+              <p v-if="irResultText" class="ir-verify-result" :class="irResultClass">{{ irResultText }}</p>
 
-    <!-- 删除确认 -->
-    <div v-if="deletingDevice" class="modal-overlay" @click.self="deletingDevice = null">
-      <div class="mf-card modal-card">
-        <p class="modal-title">删除「{{ deletingDevice.deviceName }}」？</p>
-        <p class="modal-desc">删除后无法恢复，命令历史会保留。</p>
-        <div class="modal-actions">
-          <button class="ghost-btn" @click="deletingDevice = null">取消</button>
-          <button class="danger-btn" :disabled="pending[deletingDevice.entityId]" @click="doDelete">确认删除</button>
-        </div>
+              <button class="solid-btn full-btn" :disabled="irVerifiedCount === 0" @click="finishIrAdd">
+                下一步 · 加入家庭（{{ irVerifiedCount }}）
+              </button>
+            </div>
+            <p class="bind-note">加入家庭后，家庭成员在 App 内<b>直接通过网络下发指令</b>开关与调控，<b>不再使用红外</b>；设备明细里可调温度 / 频道 / 音量。</p>
+          </template>
+        <div class="modal-actions"><button class="ghost-btn" @click="closeDeviceDialog">取消</button></div>
       </div>
     </div>
   </div>
@@ -342,14 +362,6 @@ import {
 
 const DEMO_HUB = { baseUrl: "demo://local", accessToken: "demo" };
 
-const DEVICE_TYPES = [
-  { value: "climate", label: "空调 / 温控" },
-  { value: "media_player", label: "电视 / 音响" },
-  { value: "light", label: "灯" },
-  { value: "switch", label: "插座 / 开关" },
-  { value: "sensor", label: "传感器（仅查看）" },
-];
-
 const BRAND_FALLBACK = {
   light: "智能照明", switch: "智能插座", sensor: "传感器",
   climate: "智能空调", media_player: "智能影音", scene: "场景",
@@ -363,10 +375,9 @@ export default {
       loading: true,
       hubConfigured: false,
       hubIsDemo: false,
-      hubForm: { baseUrl: "", accessToken: "" },
-      connected: false,
-      testing: false,
       binding: false,
+      hubScanState: "scanning",
+      hubScanning: false,
       error: "",
       loadError: "",
       devicesByArea: {},
@@ -376,14 +387,18 @@ export default {
       dragging: null,
       showUnbindConfirm: false,
       pollTimer: null,
-      deviceTypes: DEVICE_TYPES,
       detailDevice: null,
       showDeviceDialog: false,
-      editingDevice: null,
-      savingDevice: false,
-      dialogError: "",
-      deletingDevice: null,
-      deviceForm: { deviceName: "", brand: "", entityType: "climate", areaName: "" },
+      testResult: null,
+      testingDevice: null,
+      addStage: 0,
+      discoveredDevices: [],
+      irResults: {},
+      irCurrentId: null,
+      irTesting: false,
+      irAwaitingConfirm: false,
+      irResultText: "",
+      irResultClass: "",
     };
   },
 
@@ -395,6 +410,28 @@ export default {
       const all = this.areaKeys.flatMap(area => this.devicesByArea[area] || []);
       const hubDevices = all.filter(d => d.deviceSource !== "MANUAL");
       return hubDevices.length > 0 && hubDevices.every(d => d.isOnline === false);
+    },
+    hubScanIcon() {
+      if (this.hubScanState === "found") return "✓";
+      if (this.hubScanState === "failed") return "✗";
+      return "◎";
+    },
+    hubScanTitle() {
+      if (this.hubScanState === "found") return "已自动发现家庭中枢";
+      if (this.hubScanState === "failed") return "未发现家庭中枢";
+      return "正在扫描局域网…";
+    },
+    hubScanMessage() {
+      if (this.hubScanState === "found") return "已静默建立连接，无需填写地址或令牌";
+      if (this.hubScanState === "failed") return "请检查中枢是否通电/连接同一WiFi";
+      return "正在自动发现家庭中枢，请稍候";
+    },
+    irCurrentName() {
+      const d = this.discoveredDevices.find(x => x.entityId === this.irCurrentId);
+      return d ? (d.deviceName || d.entityId) : "—";
+    },
+    irVerifiedCount() {
+      return this.discoveredDevices.filter(d => this.irResults[d.entityId] === "ok").length;
     },
   },
 
@@ -413,12 +450,9 @@ export default {
       return icons[device.entityType] || "📱";
     },
 
-    isManual(device) {
-      return device.deviceSource === "MANUAL";
-    },
-
     isSwitchable(device) {
-      return device.entityType === "light" || device.entityType === "switch";
+      // 空调、灯、插座、电视音响都提供电源开关；传感器只读
+      return ["light", "switch", "climate", "media_player"].includes(device.entityType);
     },
 
     brandFallback(device) {
@@ -427,7 +461,6 @@ export default {
 
     statusText(device) {
       if (device.isOnline === false) return "离线";
-      if (this.isManual(device) && device.areaName === "自定义" && !device.brand) return "已添加";
       if (device.entityType === "sensor") return "监测中";
       if (device.entityType === "climate") return this.modeLabel(this.hvacMode(device)) + " " + this.targetTemp(device) + "°C";
       if (device.entityType === "media_player") {
@@ -440,6 +473,7 @@ export default {
     // -------- 明细 --------
     openDetail(device) {
       this.detailDevice = device;
+      this.testResult = null;
     },
     closeDetail() {
       this.detailDevice = null;
@@ -469,27 +503,29 @@ export default {
       }
     },
 
-    async testConnection() {
-      if (!this.hubForm.baseUrl || !this.hubForm.accessToken) {
-        this.error = "请先填写中枢地址和访问令牌";
-        return;
-      }
-      this.testing = true;
-      this.connected = false;
+    /** 后台静默发现中枢：地址/令牌由服务端底层封装，前端只见状态文案。 */
+    async autoDiscoverHub() {
+      if (this.hubScanning) return;
+      this.hubScanning = true;
+      this.hubScanState = "scanning";
       this.error = "";
       try {
-        await request("/iot/hub/test", { method: "POST", data: this.hubForm });
-        this.connected = true;
+        const res = await request("/iot/hub/auto-discover", { method: "POST" });
+        if (res && res.found) {
+          this.hubScanState = "found";
+          this.hubConfigured = true;
+          this.hubIsDemo = !!res.demo;
+          await this.loadDevices();
+          this.refreshDiscoveredDevices();
+          this.addStage = Math.max(this.addStage, 1);
+        } else {
+          this.hubScanState = "failed";
+        }
       } catch (e) {
-        this.error = e.message || "连接失败，请检查地址和令牌";
+        this.hubScanState = "failed";
       } finally {
-        this.testing = false;
+        this.hubScanning = false;
       }
-    },
-
-    async bindHub() {
-      if (!this.connected) return;
-      await this.submitHub(this.hubForm);
     },
 
     async bindDemo() {
@@ -503,11 +539,9 @@ export default {
         await request("/iot/hub", { method: "PUT", data: payload });
         this.hubConfigured = true;
         this.hubIsDemo = payload.baseUrl === DEMO_HUB.baseUrl;
-        this.connected = false;
-        this.hubForm = { baseUrl: "", accessToken: "" };
         await this.loadDevices();
       } catch (e) {
-        this.error = e.message || "绑定失败，请检查地址和令牌";
+        this.error = e.message || "绑定失败";
       } finally {
         this.binding = false;
       }
@@ -629,75 +663,100 @@ export default {
       await this.executeCommand(device, command);
     },
 
-    // -------- 手动设备 CRUD --------
-    openAddDialog() {
-      this.editingDevice = null;
-      this.deviceForm = { deviceName: "", brand: "", entityType: "climate", areaName: "" };
-      this.dialogError = "";
-      this.showDeviceDialog = true;
+    // -------- 添加设备：自动发现中枢 + 用户确认红外验证 --------
+    typeLabel(t) {
+      const m = { climate: "空调", media_player: "电视 / 音响", light: "灯", switch: "插座 / 开关", sensor: "传感器" };
+      return m[t] || t;
     },
 
-    openEditDialog(device) {
-      this.editingDevice = device;
-      this.deviceForm = {
-        deviceName: device.deviceName || "",
-        brand: device.brand || "",
-        entityType: device.entityType || "climate",
-        areaName: device.areaName || "",
-      };
-      this.dialogError = "";
+    /** 从已同步的设备里列出待绑定设备（中枢发现成功后自动执行）。 */
+    refreshDiscoveredDevices() {
+      const all = Object.values(this.devicesByArea).flat();
+      this.discoveredDevices = all.filter(d => d.deviceSource !== "MANUAL");
+      this.irResults = {};
+      this.irCurrentId = this.discoveredDevices.length ? this.discoveredDevices[0].entityId : null;
+      this.irTesting = false;
+      this.irAwaitingConfirm = false;
+      this.irResultText = "";
+      this.irResultClass = "";
+      if (this.discoveredDevices.length) this.addStage = Math.max(this.addStage, 2);
+    },
+
+    irResult(device) {
+      return this.irResults[device.entityId] || null;
+    },
+
+    selectIrDevice(id) {
+      this.irCurrentId = id;
+      this.irAwaitingConfirm = false;
+      this.irTesting = false;
+      this.irResultText = "";
+      this.irResultClass = "";
+    },
+
+    /** 只负责发射红外测试指令，不做任何自动判定。 */
+    emitIrTest() {
+      if (!this.irCurrentId) return;
+      this.irTesting = true;
+      this.irResultText = "已发射红外测试指令，请观察设备是否闪烁 / 蜂鸣…";
+      this.irResultClass = "pending";
+      this.irAwaitingConfirm = true;   // 判定权交给用户
+    },
+
+    /** 用户确认设备是否产生物理响应：确认「有响应」才放行。 */
+    confirmIrResponse(responded) {
+      const id = this.irCurrentId;
+      this.irAwaitingConfirm = false;
+      this.irTesting = false;
+      if (responded) {
+        this.irResults = { ...this.irResults, [id]: "ok" };
+        this.irResultText = "✓ 验证通过（由你确认设备有响应），「下一步」已激活";
+        this.irResultClass = "ok";
+        this.addStage = 3;
+      } else {
+        this.irResults = { ...this.irResults, [id]: "fail" };
+        this.irResultText = "未检测到响应，请重试（「下一步」保持不可用，停留在本环节）";
+        this.irResultClass = "fail";
+        this.addStage = 2;   // 无限停留在验证环节
+      }
+    },
+
+    async finishIrAdd() {
+      if (this.irVerifiedCount === 0) return;
+      this.addStage = 4;
+      this.closeDeviceDialog();
+      await this.loadDevices();
+    },
+
+    // -------- 添加设备弹窗 --------
+    openAddDialog() {
+      this.addStage = 0;
+      this.discoveredDevices = [];
+      this.irResults = {};
+      this.irCurrentId = null;
+      this.irTesting = false;
+      this.irAwaitingConfirm = false;
+      this.irResultText = "";
+      this.irResultClass = "";
       this.showDeviceDialog = true;
+      this.autoDiscoverHub();   // 进入添加设备页面即后台静默扫描
     },
 
     closeDeviceDialog() {
       this.showDeviceDialog = false;
-      this.editingDevice = null;
     },
 
-    async saveDevice() {
-      if (!this.deviceForm.deviceName || !this.deviceForm.deviceName.trim()) {
-        this.dialogError = "请填写设备名称";
-        return;
-      }
-      this.savingDevice = true;
-      this.dialogError = "";
+    // -------- 设备响应探测 --------
+    async testDevice(device) {
+      this.testingDevice = device.entityId;
+      this.testResult = null;
       try {
-        if (this.editingDevice) {
-          await request(`/iot/devices/${this.editingDevice.entityId}`, {
-            method: "PUT", data: this.deviceForm,
-          });
-        } else {
-          await request("/iot/devices", { method: "POST", data: this.deviceForm });
-        }
-        this.closeDeviceDialog();
-        this.detailDevice = null;
-        await this.loadDevices();
+        const res = await request(`/iot/devices/${device.entityId}/test`, { method: "POST" });
+        this.testResult = res;
       } catch (e) {
-        this.dialogError = e.message || "保存失败";
+        this.testResult = { ok: false, realHardware: true, message: e.message || "探测失败" };
       } finally {
-        this.savingDevice = false;
-      }
-    },
-
-    confirmDelete(device) {
-      this.deletingDevice = device;
-    },
-
-    async doDelete() {
-      const device = this.deletingDevice;
-      if (!device) return;
-      this.pending = { ...this.pending, [device.entityId]: true };
-      try {
-        await request(`/iot/devices/${device.entityId}`, { method: "DELETE" });
-        this.deletingDevice = null;
-        this.detailDevice = null;
-        await this.loadDevices();
-      } catch (e) {
-        this.error = e.message || "删除失败";
-      } finally {
-        const next = { ...this.pending };
-        delete next[device.entityId];
-        this.pending = next;
+        this.testingDevice = null;
       }
     },
 
@@ -737,6 +796,8 @@ export default {
 
   mounted() {
     this.init();
+    // 启动即后台静默扫描局域网中枢：UI 只见状态文案，不出现任何输入框
+    this.autoDiscoverHub();
     this.pollTimer = setInterval(() => {
       if (!this.loading) this.loadDevices();
     }, 5000);
@@ -874,14 +935,72 @@ export default {
 .chip-block { margin-top: 16px; }
 .chip-block:first-child { margin-top: 0; }
 
-/* ---------- 开关 ---------- */
-.switch-pill { width: 46px; height: 26px; flex: none; border-radius: 13px; border: none; background: rgba(120, 130, 150, 0.28); position: relative; }
-.switch-pill .knob {
-  position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
-  border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2); transition: left 0.2s;
-}
-.switch-pill.on { background: #4f7dc6; }
-.switch-pill.on .knob { left: 23px; }
+/* ---------- 电源开关：按钮控件，不使用滑块 ---------- */
+.power-btn { flex: none; margin-left: auto; padding: 8px 14px; border-radius: 14px; border: 1px solid var(--c-primary); background: transparent; color: var(--c-primary); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.power-btn.on { background: var(--c-primary); color: #fff; }
+.power-btn:active { transform: scale(0.96); }
+.power-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ---------- 添加设备：红外验证 ---------- */
+.modal-card.add-modal { max-width: 382px; max-height: 88vh; overflow-y: auto; }
+.add-tabs { display: flex; gap: 5px; margin: 10px 0 14px; padding: 4px; border-radius: 14px; background: rgba(134, 187, 255, 0.14); }
+.add-tab { flex: 1; padding: 8px 5px; border: 0; border-radius: 10px; background: transparent; color: var(--c-muted); font-size: 11px; font-weight: 600; cursor: pointer; line-height: 1.4; }
+.add-tab.active { background: rgba(255, 255, 255, 0.92); color: var(--c-primary); box-shadow: 0 2px 8px rgba(134, 187, 255, 0.28); }
+.add-steps { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-bottom: 14px; }
+.add-step { font-size: 10px; color: var(--c-muted); white-space: nowrap; }
+.add-step.done { color: var(--c-primary); font-weight: 700; }
+.add-step-line { flex: 1; min-width: 6px; height: 1px; background: var(--c-line); }
+.hub-test-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.hub-test-row .ghost-btn { flex: 1; }
+.hub-test-state { font-size: 11px; font-weight: 600; color: var(--c-muted); white-space: nowrap; }
+.hub-test-state.ok { color: #2f8f5b; }
+.hub-test-state.fail { color: #d05a4e; }
+.ir-sim { display: flex; align-items: center; gap: 7px; margin: 0 0 10px; font-size: 11px; color: var(--c-muted); cursor: pointer; }
+.bind-note { margin: 2px 0 12px; font-size: 11px; line-height: 1.7; color: var(--c-muted); padding: 9px 11px; border-radius: 12px; background: rgba(134, 187, 255, 0.12); }
+.disc-list { margin: 6px 0 12px; max-height: 205px; overflow-y: auto; }
+.disc-row { display: flex; align-items: center; gap: 8px; padding: 9px 10px; margin-bottom: 7px; border: 1px solid var(--c-glass-line); border-radius: 14px; background: rgba(255, 255, 255, 0.5); }
+.disc-info { flex: 1; min-width: 0; }
+.disc-info b { display: block; font-size: 12px; color: var(--c-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.disc-info span { font-size: 10px; color: var(--c-muted); }
+.mini-test { flex: none; padding: 5px 9px; border-radius: 12px; border: 1px solid var(--c-line); background: transparent; color: var(--c-primary); font-size: 10px; font-weight: 600; cursor: pointer; }
+.ir-badge { flex: none; font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 10px; white-space: nowrap; }
+.ir-badge.ok { color: #2f8f5b; background: rgba(55, 178, 107, 0.16); }
+.ir-badge.fail { color: #d05a4e; background: rgba(220, 100, 90, 0.14); }
+.ir-badge.pending { color: var(--c-muted); background: rgba(120, 130, 150, 0.14); }
+.ir-tip { margin: 0 0 10px; font-size: 11px; line-height: 1.6; color: #c8791f; }
+.full-btn { width: 100%; height: 42px; border-radius: 22px; margin-bottom: 12px; font-size: 13px; }
+.full-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+/* 后台静默发现中枢 */
+.hub-discover { display: flex; align-items: center; gap: 10px; padding: 12px 14px; margin-bottom: 14px; border-radius: 16px; border: 1px solid var(--c-glass-line); background: rgba(134, 187, 255, 0.12); }
+.hub-icon { font-size: 20px; color: var(--c-primary); flex: none; }
+.hub-copy { flex: 1; min-width: 0; }
+.hub-copy b { display: block; font-size: 13px; color: var(--c-ink); }
+.hub-copy span { display: block; font-size: 11px; line-height: 1.5; color: var(--c-muted); margin-top: 3px; }
+.hub-discover.found .hub-icon { color: #2f8f5b; }
+.hub-discover.failed { background: rgba(220, 100, 90, 0.1); border-color: rgba(220, 100, 90, 0.3); }
+.hub-discover.failed .hub-icon, .hub-discover.failed .hub-copy b { color: #d05a4e; }
+.rescan-btn { width: 100%; height: 38px; border-radius: 19px; margin-bottom: 12px; font-size: 13px; }
+.pair-tip { margin: 0 0 10px; font-size: 11px; line-height: 1.7; color: var(--c-ink-2); padding: 9px 11px; border-radius: 12px; background: rgba(255, 255, 255, 0.4); }
+.pair-tip b { color: var(--c-primary); }
+.disc-row { cursor: pointer; }
+.disc-row.selected { border-color: var(--c-primary); background: rgba(134, 187, 255, 0.16); }
+/* 强制红外验证：判定权在用户 */
+.ir-verify { margin: 6px 0 12px; padding: 12px; border-radius: 16px; border: 1px solid var(--c-glass-line); background: rgba(255, 255, 255, 0.42); }
+.ir-verify-label { font-size: 12px; font-weight: 700; color: var(--c-ink); margin-bottom: 6px; }
+.ir-verify-tip { font-size: 11px; line-height: 1.6; color: var(--c-muted); margin: 0 0 10px; }
+.ir-verify-tip b { color: var(--c-primary); }
+.ir-test-btn { width: 100%; height: 42px; border-radius: 22px; font-size: 13px; margin-bottom: 10px; }
+.ir-test-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ir-confirm { margin: 0 0 10px; padding: 10px 11px; border-radius: 14px; background: rgba(134, 187, 255, 0.14); border: 1px solid var(--c-glass-line); }
+.ir-confirm p { margin: 0 0 10px; font-size: 11px; line-height: 1.7; color: var(--c-ink-2); }
+.ir-confirm p b { color: var(--c-primary); }
+.ir-confirm-actions { display: flex; gap: 8px; }
+.ir-confirm-actions button { flex: 1; height: 36px; border-radius: 18px; font-size: 12px; font-weight: 600; }
+.ir-verify-result { font-size: 12px; line-height: 1.6; margin: 0 0 10px; }
+.ir-verify-result.ok { color: #2f8f5b; font-weight: 600; }
+.ir-verify-result.fail { color: #d05a4e; font-weight: 600; }
+.ir-verify-result.pending { color: var(--c-muted); }
+.disc-row input:disabled { opacity: 0.35; cursor: not-allowed; }
 
 /* ---------- 灯亮度 ---------- */
 .brightness-row { display: flex; align-items: center; gap: 10px; }
@@ -926,6 +1045,20 @@ export default {
 .detail-manual-actions button { flex: 1; border-radius: 26px; font-size: 13px; font-weight: 600; height: 44px; }
 .danger-btn { color: #fff; background: #c0392b; }
 .detail-footnote { text-align: center; font-size: 11px; color: var(--c-muted); margin-top: 18px; }
+
+/* ---------- 设备响应探测 ---------- */
+.test-section { margin-top: 16px; }
+.test-btn { width: 100%; height: 42px; border-radius: 26px; font-size: 13px; font-weight: 600; }
+.test-result {
+  display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; padding: 10px 12px;
+  border-radius: 14px; background: rgba(134, 187, 255, 0.14);
+}
+.test-result.fail { background: rgba(220, 100, 90, 0.12); }
+.test-badge { flex: none; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+.test-badge.real { color: #2f8f5b; background: rgba(55, 178, 107, 0.16); }
+.test-badge.sim { color: #4f7dc6; background: rgba(134, 187, 255, 0.22); }
+.test-msg { font-size: 12px; line-height: 1.6; color: var(--c-ink-2); }
+.test-hint { margin-top: 10px; font-size: 11px; line-height: 1.6; color: var(--c-muted); }
 
 /* ---------- 弹窗 ---------- */
 .modal-overlay {

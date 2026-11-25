@@ -8,6 +8,8 @@ import com.familyhome.iot.service.IotCommandService;
 import com.familyhome.iot.service.IotDeviceService;
 import com.familyhome.iot.service.IotHubService;
 import com.familyhome.iot.vo.AreaDevicesVO;
+import com.familyhome.iot.vo.DeviceTestResultVO;
+import com.familyhome.iot.vo.HubDiscoveryVO;
 import com.familyhome.iot.vo.IotDeviceVO;
 import com.familyhome.iot.vo.IotHubVO;
 import com.familyhome.security.SessionPrincipal;
@@ -36,6 +38,24 @@ public class IotController {
 
   @Autowired
   private IotCommandService commandService;
+
+  /**
+   * 查询本家庭已绑定的中枢状态（家庭成员，后台静默）
+   *
+   * <p>云端不在家庭局域网内，局域网发现由家庭侧网关完成并主动注册上报凭据；
+   * 本接口既不接收也不返回任何地址 / 令牌。前端只展示「已连接家庭中枢」、
+   * 离线提示，以及未绑定时的部署网关 + 配对码引导与「重新查找」。
+   */
+  @PostMapping("/hub/auto-discover")
+  public ApiResponse<HubDiscoveryVO> autoDiscover(HttpServletRequest r) {
+    long householdId = SessionPrincipal.from(r).householdId();
+    try {
+      return ApiResponse.success(hubService.autoDiscover(householdId));
+    } catch (Exception e) {
+      log.error("查询家庭中枢状态失败", e);
+      return ApiResponse.success(HubDiscoveryVO.notProvisioned());
+    }
+  }
 
   /**
    * 获取中枢配置
@@ -178,6 +198,29 @@ public class IotController {
       return ApiResponse.success(null);
     } catch (IllegalArgumentException e) {
       return ApiResponse.failure(400, e.getMessage());
+    }
+  }
+
+  /**
+   * 探测单台设备是否真实响应
+   *
+   * <p>真实中枢设备会读取 Home Assistant 上该实体的实时状态；
+   * 手动/演示设备返回"本地模拟"说明。只能探测本家庭设备。
+   */
+  @PostMapping("/devices/{entityId}/test")
+  public ApiResponse<DeviceTestResultVO> testDevice(
+      HttpServletRequest r,
+      @PathVariable String entityId) {
+    long householdId = SessionPrincipal.from(r).householdId();
+    try {
+      return ApiResponse.success(deviceService.testDevice(householdId, entityId));
+    } catch (IllegalArgumentException e) {
+      return ApiResponse.failure(400, e.getMessage());
+    } catch (IllegalStateException e) {
+      return ApiResponse.failure(400, e.getMessage());
+    } catch (Exception e) {
+      log.error("探测设备响应失败", e);
+      return ApiResponse.failure(500, "探测失败");
     }
   }
 
