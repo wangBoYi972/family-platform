@@ -61,10 +61,10 @@ public class IotHubServiceImpl implements IotHubService {
   private String autoHubToken;
 
   /**
-   * 接入家庭设备通道。
+   * 查询设备通道状态。
    *
-   * <p>优先云端直连（涂鸦等）：普通家庭不需要自建 Home Assistant。
-   * 云通道就绪时自动绑定 {@code cloud://tuya}，前端不展示 IP/令牌。
+   * <p>产品主路径是 App 内「智能遥控」（本地手动设备），不强制涂鸦 / Home Assistant。
+   * 仅当家庭已绑定演示 / 云 / HA 时返回 found，否则引导直接添加遥控。
    */
   @Override
   public HubDiscoveryVO autoDiscover(Long householdId) {
@@ -84,22 +84,7 @@ public class IotHubServiceImpl implements IotHubService {
       return HubDiscoveryVO.offline();
     }
 
-    // 推荐落地：云端直连（涂鸦 / sim）
-    if (cloudClient != null && cloudClient.isReady()) {
-      try {
-        IotHubBindDTO dto = new IotHubBindDTO();
-        dto.setBaseUrl(CloudHub.CLOUD_BASE_URL);
-        dto.setAccessToken(cloudClient.providerId());
-        bindHub(householdId, dto);
-        HubDiscoveryVO vo = HubDiscoveryVO.found(false);
-        vo.setMessage("已接通家庭设备云，可添加空调/电视");
-        return vo;
-      } catch (Exception e) {
-        log.warn("家庭 {} 绑定云通道失败：{}", householdId, e.getMessage());
-      }
-    }
-
-    // 可选：同网预置 HA（进阶，非普通用户路径）
+    // 可选：同网预置 HA（进阶）
     if (autoHubUrl != null && !autoHubUrl.isBlank()
         && autoHubToken != null && !autoHubToken.isBlank()) {
       try {
@@ -117,7 +102,7 @@ public class IotHubServiceImpl implements IotHubService {
     }
 
     HubDiscoveryVO vo = HubDiscoveryVO.notProvisioned();
-    vo.setMessage("请添加设备：在涂鸦智能中配好红外伴侣/空调后，把设备 ID 填进 App；或联系管理员配置涂鸦云密钥");
+    vo.setMessage("可直接添加空调 / 电视遥控，在可操作范围内点按控制");
     return vo;
   }
 

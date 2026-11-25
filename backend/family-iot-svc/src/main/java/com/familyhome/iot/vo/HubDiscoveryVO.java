@@ -41,7 +41,7 @@ public class HubDiscoveryVO {
     vo.setFound(false);
     vo.setDemo(false);
     vo.setProvisioned(false);
-    vo.setMessage("请添加设备：在涂鸦智能配好红外伴侣/空调后导入，或联系管理员配置涂鸦云密钥");
+    vo.setMessage("可直接添加空调 / 电视遥控");
     return vo;
   }
 

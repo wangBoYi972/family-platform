@@ -50,7 +50,8 @@ public class TuyaCloudClient implements IotCloudClient {
 
   @Override
   public boolean isReady() {
-    return notBlank(accessId) && notBlank(accessSecret) && notBlank(uid);
+    // 下发命令只需云项目密钥；UID 仅用于「拉取账号设备列表」
+    return notBlank(accessId) && notBlank(accessSecret);
   }
 
   @Override
@@ -61,6 +62,10 @@ public class TuyaCloudClient implements IotCloudClient {
   @Override
   public List<CloudDeviceInfo> listDevices() throws Exception {
     ensureReady();
+    if (!notBlank(uid)) {
+      log.info("未配置 FAMILY_IOT_TUYA_UID，跳过云设备列表（仍可凭设备 ID 添加并控制）");
+      return new ArrayList<>();
+    }
     String path = "/v1.0/users/" + uid + "/devices";
     JsonNode root = signedGet(path);
     List<CloudDeviceInfo> out = new ArrayList<>();
@@ -108,7 +113,7 @@ public class TuyaCloudClient implements IotCloudClient {
 
   private void ensureReady() {
     if (!isReady()) {
-      throw new IllegalStateException("涂鸦云未配置：请设置 FAMILY_IOT_TUYA_ACCESS_ID/SECRET/UID");
+      throw new IllegalStateException("涂鸦云未配置：请设置 FAMILY_IOT_TUYA_ACCESS_ID/SECRET");
     }
   }
 
