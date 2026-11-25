@@ -446,6 +446,7 @@ code, .mono {
   border: 1px solid rgba(255, 255, 255, .9);
 }
 .device-card { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 64px; }
+button.device-card { width: 100%; text-align: left; }
 .device-card.on { box-shadow: inset 0 0 0 1px rgba(79, 125, 198, .35); }
 .device-card .name { font-size: 14px; font-weight: 600; }
 .device-card .sub { color: var(--c-muted); font-size: 12px; }

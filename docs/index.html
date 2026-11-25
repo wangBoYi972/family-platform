@@ -174,7 +174,7 @@
                   <div class="pane" data-sub-pane="chat" hidden>
                     <p class="hello">随时说说话<small>实时帧，断线再轮询</small></p>
                     <div class="row"><span>周宁 · 晚饭想吃汤面</span><span class="tag">未读</span></div>
-                    <div class="row"><span>语音通话</span><span class="tag">最多 8 人</span></div>
+                    <div class="row"><span>语音通话</span><span class="tag">mesh 8 · SFU 20</span></div>
                   </div>
                   <div class="pane" data-sub-pane="more" hidden>
                     <p class="hello">这一格也在<small>日历、任务、家庭圈、我的家</small></p>
@@ -263,7 +263,7 @@
         </div>
         <div class="prose">
           <p>后端按服务拆开，各自持有自己的数据，由网关做统一入口。管理端顶栏写着「把时间，留给家人」。家庭端和移动端的面板尽量只留一份，放在 <code>apps/shared</code>。</p>
-          <p>下面可以跳到架构图里对应的服务。家居和账本已经在 Maven 与网关路由中，容器编排和 Prometheus 抓取名单还没有它们。</p>
+          <p>下面可以跳到架构图里对应的服务。家居和账本已经有 Dockerfile，也进了编排和 Prometheus 抓取。</p>
         </div>
         <div class="pills" style="margin-top:16px" aria-label="跳到服务">
           <button type="button" class="chip" data-jump="gateway">网关</button>
@@ -301,12 +301,12 @@
         <article class="glass feature-panel" data-feature-panel="iot">
           <div class="feature-copy">
             <h3>智能家居控制</h3>
-            <p><code>family-iot-svc</code>。每家一条中枢：真实的 Home Assistant，或内置演示中枢 <code>demo://local</code>。</p>
+            <p><code>family-iot-svc</code>。每家一条中枢：真实的 Home Assistant，或内置演示中枢 <code>demo://local</code>。家庭端面板是设备卡片，点进去才是明细控制。</p>
             <ul>
-              <li>真实地址只接受 http/https 的本机与私网，公网会被拒绝。</li>
-              <li>访问令牌加密后保存。接口不回传令牌，也不回传中枢地址。</li>
-              <li>控制只开放开灯、关灯、开关和触发场景，并写入命令日志。</li>
-              <li>演示设备只改本地快照，不向外发请求。真实中枢后来的状态变化还不会写回快照。</li>
+              <li>本机和私网默认可绑定。公网主机必须写在 <code>FAMILY_IOT_ALLOWED_HOSTS</code> 里，按主机名精确匹配。云元数据地址始终拒绝。</li>
+              <li>访问令牌加密后保存。接口不回传令牌，也不回传中枢地址。发现接口只回「已连接 / 未绑定 / 暂时不可达」这类文案。</li>
+              <li>命令包括灯、开关、场景，以及空调温度（16–35）、模式、风速，电视音响的音量、静音、频道和播放。越界参数返回 400。</li>
+              <li>真实中枢在服务启动和绑定后会连 WebSocket，状态变化写回快照；演示中枢跳过。这条连接仍要求地址通过私网校验。手动设备按家庭隔离，同步不会覆盖；当前解绑会清掉该家庭全部设备快照。</li>
             </ul>
           </div>
           <div class="demo" data-iot></div>
@@ -360,8 +360,8 @@
             <ul>
               <li>文本、图片、语音和文件。新消息在事务提交后整帧推送，断线退回轮询。</li>
               <li>私聊只投递给双方。已读回执也走推送。两分钟内可撤回自己的消息。</li>
-              <li>通话一对一，以及最多 8 人。信令用一次性票据，JWT 不放进 URL。</li>
-              <li>通话纪要在设备上混音分段，上传后再转写。超过 8 人所需的 SFU 还没有。</li>
+              <li>默认仍是 mesh，最多 8 人。LiveKit SFU 已能签发入房凭证，默认关闭；打开且凭据齐全时上限 20 人，关掉就回到 mesh。</li>
+              <li>凭证只发给这通通话的参与者，房间名由服务端按通话生成。通话纪要仍在设备上混音分段。公网压测还没有写成已完成。</li>
             </ul>
           </div>
           <div class="demo" data-im></div>
@@ -638,7 +638,7 @@
               <li><code>8081–8093</code><span>成员 8081、内容 8082、文件 8087、档案 8088、消息 8089、通话 8090、助手 8091、家居 8092、账本 8093</span></li>
               <li><code>H2 / MySQL</code><span>本地各服务独立 H2。生产配置面向 MySQL 与 Nacos，口令走环境变量</span></li>
             </ul>
-            <p class="fine">编排会拉起 MySQL、Nacos、Redis、RabbitMQ、coturn、Prometheus、Grafana，以及网关到助手这八个镜像。家居和账本还没有 Dockerfile，也不在编排和抓取名单里。</p>
+            <p class="fine">编排会拉起 MySQL、Nacos、Redis、RabbitMQ、coturn、LiveKit、Prometheus、Alertmanager、Grafana，以及全部十个服务镜像。抓取名单含家居 8092 和账本 8093。告警规则和隔离库恢复演练脚本已经在仓库里，不等于已经在正式环境跑过。</p>
           </article>
         </div>
         <dl class="stack-grid" style="margin-top:12px">
@@ -670,7 +670,8 @@
               <li>管理端接到成员、任务、公告、日历、档案和助手设置。</li>
               <li>家庭端与移动端共用面板，账本和家居已接到这两个端。</li>
               <li>实时刷新、聊天推送、通话信令、录音分段和纪要编排已经在代码里。</li>
-              <li>链路追踪、结构化日志、OpenAPI、八个服务的容器镜像，以及持续集成配置。</li>
+              <li>十个服务都有 Dockerfile，并进入编排。Prometheus 抓取包含家居和账本，仓库里有 9 条告警规则和 Alertmanager 配置。</li>
+              <li>备份脚本和隔离库恢复演练脚本已在 <code>infra/backup/</code>。LiveKit 入房凭证、参与者校验和 20 人上限已在媒体服务里，默认关闭。</li>
             </ul>
           </article>
           <article class="glass">
@@ -679,9 +680,9 @@
               <li>MySQL 与 Nacos 实例联调。</li>
               <li>真实短信或微信身份认证。</li>
               <li>对象存储在真实环境中的验收。</li>
-              <li>公网 TURN 的实网穿透与压测，以及 8 人以上所需的 SFU。</li>
+              <li>公网 TURN 的实网穿透与压测。SFU 代码默认关闭，还没有正式环境的多人压测记录。</li>
               <li>两个小程序的真机回归。</li>
-              <li>监控告警，以及备份恢复演练。</li>
+              <li>告警通道和备份恢复在正式环境里的演练。仓库里的规则和脚本还不是演练结果。</li>
             </ul>
           </article>
         </div>
@@ -696,9 +697,9 @@
     <p>family-platform is a household-scoped system, not a public social network. The backend is Java 21 with Spring Boot 3.3.5, Spring Cloud 2023.0.3 and Spring Cloud Alibaba 2023.0.3.2. family-gateway is the only public API entrance: it routes HTTP and WebSocket calls and checks JWTs. Household id comes from the checked session, never from a client-supplied family id.</p>
     <p>Ten runnable services: gateway, members, content, files, archives, messaging, calls, an optional family assistant, home devices, and a ledger. Four libraries sit beside them: family-common, family-security, family-messaging and family-api. They are not separate processes.</p>
     <p>Four clients share the APIs. The admin web (port 5173) accepts only an ADMIN session whose client is admin, and shows tasks, members, archives, notices, calendar and assistant settings. The mobile app (5175) and the family mini program (5174) both sign in as client=family and share panels for tasks, ledger, calendar, albums, chat, calls, home devices and health. The archive mini program (5176) signs in as client=archive. Its screen is login plus the archive list. The server additionally allows that client to call auth routes and to GET archives, files, notices and /api/users/me. Other calls are forbidden.</p>
-    <p>Home devices bind to Home Assistant on loopback or a private address, or to a built-in demo hub (demo://local) that never calls the network. Tokens are encrypted and are not returned, nor is the hub address. Commands are light on/off, switch on/off and scene turn-on. Later state changes from a real hub are not written back yet. The ledger stores money as integer cents in seven fixed categories. Expense splits must sum to the entry; income is not split. Monthly totals are computed on the server. Ledger and home panels exist on the family and mobile clients. The admin console has no entry for either, and neither service has a Dockerfile, a compose service, or a Prometheus scrape job yet. Their ports in application.yml are 8092 and 8093.</p>
-    <p>The assistant stays off until a model is configured. Unconfigured chat returns 503. History keeps the latest 40 messages per user and household and is not stored as instant messages. Calls are WebRTC, one-to-one and up to eight people; signaling and short-lived TURN credentials stay on the media service. Recordings are mixed on the device. Minutes are produced after upload when a model is available. An SFU for more than eight people is not built. WeChat subscribe-message templates for medication and follow-up reminders are not connected.</p>
-    <p>Still required before a production launch: MySQL and Nacos integration, real SMS or WeChat identity, object storage, public TURN load tests, mini program device regression, monitoring alerts, and backup drills.</p>
+    <p>Home devices bind to Home Assistant on loopback or a private address by default. A public hostname is accepted only when it is listed exactly in FAMILY_IOT_ALLOWED_HOSTS. Cloud metadata hosts are always rejected. Tokens are encrypted and are not returned, nor is the hub address. The discovery response is a status sentence only. Commands cover lights, switches, scenes, climate temperature (16–35), mode and fan speed, and media-player volume, mute, source and playback. Out-of-range parameters return 400. A real hub gets a WebSocket on startup and after binding, and state changes are written back to the snapshot. The demo hub skips that socket and only updates the local snapshot. Manual devices are household-scoped, editable only when marked MANUAL, and are not overwritten by a sync. Unbind currently deletes every device snapshot in that household. The live socket still requires an address that passes the private-network check. Both home and ledger now have Dockerfiles, compose services and Prometheus scrape jobs on ports 8092 and 8093. The admin console still has no screen for either.</p>
+    <p>The assistant stays off until a model is configured. Unconfigured chat returns 503. Calls default to WebRTC mesh, one-to-one and up to eight people. LiveKit SFU join tokens are implemented and stay off unless enabled: the cap is then 20, the token is issued only to a participant of that household’s live call, and turning the flag off returns the service to mesh. This repository does not record a production load test. Recordings are still mixed on the device. WeChat subscribe-message templates for medication and follow-up reminders are not connected.</p>
+    <p>The repo now includes nine Prometheus alert rules, an Alertmanager config, and backup plus isolated-database restore drill scripts. Those files are not a completed production drill. Still open before launch: MySQL and Nacos integration, real SMS or WeChat identity, object storage, public TURN tests, a production SFU load test, mini program device regression, and running the alert and backup drills against the real environment.</p>
     <p><a href="https://github.com/wangBoYi972/family-platform">github.com/wangBoYi972/family-platform</a></p>
   </section>
 

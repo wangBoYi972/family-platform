@@ -119,75 +119,165 @@
   var iotRoot = q("[data-iot]");
   if (iotRoot) {
     var devices = [
-      { id: "light.living_room_main", name: "客厅主灯", area: "客厅", type: "light", on: true, brightness: 80 },
-      { id: "light.living_room_strip", name: "沙发氛围灯", area: "客厅", type: "light", on: false, brightness: 47 },
-      { id: "switch.living_room_tv", name: "电视插座", area: "客厅", type: "switch", on: false },
-      { id: "sensor.living_room_temp", name: "客厅温度", area: "客厅", type: "sensor", value: "24.5°C" },
-      { id: "light.bedroom_ceiling", name: "主卧吸顶灯", area: "主卧", type: "light", on: false, brightness: 71 },
-      { id: "switch.bedroom_humidifier", name: "加湿器", area: "主卧", type: "switch", on: true },
-      { id: "switch.kitchen_kettle", name: "电热水壶", area: "厨房", type: "switch", on: false },
-      { id: "sensor.kitchen_smoke", name: "烟雾传感器", area: "厨房", type: "sensor", value: "正常" }
+      { id: "light.living_room_main", name: "客厅主灯", area: "客厅", type: "light", source: "HUB", on: true, brightness: 80 },
+      { id: "climate.living_room_ac", name: "客厅空调", area: "客厅", type: "climate", source: "HUB", on: true, temp: 26, mode: "cool", fan: "auto" },
+      { id: "media_player.living_room_tv", name: "客厅电视", area: "客厅", type: "media_player", source: "HUB", on: false, volume: 30, muted: false, channel: "HDMI 1" },
+      { id: "sensor.living_room_temp", name: "客厅温度", area: "客厅", type: "sensor", source: "HUB", value: "24.5°C" },
+      { id: "switch.bedroom_humidifier", name: "加湿器", area: "主卧", type: "switch", source: "HUB", on: true }
     ];
-    var iotLog = "演示中枢 demo://local：命令只改本地快照，不向外发请求。";
-    function deviceMap() {
-      var map = {};
-      devices.forEach(function (item) { map[item.id] = item; });
-      return map;
+    var selectedId = null;
+    var iotLog = "演示中枢：命令只改本地快照。发现结果只有状态文案，不带地址和令牌。";
+    var modes = ["cool", "heat", "dry", "fan_only", "auto", "off"];
+    var modeLabel = { cool: "制冷", heat: "制热", dry: "除湿", fan_only: "送风", auto: "自动", off: "关闭" };
+    var fans = ["auto", "low", "mid", "high"];
+    function findDevice(id) { return devices.find(function (item) { return item.id === id; }); }
+    function summary(item) {
+      if (item.type === "sensor") return item.value;
+      if (item.type === "climate") return (item.on ? modeLabel[item.mode] : "关闭") + " " + item.temp + "°C";
+      if (item.type === "media_player") return (item.on ? "开" : "关") + " · " + item.channel + " · " + item.volume + "%";
+      if (item.type === "light" && item.on) return "开 · 亮度 " + item.brightness + "%";
+      return item.on ? "开" : "关";
     }
     function renderIot() {
-      var areas = ["客厅", "主卧", "厨房"];
-      var html = '<p class="demo-flag">示例界面 · 演示数据 · 内置演示中枢</p>';
-      areas.forEach(function (area) {
-        var list = devices.filter(function (item) { return item.area === area && item.type !== "scene"; });
-        html += '<div class="area-label"><span>' + esc(area) + '</span><span>' + list.length + ' 台</span></div><div class="device-grid">';
-        list.forEach(function (item) {
-          html += '<article class="device-card' + (item.on ? " on" : "") + '">';
-          html += '<div><div class="name">' + esc(item.name) + '</div><div class="sub">';
-          if (item.type === "sensor") html += esc(item.value);
-          else if (item.type === "light" && item.on) html += "亮度 " + item.brightness + "%";
-          else html += item.on ? "开" : "关";
-          html += "</div></div>";
-          if (item.type === "sensor") html += '<div class="sensor" aria-hidden="true">●</div>';
-          else {
-            html += '<button type="button" class="switch-pill" data-iot-toggle="' + esc(item.id) + '" aria-pressed="' + (item.on ? "true" : "false") + '" aria-label="' + esc(item.name) + (item.on ? "，点击关闭" : "，点击打开") + '"><span class="knob"></span></button>';
-          }
-          html += "</article>";
+      var html = '<p class="demo-flag">示例界面 · 演示数据 · 卡片列表</p>';
+      if (!selectedId) {
+        html += '<div class="device-grid">';
+        devices.forEach(function (item) {
+          html += '<button type="button" class="device-card' + (item.on ? " on" : "") + '" data-open="' + esc(item.id) + '">';
+          html += '<span><span class="name">' + esc(item.name) + '</span><span class="sub">' + esc(item.area) + " · " + esc(item.source) + " · " + esc(summary(item)) + "</span></span>";
+          html += "</button>";
+        });
+        html += '</div><div class="scene-row">';
+        html += '<button type="button" class="mini-btn" data-add-manual>添加手动设备</button>';
+        ["离家模式", "影院模式"].forEach(function (name) {
+          html += '<button type="button" class="scene-btn" data-scene="' + esc(name) + '">' + esc(name) + "</button>";
         });
         html += "</div>";
-      });
-      html += '<div class="area-label"><span>场景</span><span>scene.turn_on</span></div><div class="scene-row">';
-      ["离家模式", "影院模式", "晚安模式"].forEach(function (name) {
-        html += '<button type="button" class="scene-btn" data-scene="' + esc(name) + '">' + esc(name) + "</button>";
-      });
-      html += '</div><p class="log-line" role="status">' + esc(iotLog) + "</p>";
+      } else {
+        var item = findDevice(selectedId);
+        if (!item) selectedId = null;
+        else {
+          html += '<div class="check-row"><strong>设备明细</strong><button type="button" class="mini-btn" data-back>返回列表</button></div>';
+          html += '<p class="demo-note">' + esc(item.name) + " · " + esc(item.type) + " · " + esc(item.source) + "</p>";
+          if (item.type === "sensor") {
+            html += '<p class="sensor">' + esc(item.value) + "</p>";
+          } else if (item.type === "climate") {
+            html += '<div class="check-row"><span>温度 ' + item.temp + '°C（16–35）</span><span>';
+            html += '<button type="button" class="mini-btn" data-temp="-1">-</button> <button type="button" class="mini-btn" data-temp="1">+</button></span></div>';
+            html += '<div class="pills">';
+            modes.forEach(function (mode) {
+              html += '<button type="button" class="chip" data-mode="' + mode + '" aria-pressed="' + (item.mode === mode ? "true" : "false") + '">' + modeLabel[mode] + "</button>";
+            });
+            html += "</div><div class=\"pills\">";
+            fans.forEach(function (fan) {
+              html += '<button type="button" class="chip" data-fan="' + fan + '" aria-pressed="' + (item.fan === fan ? "true" : "false") + '">风速 ' + fan + "</button>";
+            });
+            html += "</div>";
+          } else if (item.type === "media_player") {
+            html += '<div class="check-row"><span>' + (item.on ? "播放中" : "已关闭") + "</span>";
+            html += '<button type="button" class="switch-pill" data-iot-toggle="' + esc(item.id) + '" aria-pressed="' + (item.on ? "true" : "false") + '" aria-label="开关电视"><span class="knob"></span></button></div>';
+            html += '<div class="check-row"><span>音量 ' + item.volume + "%</span><span>";
+            html += '<button type="button" class="mini-btn" data-vol="-10">-</button> <button type="button" class="mini-btn" data-vol="10">+</button></span></div>';
+            html += '<div class="scene-row"><button type="button" class="mini-btn" data-mute>' + (item.muted ? "取消静音" : "静音") + '</button>';
+            ["HDMI 1", "HDMI 2", "TV"].forEach(function (channel) {
+              html += '<button type="button" class="chip" data-channel="' + esc(channel) + '" aria-pressed="' + (item.channel === channel ? "true" : "false") + '">' + esc(channel) + "</button>";
+            });
+            html += "</div>";
+          } else {
+            html += '<div class="check-row"><span>' + summary(item) + '</span><button type="button" class="switch-pill" data-iot-toggle="' + esc(item.id) + '" aria-pressed="' + (item.on ? "true" : "false") + '" aria-label="开关"><span class="knob"></span></button></div>';
+          }
+          html += '<div class="scene-row"><button type="button" class="mini-btn" data-test>测试响应</button>';
+          if (item.source === "MANUAL") html += '<button type="button" class="mini-btn" data-remove>删除手动设备</button>';
+          html += "</div>";
+        }
+      }
+      html += '<p class="log-line" role="status">' + esc(iotLog) + "</p>";
       iotRoot.innerHTML = html;
     }
     function applyScene(name) {
-      var byId = deviceMap();
-      devices.forEach(function (item) { if (item.type !== "sensor") item.on = false; });
+      devices.forEach(function (item) {
+        if (item.type === "sensor") return;
+        item.on = false;
+        if (item.type === "climate") item.mode = "off";
+      });
       if (name === "影院模式") {
-        byId["light.living_room_strip"].on = true;
-        byId["light.living_room_strip"].brightness = 18;
-        byId["switch.living_room_tv"].on = true;
-      } else if (name === "晚安模式") {
-        byId["switch.bedroom_humidifier"].on = true;
+        var strip = findDevice("light.living_room_main");
+        var tv = findDevice("media_player.living_room_tv");
+        if (strip) { strip.on = true; strip.brightness = 18; }
+        if (tv) { tv.on = true; tv.channel = "HDMI 1"; tv.volume = 30; }
       }
-      iotLog = "已触发「" + name + "」。演示中枢只改本地快照；真实场景内容来自 Home Assistant。";
+      iotLog = "已触发「" + name + "」。演示数据只改本地快照；真实中枢的状态变化会经 WebSocket 回写。";
     }
     iotRoot.addEventListener("click", function (event) {
+      var open = event.target.closest("[data-open]");
+      var back = event.target.closest("[data-back]");
       var toggleBtn = event.target.closest("[data-iot-toggle]");
       var sceneBtn = event.target.closest("[data-scene]");
+      var tempBtn = event.target.closest("[data-temp]");
+      var modeBtn = event.target.closest("[data-mode]");
+      var fanBtn = event.target.closest("[data-fan]");
+      var volBtn = event.target.closest("[data-vol]");
+      var muteBtn = event.target.closest("[data-mute]");
+      var channelBtn = event.target.closest("[data-channel]");
+      var testBtn = event.target.closest("[data-test]");
+      var addBtn = event.target.closest("[data-add-manual]");
+      var removeBtn = event.target.closest("[data-remove]");
+      if (open) selectedId = open.getAttribute("data-open");
+      if (back) selectedId = null;
       if (toggleBtn) {
-        var found = devices.find(function (item) { return item.id === toggleBtn.getAttribute("data-iot-toggle"); });
-        if (!found) return;
-        found.on = !found.on;
-        var command = found.type + "." + (found.on ? "turn_on" : "turn_off");
-        iotLog = command + " · " + found.name + "。令牌不会出现在响应里。";
-        renderIot();
-      } else if (sceneBtn) {
-        applyScene(sceneBtn.getAttribute("data-scene"));
-        renderIot();
+        var found = findDevice(toggleBtn.getAttribute("data-iot-toggle"));
+        if (found) {
+          found.on = !found.on;
+          iotLog = found.type + "." + (found.on ? "turn_on" : "turn_off") + " · " + found.name;
+        }
       }
+      if (sceneBtn) applyScene(sceneBtn.getAttribute("data-scene"));
+      if (tempBtn) {
+        var ac = findDevice("climate.living_room_ac");
+        var next = ac.temp + Number(tempBtn.getAttribute("data-temp"));
+        if (next < 16 || next > 35) iotLog = "climate.set_temperature 被拒绝：温度必须在 16–35，接口返回 400。";
+        else { ac.temp = next; ac.on = true; if (ac.mode === "off") ac.mode = "cool"; iotLog = "climate.set_temperature · " + next + "°C"; }
+      }
+      if (modeBtn) {
+        var climate = findDevice("climate.living_room_ac");
+        climate.mode = modeBtn.getAttribute("data-mode");
+        climate.on = climate.mode !== "off";
+        iotLog = "climate.set_hvac_mode · " + climate.mode;
+      }
+      if (fanBtn) {
+        findDevice("climate.living_room_ac").fan = fanBtn.getAttribute("data-fan");
+        iotLog = "climate.set_fan_mode · " + fanBtn.getAttribute("data-fan");
+      }
+      if (volBtn) {
+        var tv = findDevice("media_player.living_room_tv");
+        tv.volume = Math.max(0, Math.min(100, tv.volume + Number(volBtn.getAttribute("data-vol"))));
+        iotLog = "media_player.volume_set · " + (tv.volume / 100).toFixed(1);
+      }
+      if (muteBtn) {
+        var player = findDevice(selectedId);
+        player.muted = !player.muted;
+        iotLog = "media_player.volume_mute · " + (player.muted ? "静音" : "取消静音");
+      }
+      if (channelBtn) {
+        findDevice(selectedId).channel = channelBtn.getAttribute("data-channel");
+        iotLog = "media_player.select_source · " + channelBtn.getAttribute("data-channel");
+      }
+      if (testBtn) {
+        var target = findDevice(selectedId);
+        iotLog = "「" + target.name + "」在这个示例里不连接真实硬件。真实中枢设备会改读 Home Assistant 上的当前状态。";
+      }
+      if (addBtn) {
+        var id = "manual.light." + devices.length;
+        devices.push({ id: id, name: "自定义台灯", area: "自定义", type: "light", source: "MANUAL", on: false, brightness: 40 });
+        selectedId = id;
+        iotLog = "已添加 MANUAL 设备。只能改删手动设备，同步不会覆盖它。";
+      }
+      if (removeBtn) {
+        devices = devices.filter(function (item) { return item.id !== selectedId; });
+        selectedId = null;
+        iotLog = "已删除手动设备。中枢同步来的设备不能从这里删。";
+      }
+      if (open || back || toggleBtn || sceneBtn || tempBtn || modeBtn || fanBtn || volBtn || muteBtn || channelBtn || testBtn || addBtn || removeBtn) renderIot();
     });
     renderIot();
   }
@@ -499,9 +589,9 @@
     media: {
       title: "实时通话",
       id: "family-media-svc · :8090",
-      body: "通话状态、WebSocket 信令、TURN 时效凭据和通话记录。媒体是 WebRTC。一对一，以及最多 8 人。",
-      points: ["一次性票据鉴权，JWT 不进 URL。", "录音在客户端混音，不经服务器转发媒体。", "纪要在分段上传后由 AI 服务转写。超过 8 人的 SFU 还没做。"],
-      chips: [["Maven", "ok"], ["路由 /api/media /ws/call", "ok"], ["Dockerfile", "ok"], ["compose", "ok"], ["Prometheus", "ok"], ["SFU", "gap"]]
+      body: "通话状态、WebSocket 信令、TURN 时效凭据和通话记录。默认仍是 WebRTC mesh，最多 8 人。LiveKit SFU 的入房凭证已经能签，默认关闭，打开后上限 20 人，mesh 可以整段退回。",
+      points: ["JoinToken 只签给这通通话里仍在邀请或已加入的人，identity 取会话里的用户，不信客户端自报身份。", "跨家庭的通话号按不存在处理。语音通话的凭证只允许麦克风。", "代码已在仓库里。公网部署和多人压测还没有做成已完成的验收。"],
+      chips: [["Maven", "ok"], ["路由 /api/media /ws/call", "ok"], ["Dockerfile", "ok"], ["compose", "ok"], ["Prometheus", "ok"], ["SFU 默认关闭", "gap"]]
     },
     ai: {
       title: "家庭小助手",
@@ -513,16 +603,16 @@
     iot: {
       title: "家居设备",
       id: "family-iot-svc · :8092",
-      body: "每家绑定一条 Home Assistant，或内置演示中枢。地址只接受本机和私网。令牌加密保存，接口不回传令牌，也不回传中枢地址。",
-      points: ["控制只开放开灯、关灯、开关和触发场景。", "演示中枢命令只改本地快照。", "真实中枢的后续状态还不会写回：WebSocket 监听没有从绑定或启动流程接上。"],
-      chips: [["Maven", "ok"], ["路由 /api/iot", "ok"], ["Dockerfile", "gap"], ["compose", "gap"], ["Prometheus", "gap"]]
+      body: "每家一条 Home Assistant，或内置演示中枢。私网和本机默认可绑定；公网主机必须出现在 FAMILY_IOT_ALLOWED_HOSTS 里，云元数据地址即使写进白名单也拒绝。接口不回传令牌和中枢地址。",
+      points: ["命令白名单含灯、开关、场景，以及空调的温度、模式、风速，电视音响的音量、静音、频道和播放。空调温度只接受 16–35，越界返回 400。", "启动和绑定真实中枢后会连 WebSocket，状态变化写回快照；演示中枢跳过。这条连接仍要求地址通过私网校验。", "可增删改手动设备，只限本家庭的 MANUAL，同步不会覆盖。当前解绑会清掉该家庭全部设备快照。发现接口只返回状态文案。"],
+      chips: [["Maven", "ok"], ["路由 /api/iot", "ok"], ["Dockerfile", "ok"], ["compose", "ok"], ["Prometheus", "ok"]]
     },
     ledger: {
       title: "家庭账本",
       id: "family-ledger-svc · :8093",
       body: "支出和收入按整数分记账。分类固定七种。支出要写垫付人和分摊，合计必须等于这笔账。收入记在收款人名下、不分摊。",
       points: ["本月收支和每人净额按整月在服务端计算。", "改删只限记账人或管理员。", "家庭编号只取已校验会话。"],
-      chips: [["Maven", "ok"], ["路由 /api/ledger", "ok"], ["Dockerfile", "gap"], ["compose", "gap"], ["Prometheus", "gap"]]
+      chips: [["Maven", "ok"], ["路由 /api/ledger", "ok"], ["Dockerfile", "ok"], ["compose", "ok"], ["Prometheus", "ok"]]
     },
     common: {
       title: "family-common",
