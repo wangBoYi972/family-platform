@@ -4,18 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>家庭综合平台 · family-platform</title>
-  <meta name="description" content="面向家庭内部使用的综合平台。Spring Cloud Alibaba 微服务后端，以及管理端、移动端和两个微信小程序。">
-  <meta name="theme-color" content="#4F7DC6">
+  <meta name="description" content="面向一个家庭内部的综合平台。Java 21 与 Spring Cloud Alibaba，十个微服务，管理端、移动端和两个微信小程序。">
+  <meta name="theme-color" content="#142B53">
   <link rel="canonical" href="https://wangBoYi972.github.io/family-platform/">
   <meta property="og:title" content="家庭综合平台">
-  <meta property="og:description" content="面向家庭内部使用的综合平台：微服务后端、管理端、移动端与两个微信小程序。">
+  <meta property="og:description" content="十个微服务、四类客户端。按已校验的家庭会话和客户端范围授权。">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://wangBoYi972.github.io/family-platform/">
   <meta property="og:locale" content="zh_CN">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/site.css">
   <script type="application/ld+json">
   {
@@ -27,11 +27,7 @@
     "codeRepository": "https://github.com/wangBoYi972/family-platform",
     "programmingLanguage": ["Java", "JavaScript"],
     "runtimePlatform": "Java 21",
-    "author": {
-      "@type": "Person",
-      "name": "wangBoYi972",
-      "url": "https://github.com/wangBoYi972"
-    },
+    "author": { "@type": "Person", "name": "wangBoYi972", "url": "https://github.com/wangBoYi972" },
     "url": "https://wangBoYi972.github.io/family-platform/"
   }
   </script>
@@ -48,18 +44,15 @@
         <path d="M11.4 23.2 C 11.45 20.9, 11.5 18.7, 11.6 16.6 C 12.9 15.9, 15 15.9, 16.3 16.6 C 16.4 18.7, 16.45 20.9, 16.5 23.2" />
         <circle cx="15.15" cy="19.4" r="0.5" fill="currentColor" stroke="none" />
       </svg>
-      <span class="brand-name">
-        <strong>家庭综合平台</strong>
-        <span>family-platform</span>
-      </span>
+      <span class="brand-name"><strong>家庭综合平台</strong><span>family-platform</span></span>
     </a>
     <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">目录</button>
     <nav class="site-nav" id="site-nav" aria-label="页内目录">
       <a href="#about">关于</a>
-      <a href="#services">服务</a>
-      <a href="#clients">客户端</a>
-      <a href="#capabilities">能力</a>
-      <a href="#stack">技术</a>
+      <a href="#showcase">场景</a>
+      <a href="#clients">四端</a>
+      <a href="#architecture">架构</a>
+      <a href="#engineering">工程</a>
       <a href="#status">现状</a>
       <a href="#english">English</a>
     </nav>
@@ -67,31 +60,196 @@
 
   <main id="top">
     <div class="wrap hero">
-      <div>
-        <p class="kicker">Household platform</p>
-        <h1>家庭综合平台</h1>
-        <p class="en-line">A private system for one household.</p>
-        <p class="lede">面向家庭内部使用：微服务后端、管理端、移动端和两个微信小程序共用业务接口，并按家庭与客户端范围授权。</p>
+      <div class="hero-copy">
+        <p class="kicker">把时间，留给家人</p>
+        <h1>一个家庭的<br>综合平台</h1>
+        <hr class="rule">
+        <p class="lede">微服务后端、管理端、移动端和两个微信小程序共用一套接口。家庭归属取自已经校验的会话，再按客户端范围决定能碰到什么。</p>
+        <ul class="metrics">
+          <li><strong>10</strong><span>可运行服务</span></li>
+          <li><strong>4</strong><span>类客户端</span></li>
+          <li><strong>Java 21</strong><span>Cloud Alibaba</span></li>
+          <li><strong>0.1.0</strong><span>快照版本</span></li>
+        </ul>
+        <p class="fine">Spring Boot 3.3.5 · Spring Cloud 2023.0.3 · Spring Cloud Alibaba 2023.0.3.2。这里没有在线人数，也没有跑分。</p>
         <div class="hero-actions">
           <a class="button" href="https://github.com/wangBoYi972/family-platform">查看 GitHub 仓库</a>
-          <a class="button ghost" href="#services">十个业务服务</a>
+          <a class="button ghost" href="#showcase">看六个核心场景</a>
         </div>
       </div>
-      <aside class="ledger" aria-label="服务目录">
-        <p>册中目录</p>
-        <ol>
-          <li><span>统一入口</span><code>family-gateway</code></li>
-          <li><span>成员与登录</span><code>family-user-svc</code></li>
-          <li><span>内容</span><code>family-content-svc</code></li>
-          <li><span>文件</span><code>family-file-svc</code></li>
-          <li><span>档案</span><code>family-archive-svc</code></li>
-          <li><span>消息</span><code>family-im-svc</code></li>
-          <li><span>通话</span><code>family-media-svc</code></li>
-          <li><span>家庭小助手</span><code>family-ai-svc</code></li>
-          <li><span>家居</span><code>family-iot-svc</code></li>
-          <li><span>账本</span><code>family-ledger-svc</code></li>
-        </ol>
-      </aside>
+
+      <div class="stage" data-stage>
+        <div class="stage-top">
+          <span class="stage-label">示例界面 · 演示数据</span>
+          <div class="seg" role="tablist" aria-label="预览哪一端">
+            <button type="button" role="tab" data-view-btn="admin" aria-selected="true">管理端</button>
+            <button type="button" role="tab" data-view-btn="family" aria-selected="false" tabindex="-1">家庭端</button>
+            <button type="button" role="tab" data-view-btn="mobile" aria-selected="false" tabindex="-1">移动端</button>
+            <button type="button" role="tab" data-view-btn="archive" aria-selected="false" tabindex="-1">档案端</button>
+          </div>
+        </div>
+        <div class="stage-frame">
+          <div class="device" data-view="admin" data-sub>
+            <div class="desk">
+              <div class="desk-top">
+                <div class="word">
+                  <svg width="18" height="18" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M19.1 6.3 l0.2 -3.1 l2.7 0.15 l-0.25 4.2"/><path d="M3.4 13.6 C 7 10.4, 10.6 7.4, 14 4.9 C 17.3 7.5, 20.9 10.6, 24.5 13.9"/><path d="M6.9 12.9 C 6.95 16.4, 7 19.9, 7.05 23.3 C 11.6 23.45, 16.3 23.45, 20.9 23.3 C 20.95 19.9, 21 16.4, 21.1 13.1"/></svg>
+                  把时间，留给家人
+                </div>
+                <span class="date-pill">管理端 · 5173</span>
+              </div>
+              <nav class="desk-side" aria-label="管理端菜单演示">
+                <button type="button" data-sub-btn="task" aria-pressed="true">任务工作台</button>
+                <button type="button" data-sub-btn="member" aria-pressed="false">家庭成员</button>
+                <button type="button" data-sub-btn="archive" aria-pressed="false">家庭档案</button>
+                <button type="button" data-sub-btn="notice" aria-pressed="false">公告通知</button>
+                <button type="button" data-sub-btn="calendar" aria-pressed="false">家庭日历</button>
+                <button type="button" data-sub-btn="ai" aria-pressed="false">AI 家庭助手</button>
+              </nav>
+              <div class="desk-main">
+                <div class="pane" data-sub-pane="task">
+                  <div class="stat-row">
+                    <div class="stat"><b>4</b><span>全部</span></div>
+                    <div class="stat"><b>2</b><span>待处理</span></div>
+                    <div class="stat"><b>1</b><span>已完成</span></div>
+                    <div class="stat"><b>1</b><span>逾期</span></div>
+                  </div>
+                  <div class="row"><span>周末买米 · 林夏</span><span class="tag">待开始</span></div>
+                  <div class="row"><span>整理阳台 · 周宁</span><span class="tag warn">进行中</span></div>
+                  <div class="row"><span>更换净水器滤芯</span><span class="tag hot">逾期</span></div>
+                  <p class="fine">指标来自服务端统计，不拿当前页相加。账本和家居没有管理端入口。</p>
+                </div>
+                <div class="pane" data-sub-pane="member" hidden>
+                  <div class="row"><span>林夏</span><span class="tag">管理员</span></div>
+                  <div class="row"><span>周宁</span><span class="tag">成员</span></div>
+                  <p class="fine">邀请码只在生成时返回一次，库里存摘要。每户最多十位启用成员。演示姓名。</p>
+                </div>
+                <div class="pane" data-sub-pane="archive" hidden>
+                  <div class="row"><span>年度体检摘要</span><span class="tag">家庭可见</span></div>
+                  <div class="row"><span>用药计划</span><span class="tag">仅自己</span></div>
+                  <p class="fine">正文加密。管理员可看近 30 天访问汇总。演示记录。</p>
+                </div>
+                <div class="pane" data-sub-pane="notice" hidden>
+                  <div class="row"><span>本周家庭会议</span><span class="tag">公告</span></div>
+                  <p class="fine">公告、日历、档案在管理端按每页 12 条做服务端分页。</p>
+                </div>
+                <div class="pane" data-sub-pane="calendar" hidden>
+                  <div class="row"><span>11 月 28 日 · 家庭日</span><span class="tag ok">日程</span></div>
+                  <div class="row"><span>纪念日</span><span class="tag">当天提醒一次</span></div>
+                  <p class="fine">同一天不重复弹窗。服务端订阅推送还在等微信凭证。</p>
+                </div>
+                <div class="pane" data-sub-pane="ai" hidden>
+                  <div class="row"><span>助手开关</span><span class="tag hot">默认关闭</span></div>
+                  <p class="fine">没配模型时对话接口返回 503。管理端可以保存开关，密钥不回显到这个介绍页。</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="device" data-view="family" data-sub hidden>
+            <div class="phone">
+              <div class="phone-screen">
+                <div class="phone-notch" aria-hidden="true"></div>
+                <div class="phone-top"><div class="word">一起 · 家庭空间</div><span class="date-pill">5174</span></div>
+                <div class="phone-body">
+                  <div class="pane" data-sub-pane="home">
+                    <p class="hello">家人在一起，就很好。<small>首页汇总任务、日程和动态</small></p>
+                    <div class="shortcuts">
+                      <div class="shortcut">家庭日历<span>行程与纪念</span></div>
+                      <div class="shortcut">一起做事<span>分工与提醒</span></div>
+                      <div class="shortcut">家人聊天<span>随时说句话</span></div>
+                      <div class="shortcut">照片与动态<span>动态与相册</span></div>
+                    </div>
+                  </div>
+                  <div class="pane" data-sub-pane="ledger" hidden>
+                    <p class="hello">一起把钱算清楚<small>整数分 · 服务端按整月汇总</small></p>
+                    <div class="row"><span>住房 · 林夏垫付</span><span class="tag hot">支出</span></div>
+                    <div class="row"><span>餐饮 · 两人分摊</span><span class="tag">支出</span></div>
+                  </div>
+                  <div class="pane" data-sub-pane="iot" hidden>
+                    <p class="hello">智能家居<small>演示中枢或私网 Home Assistant</small></p>
+                    <div class="row"><span>客厅主灯</span><span class="tag ok">开</span></div>
+                    <div class="row"><span>离家模式</span><span class="tag">场景</span></div>
+                  </div>
+                  <div class="pane" data-sub-pane="chat" hidden>
+                    <p class="hello">随时说说话<small>实时帧，断线再轮询</small></p>
+                    <div class="row"><span>周宁 · 晚饭想吃汤面</span><span class="tag">未读</span></div>
+                    <div class="row"><span>语音通话</span><span class="tag">mesh 8 · SFU 20</span></div>
+                  </div>
+                  <div class="pane" data-sub-pane="more" hidden>
+                    <p class="hello">这一格也在<small>日历、任务、家庭圈、我的家</small></p>
+                    <div class="row"><span>家庭圈</span><span class="tag">动态 / 相册 / 时光轴</span></div>
+                    <div class="row"><span>我的家</span><span class="tag">成员到设置</span></div>
+                  </div>
+                </div>
+                <nav class="phone-tabs" aria-label="家庭端导航演示">
+                  <button type="button" data-sub-btn="home" aria-pressed="true">首页</button>
+                  <button type="button" data-sub-btn="ledger" aria-pressed="false">账本</button>
+                  <button type="button" data-sub-btn="iot" aria-pressed="false">家居</button>
+                  <button type="button" data-sub-btn="chat" aria-pressed="false">聊天</button>
+                  <button type="button" data-sub-btn="more" aria-pressed="false">日历</button>
+                  <button type="button" data-sub-btn="more" aria-pressed="false">任务</button>
+                  <button type="button" data-sub-btn="more" aria-pressed="false">家庭圈</button>
+                  <button type="button" data-sub-btn="more" aria-pressed="false">我的家</button>
+                </nav>
+              </div>
+            </div>
+          </div>
+
+          <div class="device" data-view="mobile" data-sub hidden>
+            <div class="phone">
+              <div class="phone-screen">
+                <div class="phone-notch" aria-hidden="true"></div>
+                <div class="phone-top"><div class="word">家庭工作台</div><span class="date-pill">5175</span></div>
+                <div class="phone-body">
+                  <div class="pane" data-sub-pane="task">
+                    <p class="hello">小事一起做<small>与家庭端共用任务面板</small></p>
+                    <div class="row"><span>周末买米</span><span class="tag">待开始</span></div>
+                    <div class="row"><span>整理阳台</span><span class="tag warn">进行中</span></div>
+                  </div>
+                  <div class="pane" data-sub-pane="ledger" hidden>
+                    <p class="hello">账本<small>主标签，不塞进「我的家」</small></p>
+                    <div class="row"><span>本月收支</span><span class="tag">服务端汇总</span></div>
+                  </div>
+                  <div class="pane" data-sub-pane="chat" hidden>
+                    <p class="hello">消息<small>未读角标走同一条 /ws/im</small></p>
+                    <div class="row"><span>周宁</span><span class="tag hot">1</span></div>
+                  </div>
+                  <div class="pane" data-sub-pane="home" hidden>
+                    <p class="hello">分组里的其余入口<small>日程、家庭圈、家居、我的家</small></p>
+                    <div class="row"><span>日程</span><span class="tag">日历 · 纪念日</span></div>
+                    <div class="row"><span>我的家</span><span class="tag">公告到设置</span></div>
+                  </div>
+                </div>
+                <nav class="phone-tabs" aria-label="移动端导航演示">
+                  <button type="button" data-sub-btn="task" aria-pressed="true">任务</button>
+                  <button type="button" data-sub-btn="ledger" aria-pressed="false">账本</button>
+                  <button type="button" data-sub-btn="home" aria-pressed="false">日程</button>
+                  <button type="button" data-sub-btn="home" aria-pressed="false">家庭圈</button>
+                  <button type="button" data-sub-btn="chat" aria-pressed="false">消息</button>
+                  <button type="button" data-sub-btn="home" aria-pressed="false">家居</button>
+                  <button type="button" data-sub-btn="home" aria-pressed="false">我的家</button>
+                </nav>
+              </div>
+            </div>
+          </div>
+
+          <div class="device" data-view="archive" hidden>
+            <div class="phone">
+              <div class="phone-screen">
+                <div class="phone-notch" aria-hidden="true"></div>
+                <div class="phone-top"><div class="word">一起 · 家庭档案</div><span class="date-pill">5176</span></div>
+                <div class="phone-body">
+                  <p class="hello">家里的重要资料<small>界面只有登录和档案列表</small></p>
+                  <div class="row"><span>年度体检摘要</span><span class="tag">家庭可见</span></div>
+                  <div class="row"><span>证件备忘</span><span class="tag">仅自己</span></div>
+                  <p class="fine">服务端还放行档案、文件、公告的 GET，以及本人资料。别的写操作会 403。</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <section class="section" id="about">
@@ -100,214 +258,396 @@
           <div class="chapter">壹</div>
           <div>
             <h2>它做什么</h2>
-            <p>仓库版本 <code>0.1.0-SNAPSHOT</code>。这是给一个家庭用的系统，不是对外开放的社交网络。</p>
+            <p>给一个家庭用的系统，不是对外开放的社交网络。源码在 <a href="https://github.com/wangBoYi972/family-platform">wangBoYi972/family-platform</a>。本页只转述仓库里已经写明的结构。</p>
           </div>
         </div>
         <div class="prose">
-          <p>后端按服务拆开，各自持有自己的数据，由网关做统一入口。家庭归属取自已经校验过的会话，不信任客户端自己申报的家庭标识。管理端顶栏写着「把时间，留给家人」。</p>
-          <p>同一套接口同时给管理端、移动端和两个微信小程序使用。客户端不同，能碰到的范围也不同：例如档案小程序只做登录和档案，管理端则面向家庭管理员。</p>
-          <p>源码、设计笔记和持续集成都在公开仓库 <a href="https://github.com/wangBoYi972/family-platform">wangBoYi972/family-platform</a>。本页只转述仓库里已经写明的结构，不代替部署文档。</p>
+          <p>后端按服务拆开，各自持有自己的数据，由网关做统一入口。管理端顶栏写着「把时间，留给家人」。家庭端和移动端的面板尽量只留一份，放在 <code>apps/shared</code>。</p>
+          <p>下面可以跳到架构图里对应的服务。家居和账本已经有 Dockerfile，也进了编排和 Prometheus 抓取。</p>
+        </div>
+        <div class="pills" style="margin-top:16px" aria-label="跳到服务">
+          <button type="button" class="chip" data-jump="gateway">网关</button>
+          <button type="button" class="chip" data-jump="user">成员</button>
+          <button type="button" class="chip" data-jump="content">内容</button>
+          <button type="button" class="chip" data-jump="file">文件</button>
+          <button type="button" class="chip" data-jump="archive">档案</button>
+          <button type="button" class="chip" data-jump="im">消息</button>
+          <button type="button" class="chip" data-jump="media">通话</button>
+          <button type="button" class="chip" data-jump="ai">小助手</button>
+          <button type="button" class="chip" data-jump="iot">家居</button>
+          <button type="button" class="chip" data-jump="ledger">账本</button>
         </div>
       </div>
     </section>
 
-    <section class="section" id="services">
-      <div class="wrap">
+    <section class="section" id="showcase">
+      <div class="wrap" data-showcase>
         <div class="section-head">
           <div class="chapter">贰</div>
           <div>
-            <h2>后端服务</h2>
-            <p>这些服务都在 <code>backend/</code>。旁边还有公共模块 <code>family-common</code>、<code>family-security</code>、<code>family-messaging</code> 和 <code>family-api</code>。</p>
+            <h2>核心场景</h2>
+            <p>右侧是可点击的示例界面，数据是中性的演示数据，不会请求后端。左侧说明对应哪个服务、代码里实际做到哪一步。</p>
           </div>
         </div>
-        <div class="service-list">
-          <article class="service">
-            <div class="index">01</div>
-            <div>
-              <h3>统一入口</h3>
-              <p class="id">family-gateway</p>
-            </div>
-            <p>API 入口、路由、跨域，以及 JWT 前置校验。网关本身不存放业务表。</p>
-          </article>
-          <article class="service">
-            <div class="index">02</div>
-            <div>
-              <h3>成员与登录</h3>
-              <p class="id">family-user-svc</p>
-            </div>
-            <p>成员白名单、登录、会话校验、注销、家庭关系和角色权限。注册需要管理员发放的邀请码。</p>
-          </article>
-          <article class="service">
-            <div class="index">03</div>
-            <div>
-              <h3>家庭内容</h3>
-              <p class="id">family-content-svc</p>
-            </div>
-            <p>相册、动态、日历、任务和公告。列表可以按关键字或状态检索，并支持分页。</p>
-          </article>
-          <article class="service">
-            <div class="index">04</div>
-            <div>
-              <h3>文件</h3>
-              <p class="id">family-file-svc</p>
-            </div>
-            <p>私有文件的上传、下载授权和资源元数据。存储有本地实现，也有可插拔的 S3 兼容适配器。</p>
-          </article>
-          <article class="service">
-            <div class="index">05</div>
-            <div>
-              <h3>档案</h3>
-              <p class="id">family-archive-svc</p>
-            </div>
-            <p>家庭档案、健康记录和访问审计。管理员可以查看近一段时间的访问汇总。用药计划与复诊也在这个服务里：药名等内容加密保存，设为仅本人时其他成员和管理员都看不到。家庭端和移动端当天会提醒一次未服用的药和当天的复诊。微信订阅模板还没接上，不会因此发出订阅消息。</p>
-          </article>
-          <article class="service">
-            <div class="index">06</div>
-            <div>
-              <h3>消息</h3>
-              <p class="id">family-im-svc</p>
-            </div>
-            <p>会话、消息、已读和 WebSocket。文本、图片、语音和文件都有对应类型；私聊只投递给会话双方。</p>
-          </article>
-          <article class="service">
-            <div class="index">07</div>
-            <div>
-              <h3>实时通话</h3>
-              <p class="id">family-media-svc</p>
-            </div>
-            <p>通话状态、WebSocket 信令、TURN 时效凭据和通话记录。媒体走 WebRTC。仓库里实现了一对一，以及最多 8 人的家庭通话。</p>
-          </article>
-          <article class="service">
-            <div class="index">08</div>
-            <div>
-              <h3>家庭小助手</h3>
-              <p class="id">family-ai-svc</p>
-            </div>
-            <p>对话助手，用当前用户自己的令牌查询本家庭的任务、日程和纪念日，并搜索动态、相册、公告、档案与文件。未配置模型时关闭。历史按用户和家庭保存，不写入即时消息库。</p>
-          </article>
-          <article class="service">
-            <div class="index">09</div>
-            <div>
-              <h3>家居设备</h3>
-              <p class="id">family-iot-svc</p>
-            </div>
-            <p>家庭成员可以绑定 Home Assistant 中枢，每家一条。地址只接受本机和私网，公网地址会被拒绝。访问令牌加密后保存，接口不回传令牌，也不回传中枢地址。绑定后按区域同步灯、开关、传感器和场景；控制只开放开灯、关灯、开关和触发场景，结果写入命令日志。没有真实中枢时可以用内置演示设备，命令只改本地快照、不向外发请求。接到真实中枢后，后续状态变化还不会写回快照：仓库里的 WebSocket 监听没有从绑定或启动流程接上，页面定时重读的仍是这份快照。</p>
-          </article>
-          <article class="service">
-            <div class="index">10</div>
-            <div>
-              <h3>家庭账本</h3>
-              <p class="id">family-ledger-svc</p>
-            </div>
-            <p>记录支出和收入，金额用整数分。分类固定为餐饮、日用、住房、交通、医疗、教育、其他。支出要写垫付人和分摊，分摊合计必须等于这笔账；收入记在收款人名下、不分摊。本月收支和每位成员的净额由服务端按整月计算，不按当前页加总。列表可按月份、分类、垫付人或关键字分页。改删只限记账人或管理员。家庭编号只取已校验会话。</p>
-          </article>
+        <div class="seg feature-switch" role="tablist" aria-label="核心场景">
+          <button type="button" role="tab" data-feature="iot" aria-selected="true">智能家居</button>
+          <button type="button" role="tab" data-feature="ledger" aria-selected="false" tabindex="-1">家庭账本</button>
+          <button type="button" role="tab" data-feature="archive" aria-selected="false" tabindex="-1">档案与健康</button>
+          <button type="button" role="tab" data-feature="content" aria-selected="false" tabindex="-1">家庭协同</button>
+          <button type="button" role="tab" data-feature="im" aria-selected="false" tabindex="-1">消息与通话</button>
+          <button type="button" role="tab" data-feature="ai" aria-selected="false" tabindex="-1">家庭小助手</button>
         </div>
+
+        <article class="glass feature-panel" data-feature-panel="iot">
+          <div class="feature-copy">
+            <h3>智能家居控制</h3>
+            <p><code>family-iot-svc</code>。每家一条中枢：真实的 Home Assistant，或内置演示中枢 <code>demo://local</code>。家庭端面板是设备卡片，点进去才是明细控制。</p>
+            <ul>
+              <li>本机和私网默认可绑定。公网主机必须写在 <code>FAMILY_IOT_ALLOWED_HOSTS</code> 里，按主机名精确匹配。云元数据地址始终拒绝。</li>
+              <li>访问令牌加密后保存。接口不回传令牌，也不回传中枢地址。发现接口只回「已连接 / 未绑定 / 暂时不可达」这类文案。</li>
+              <li>命令包括灯、开关、场景，以及空调温度（16–35）、模式、风速，电视音响的音量、静音、频道和播放。越界参数返回 400。</li>
+              <li>真实中枢在服务启动和绑定后会连 WebSocket，状态变化写回快照；演示中枢跳过。这条连接仍要求地址通过私网校验。手动设备按家庭隔离，同步不会覆盖；当前解绑会清掉该家庭全部设备快照。</li>
+            </ul>
+          </div>
+          <div class="demo" data-iot></div>
+        </article>
+
+        <article class="glass feature-panel" data-feature-panel="ledger" hidden>
+          <div class="feature-copy">
+            <h3>家庭账本与分摊</h3>
+            <p><code>family-ledger-svc</code>。金额是整数分。分类只有餐饮、日用、住房、交通、医疗、教育、其他，未知分类直接 400。</p>
+            <ul>
+              <li>支出必须写垫付人和分摊，分摊合计等于这笔账。收入记在收款人名下，不分摊。</li>
+              <li>本月收支和每人净额由服务端按整月计算，不按当前页加总。净额 = 收入 + 垫付 − 分摊。</li>
+              <li>改删只限记账人或管理员。家庭编号只取已校验会话。</li>
+              <li>家庭端和移动端已接共享面板。管理端还没有入口。</li>
+            </ul>
+          </div>
+          <div class="demo" data-ledger></div>
+        </article>
+
+        <article class="glass feature-panel" data-feature-panel="archive" hidden>
+          <div class="feature-copy">
+            <h3>私密与健康档案</h3>
+            <p><code>family-archive-svc</code>。档案正文、用药计划和复诊内容都加密存放。可见范围是「仅自己」或「家庭成员」。</p>
+            <ul>
+              <li>设为仅自己可见时，其他成员和管理员都看不到。</li>
+              <li>家庭端和移动端当天提醒一次未服用的药，以及当天的复诊。同一天不重复。</li>
+              <li>微信订阅消息模板尚未接入，这条链路不会发出订阅消息，也不会弹微信授权。</li>
+              <li>管理员可以看近 30 天的访问汇总，按人、按天、按动作聚合。</li>
+            </ul>
+          </div>
+          <div class="demo" data-archive></div>
+        </article>
+
+        <article class="glass feature-panel" data-feature-panel="content" hidden>
+          <div class="feature-copy">
+            <h3>家庭协同内容</h3>
+            <p><code>family-content-svc</code>。任务、公告、日历、纪念日、动态和相册都按家庭存放。列表可以按关键字或状态检索，并支持分页。</p>
+            <ul>
+              <li>任务能指派、开始、完成。逾期口径和列表筛选共用同一段条件。</li>
+              <li>相册时光轴可以导出一份单文件 HTML 纪念册，图片内嵌，不依赖登录态。</li>
+              <li>别的设备改了数据，会经 Outbox 推成 refresh，只重拉相关面板。</li>
+            </ul>
+          </div>
+          <div class="demo" data-content></div>
+        </article>
+
+        <article class="glass feature-panel" data-feature-panel="im" hidden>
+          <div class="feature-copy">
+            <h3>即时消息与音视频</h3>
+            <p><code>family-im-svc</code> 负责会话和消息，<code>family-media-svc</code> 负责通话信令。媒体走 WebRTC，服务器不转发音视频。</p>
+            <ul>
+              <li>文本、图片、语音和文件。新消息在事务提交后整帧推送，断线退回轮询。</li>
+              <li>私聊只投递给双方。已读回执也走推送。两分钟内可撤回自己的消息。</li>
+              <li>默认仍是 mesh，最多 8 人。LiveKit SFU 已能签发入房凭证，默认关闭；打开且凭据齐全时上限 20 人，关掉就回到 mesh。</li>
+              <li>凭证只发给这通通话的参与者，房间名由服务端按通话生成。通话纪要仍在设备上混音分段。公网压测还没有写成已完成。</li>
+            </ul>
+          </div>
+          <div class="demo" data-im></div>
+        </article>
+
+        <article class="glass feature-panel" data-feature-panel="ai" hidden>
+          <div class="feature-copy">
+            <h3>可选家庭小助手</h3>
+            <p><code>family-ai-svc</code>。它查询的是这个用户原本就能看到的任务、日程、纪念日和内容，权限沿用现有校验。</p>
+            <ul>
+              <li>未配置模型时默认关闭。<code>/api/ai/chat</code> 返回 503，前端写成「AI 助手未配置」。</li>
+              <li>配置之后以 SSE 流式回答，并提示正在调用哪个工具。</li>
+              <li>历史按用户和家庭保留最近 40 条，不写入即时消息库。换设备可以接着看。</li>
+              <li>通话转写也走这个服务。模型不可用时纪要停在失败，可以重试。</li>
+            </ul>
+          </div>
+          <div class="demo" data-ai></div>
+        </article>
       </div>
     </section>
 
     <section class="section" id="clients">
-      <div class="wrap">
+      <div class="wrap" data-clients>
         <div class="section-head">
           <div class="chapter">叁</div>
           <div>
-            <h2>四个客户端</h2>
-            <p>都在 <code>apps/</code>。家庭端和移动端的面板、通话组件尽量只保留一份，放在共享目录里。</p>
+            <h2>四端与权限边界</h2>
+            <p>四端都在 <code>apps/</code>。服务端认的客户端值是 <code>admin</code>、<code>family</code>、<code>archive</code>。移动端和家庭小程序都使用 <code>family</code>，差别在界面分组。</p>
           </div>
         </div>
-        <div class="client-grid">
-          <article class="card">
-            <span class="path">apps/admin-web</span>
-            <h3>管理端</h3>
-            <p>Vue 3、Element Plus、Vite。登录之后是任务工作台、家庭成员、家庭档案、公告通知、家庭日历，以及 AI 家庭助手设置。成员页可以管理账号、密码和注册邀请码。</p>
-          </article>
-          <article class="card">
-            <span class="path">apps/mini-family</span>
-            <h3>家庭综合小程序</h3>
-            <p>uni-app（Vue 3）。页面是首页、日历、任务、账本、聊天、家庭圈、家居和我的家（成员、公告、档案、用药复诊、文件、设置），与移动端共用共享面板。</p>
-          </article>
-          <article class="card">
-            <span class="path">apps/mini-archive</span>
-            <h3>档案小程序</h3>
-            <p>同样基于 uni-app，使用独立的档案客户端身份。范围收在登录和档案列表，不承担家庭端的全部功能。</p>
-          </article>
-          <article class="card">
-            <span class="path">apps/mobile-app</span>
-            <h3>移动端</h3>
-            <p>uni-app 壳。七个分组：任务、账本、日程（日历与纪念日）、家庭圈（动态、相册、时光轴）、消息、家居、我的家（公告、文件、档案、用药复诊、成员、设置）。顶栏有全局搜索，并接入通话和实时刷新。</p>
-          </article>
-          <article class="card wide">
-            <span class="path">apps/shared</span>
-            <h3>跨端共享</h3>
-            <p>通话组件、任务 / 日历 / 动态 / 相册 / 公告 / 文件 / 档案 / 成员 / 聊天 / 账本 / 家居 / 用药复诊等面板、分页、实时通道和请求错误文案。改一处，家庭端与移动端一起生效。管理端是另一套 Vue 应用，不走这套 uni-app 面板，目前也没有账本和家居入口。</p>
-          </article>
+        <div class="seg client-switch" role="tablist" aria-label="四端">
+          <button type="button" role="tab" data-client="admin" aria-selected="true">管理端 Web</button>
+          <button type="button" role="tab" data-client="mobile" aria-selected="false" tabindex="-1">移动端</button>
+          <button type="button" role="tab" data-client="family" aria-selected="false" tabindex="-1">家庭小程序</button>
+          <button type="button" role="tab" data-client="archive" aria-selected="false" tabindex="-1">档案小程序</button>
         </div>
+
+        <article class="glass client-panel" data-client-panel="admin">
+          <div>
+            <h3>apps/admin-web</h3>
+            <p class="role">Vue 3 · Element Plus · Vite · 端口 5173。会话必须是管理员，且 client 为 admin，否则清空登录。</p>
+            <p>侧栏是任务工作台、家庭成员、家庭档案、公告通知、家庭日历、AI 家庭助手。成员页管理账号、密码和注册邀请码。</p>
+          </div>
+          <div class="client-preview">
+            <div class="nav-demo"><span class="on">任务工作台</span><span>家庭成员</span><span>家庭档案</span><span>公告通知</span><span>家庭日历</span><span>AI 家庭助手</span></div>
+            <p class="fine">没有账本、家居、聊天和通话入口。这是界面边界，不是网关把管理员令牌挡在这些路径之外。</p>
+          </div>
+        </article>
+        <article class="glass client-panel" data-client-panel="mobile" hidden>
+          <div>
+            <h3>apps/mobile-app</h3>
+            <p class="role">uni-app 壳 · 端口 5175 · client=family。七个分组，面板来自 apps/shared。</p>
+            <p>顶栏有全局搜索，并接入通话和实时刷新。家居面板已经放上，刷新主题表里还没有 iot，家庭端有。</p>
+          </div>
+          <div class="client-preview">
+            <div class="nav-demo"><span class="on">任务</span><span>账本</span><span>日程</span><span>家庭圈</span><span>消息</span><span>家居</span><span>我的家</span></div>
+            <div class="subnav"><span>日程：家庭日历 · 纪念日</span><span>家庭圈：动态 · 相册 · 时光轴</span><span>我的家：公告 · 文件 · 档案 · 用药复诊 · 成员 · 设置</span></div>
+          </div>
+        </article>
+        <article class="glass client-panel" data-client-panel="family" hidden>
+          <div>
+            <h3>apps/mini-family</h3>
+            <p class="role">uni-app · 端口 5174 · client=family。文案是「一起 · 家庭空间」。</p>
+            <p>和移动端共用面板、通话组件和实时通道。首页多一块今日概览。家居事件会刷新家居面板。</p>
+          </div>
+          <div class="client-preview">
+            <div class="nav-demo"><span class="on">首页</span><span>日历</span><span>任务</span><span>账本</span><span>聊天</span><span>家庭圈</span><span>家居</span><span>我的家</span></div>
+            <div class="subnav"><span>日历：日程 · 纪念日</span><span>家庭圈：动态 · 相册 · 时光轴</span><span>我的家：成员 · 公告 · 档案 · 用药复诊 · 文件 · 设置</span></div>
+          </div>
+        </article>
+        <article class="glass client-panel" data-client-panel="archive" hidden>
+          <div>
+            <h3>apps/mini-archive</h3>
+            <p class="role">uni-app · 端口 5176 · client=archive。文案是「一起 · 家庭档案」。</p>
+            <p>登录之后只有档案列表、修改密码和退出。不承担家庭端的任务、账本、家居、聊天或通话。</p>
+          </div>
+          <div class="client-preview">
+            <div class="nav-demo"><span class="on">档案列表</span><span>修改密码</span><span>退出</span></div>
+            <p class="fine">服务端对 archive 客户端的放行写在 family-security：认证接口，以及 GET 档案、文件、公告和 <code>/api/users/me</code>。其余返回 403，提示「档案端仅提供档案、文件和公告查询」。</p>
+          </div>
+        </article>
+
+        <h3 style="margin:22px 0 8px">客户端 × 能力</h3>
+        <div class="matrix" role="table" aria-label="客户端能力矩阵">
+          <div class="matrix-head" role="row">
+            <span>能力</span><span>管理端</span><span>移动端</span><span>家庭小程序</span><span>档案小程序</span>
+          </div>
+          <div class="matrix-row" role="row">
+            <h3>登录与会话</h3>
+            <div class="cell yes"><span class="who">管理端</span><b>管理员</b><span>role=ADMIN 且 client=admin</span></div>
+            <div class="cell yes"><span class="who">移动端</span><b>家庭成员</b><span>client=family</span></div>
+            <div class="cell yes"><span class="who">家庭小程序</span><b>家庭成员</b><span>client=family</span></div>
+            <div class="cell mid"><span class="who">档案小程序</span><b>档案身份</b><span>client=archive</span></div>
+          </div>
+          <div class="matrix-row" role="row">
+            <h3>任务 / 公告 / 日历</h3>
+            <div class="cell yes"><span class="who">管理端</span><b>已接入</b><span>工作台、公告、日历</span></div>
+            <div class="cell yes"><span class="who">移动端</span><b>已接入</b><span>任务、日程、公告</span></div>
+            <div class="cell yes"><span class="who">家庭小程序</span><b>已接入</b><span>任务、日历、公告</span></div>
+            <div class="cell mid"><span class="who">档案小程序</span><b>公告只在服务端</b><span>界面没有；GET 公告放行</span></div>
+          </div>
+          <div class="matrix-row" role="row">
+            <h3>档案与用药复诊</h3>
+            <div class="cell yes"><span class="who">管理端</span><b>档案已接入</b><span>没有用药复诊页</span></div>
+            <div class="cell yes"><span class="who">移动端</span><b>已接入</b><span>档案 + 用药复诊</span></div>
+            <div class="cell yes"><span class="who">家庭小程序</span><b>已接入</b><span>档案 + 用药复诊</span></div>
+            <div class="cell mid"><span class="who">档案小程序</span><b>只显示档案</b><span>列表可读，没有用药页</span></div>
+          </div>
+          <div class="matrix-row" role="row">
+            <h3>账本</h3>
+            <div class="cell no"><span class="who">管理端</span><b>无入口</b><span>路由存在，界面未做</span></div>
+            <div class="cell yes"><span class="who">移动端</span><b>主标签</b><span>共享 LedgerPanel</span></div>
+            <div class="cell yes"><span class="who">家庭小程序</span><b>主标签</b><span>同一块面板</span></div>
+            <div class="cell no"><span class="who">档案小程序</span><b>拒绝</b><span>不在 archive 白名单</span></div>
+          </div>
+          <div class="matrix-row" role="row">
+            <h3>家居</h3>
+            <div class="cell no"><span class="who">管理端</span><b>无入口</b><span>路由存在，界面未做</span></div>
+            <div class="cell yes"><span class="who">移动端</span><b>主标签</b><span>刷新主题尚未列入 iot</span></div>
+            <div class="cell yes"><span class="who">家庭小程序</span><b>主标签</b><span>iot 事件会刷新</span></div>
+            <div class="cell no"><span class="who">档案小程序</span><b>拒绝</b><span>不在 archive 白名单</span></div>
+          </div>
+          <div class="matrix-row" role="row">
+            <h3>消息与通话</h3>
+            <div class="cell no"><span class="who">管理端</span><b>无入口</b><span>管理端不挂聊天</span></div>
+            <div class="cell yes"><span class="who">移动端</span><b>消息分组</b><span>含通话与未读角标</span></div>
+            <div class="cell yes"><span class="who">家庭小程序</span><b>聊天标签</b><span>含通话与小助手</span></div>
+            <div class="cell no"><span class="who">档案小程序</span><b>拒绝</b><span>不在 archive 白名单</span></div>
+          </div>
+          <div class="matrix-row" role="row">
+            <h3>文件</h3>
+            <div class="cell no"><span class="who">管理端</span><b>无入口</b><span>下载仍要授权</span></div>
+            <div class="cell yes"><span class="who">移动端</span><b>我的家</b><span>共享文件面板</span></div>
+            <div class="cell yes"><span class="who">家庭小程序</span><b>我的家</b><span>同一块面板</span></div>
+            <div class="cell mid"><span class="who">档案小程序</span><b>服务端可读</b><span>界面没有文件页</span></div>
+          </div>
+          <div class="matrix-row" role="row">
+            <h3>小助手</h3>
+            <div class="cell yes"><span class="who">管理端</span><b>设置页</b><span>未配置则关闭</span></div>
+            <div class="cell yes"><span class="who">移动端</span><b>聊天内</b><span>置顶入口</span></div>
+            <div class="cell yes"><span class="who">家庭小程序</span><b>聊天内</b><span>置顶入口</span></div>
+            <div class="cell no"><span class="who">档案小程序</span><b>无</b><span>不在档案端范围</span></div>
+          </div>
+        </div>
+        <p class="matrix-foot">家庭编号不信任客户端自己传。注册要管理员发放的邀请码：管理端注册只接受管理员邀请码，成员邀请码在小程序端使用。矩阵里的「无入口」指界面，不是声称网关对管理员令牌做了额外封禁。</p>
       </div>
     </section>
 
-    <section class="section" id="capabilities">
+    <section class="section" id="architecture">
       <div class="wrap">
         <div class="section-head">
           <div class="chapter">肆</div>
           <div>
-            <h2>已经落在代码里的能力</h2>
-            <p>下面这些都能在当前仓库的服务或客户端里找到，不是路线图上的空标题。</p>
+            <h2>系统架构</h2>
+            <p>点一个节点，看它的职责、数据边界，以及是否已经进了 Maven、网关路由、Dockerfile、docker-compose 和 Prometheus。网关是十个可运行服务之一，单独画在入口层。</p>
           </div>
         </div>
-        <ul class="capability-list">
-          <li><strong>进入家庭</strong><span>白名单与邀请码注册，角色区分管理员和成员。密码只保存 BCrypt 哈希。每个家庭最多十位启用成员。</span></li>
-          <li><strong>过日子</strong><span>任务可指派、开始、完成；日历和纪念日、动态、相册、公告都按家庭存放。相册时光轴可以导出一份单文件 HTML 纪念册。</span></li>
-          <li><strong>文件与档案</strong><span>文件下载需要授权。档案有访问记录；管理端用纯样式画出近 30 天的访问概览。用药计划与复诊放在同一服务里，正文加密，可设为仅本人可见。</span></li>
-          <li><strong>记账</strong><span>支出和收入按整数分记账。分类是餐饮、日用、住房、交通、医疗、教育、其他。支出要指定垫付人和分摊，合计必须等于这笔账；收入不分摊。本月收支和每人净额由服务端按整月计算。改删只限记账人或管理员。</span></li>
-          <li><strong>家居</strong><span>家庭成员可以绑定 Home Assistant 中枢。地址只接受本机和私网，令牌加密保存，接口不回传令牌和中枢地址。同步灯、开关、传感器和场景；控制只开放开灯、关灯、开关和触发场景。没有真实中枢时可用内置演示设备。真实中枢的后续状态还不会写回快照。</span></li>
-          <li><strong>说话</strong><span>消息支持文本、图片、语音和文件。新消息走实时帧，断线时退回轮询。已读回执会推送。自己发出的消息可在两分钟内撤回，界面留一句「此消息已撤回」。</span></li>
-          <li><strong>见面</strong><span>一对一和最多 8 人的家庭通话。信令在服务端，音视频走 WebRTC。超过 8 人所需的 SFU 仍在上线验收里，还没有当作完成项。</span></li>
-          <li><strong>问家里的事</strong><span>家庭小助手只查询这个用户原本就能看到的数据。回答以流式输出。微信订阅消息同样是：没配凭证就自动关闭，不假装已经接通。</span></li>
-        </ul>
+        <div class="arch-layout">
+          <figure class="glass arch-canvas">
+            <figcaption class="sr">从四类客户端经网关到领域服务、公共模块和基础设施。可点击节点。</figcaption>
+            <svg class="arch-svg arch-svg--wide" viewBox="0 0 1080 700" role="group" aria-label="桌面架构图">
+              <text class="layer-label" font-size="13" x="24" y="22">客户端</text>
+              <path class="arch-link" d="M540 104 V132 M300 104 H780" />
+              <text class="layer-label" font-size="13" x="24" y="156">入口</text>
+              <path class="arch-link" d="M540 208 V228" />
+              <text class="layer-label" font-size="13" x="24" y="252">领域服务</text>
+              <path class="arch-link" d="M540 428 V448" />
+              <text class="layer-label" font-size="13" x="24" y="446">公共模块</text>
+              <path class="arch-link" d="M540 524 V544" />
+              <text class="layer-label" font-size="13" x="24" y="568">基础设施</text>
+
+              <g class="node" data-node="clients"><rect x="150" y="32" width="180" height="64" rx="18"/><text x="168" y="58" font-size="15">管理端</text><text class="subtext" x="168" y="78" font-size="11">admin-web · 5173</text></g>
+              <g class="node" data-node="clients"><rect x="350" y="32" width="180" height="64" rx="18"/><text x="368" y="58" font-size="15">移动端</text><text class="subtext" x="368" y="78" font-size="11">mobile-app · 5175</text></g>
+              <g class="node" data-node="clients"><rect x="550" y="32" width="180" height="64" rx="18"/><text x="568" y="58" font-size="15">家庭小程序</text><text class="subtext" x="568" y="78" font-size="11">mini-family · 5174</text></g>
+              <g class="node" data-node="clients"><rect x="750" y="32" width="180" height="64" rx="18"/><text x="768" y="58" font-size="15">档案小程序</text><text class="subtext" x="768" y="78" font-size="11">mini-archive · 5176</text></g>
+
+              <g class="node" data-node="gateway"><rect x="250" y="140" width="580" height="68" rx="20"/><text x="276" y="168" font-size="16">family-gateway</text><text class="subtext" x="276" y="190" font-size="12">统一入口 · JWT · :8080 · /api 与 /ws</text></g>
+
+              <g class="node" data-node="user"><rect x="24" y="260" width="196" height="74" rx="16"/><text x="38" y="290" font-size="14">成员与登录</text><text class="subtext" x="38" y="312" font-size="11">family-user-svc · 8081</text></g>
+              <g class="node" data-node="content"><rect x="232" y="260" width="196" height="74" rx="16"/><text x="246" y="290" font-size="14">家庭内容</text><text class="subtext" x="246" y="312" font-size="11">family-content-svc · 8082</text></g>
+              <g class="node" data-node="file"><rect x="440" y="260" width="196" height="74" rx="16"/><text x="454" y="290" font-size="14">文件</text><text class="subtext" x="454" y="312" font-size="11">family-file-svc · 8087</text></g>
+              <g class="node" data-node="archive"><rect x="648" y="260" width="196" height="74" rx="16"/><text x="662" y="290" font-size="14">档案与健康</text><text class="subtext" x="662" y="312" font-size="11">family-archive-svc · 8088</text></g>
+              <g class="node" data-node="im"><rect x="856" y="260" width="200" height="74" rx="16"/><text x="870" y="290" font-size="14">即时消息</text><text class="subtext" x="870" y="312" font-size="11">family-im-svc · 8089</text></g>
+
+              <g class="node" data-node="media"><rect x="128" y="348" width="196" height="74" rx="16"/><text x="142" y="378" font-size="14">实时通话</text><text class="subtext" x="142" y="400" font-size="11">family-media-svc · 8090</text></g>
+              <g class="node" data-node="ai"><rect x="336" y="348" width="196" height="74" rx="16"/><text x="350" y="378" font-size="14">家庭小助手</text><text class="subtext" x="350" y="400" font-size="11">family-ai-svc · 8091</text></g>
+              <g class="node" data-node="iot"><rect x="544" y="348" width="196" height="74" rx="16"/><text x="558" y="378" font-size="14">家居设备</text><text class="subtext" x="558" y="400" font-size="11">family-iot-svc · 8092</text></g>
+              <g class="node" data-node="ledger"><rect x="752" y="348" width="196" height="74" rx="16"/><text x="766" y="378" font-size="14">家庭账本</text><text class="subtext" x="766" y="400" font-size="11">family-ledger-svc · 8093</text></g>
+
+              <g class="node" data-node="common"><rect x="24" y="456" width="246" height="62" rx="16"/><text x="40" y="482" font-size="14">family-common</text><text class="subtext" x="40" y="502" font-size="11">响应 · 分页 · 异常 · 追踪</text></g>
+              <g class="node" data-node="security"><rect x="286" y="456" width="246" height="62" rx="16"/><text x="302" y="482" font-size="14">family-security</text><text class="subtext" x="302" y="502" font-size="11">JWT · 客户端范围 · OpenAPI</text></g>
+              <g class="node" data-node="messaging"><rect x="548" y="456" width="246" height="62" rx="16"/><text x="564" y="482" font-size="14">family-messaging</text><text class="subtext" x="564" y="502" font-size="11">Outbox · Rabbit · Redis</text></g>
+              <g class="node" data-node="api"><rect x="810" y="456" width="246" height="62" rx="16"/><text x="826" y="482" font-size="14">family-api</text><text class="subtext" x="826" y="502" font-size="11">Feign 契约 · 成员缓存</text></g>
+
+              <g class="node" data-node="mysql"><rect x="24" y="576" width="120" height="52" rx="14"/><text x="40" y="608" font-size="13">MySQL</text></g>
+              <g class="node" data-node="nacos"><rect x="156" y="576" width="120" height="52" rx="14"/><text x="172" y="608" font-size="13">Nacos</text></g>
+              <g class="node" data-node="redis"><rect x="288" y="576" width="120" height="52" rx="14"/><text x="304" y="608" font-size="13">Redis</text></g>
+              <g class="node" data-node="rabbit"><rect x="420" y="576" width="130" height="52" rx="14"/><text x="436" y="608" font-size="13">RabbitMQ</text></g>
+              <g class="node" data-node="object"><rect x="562" y="576" width="120" height="52" rx="14"/><text x="578" y="608" font-size="13">对象存储</text></g>
+              <g class="node" data-node="coturn"><rect x="694" y="576" width="110" height="52" rx="14"/><text x="710" y="608" font-size="13">coturn</text></g>
+              <g class="node" data-node="hass"><rect x="816" y="576" width="120" height="52" rx="14"/><text x="832" y="608" font-size="13">家居中枢</text></g>
+              <g class="node" data-node="model"><rect x="948" y="576" width="108" height="52" rx="14"/><text x="962" y="608" font-size="13">可选模型</text></g>
+            </svg>
+
+            <svg class="arch-svg arch-svg--narrow" viewBox="0 0 360 980" role="group" aria-label="移动架构图">
+              <text class="layer-label" font-size="13" x="12" y="18">客户端</text>
+              <g class="node" data-node="clients"><rect x="12" y="28" width="164" height="48" rx="14"/><text x="24" y="58" font-size="13">管理端</text></g>
+              <g class="node" data-node="clients"><rect x="184" y="28" width="164" height="48" rx="14"/><text x="196" y="58" font-size="13">移动端</text></g>
+              <g class="node" data-node="clients"><rect x="12" y="84" width="164" height="48" rx="14"/><text x="24" y="114" font-size="13">家庭小程序</text></g>
+              <g class="node" data-node="clients"><rect x="184" y="84" width="164" height="48" rx="14"/><text x="196" y="114" font-size="13">档案小程序</text></g>
+              <text class="layer-label" font-size="13" x="12" y="158">入口</text>
+              <g class="node" data-node="gateway"><rect x="12" y="168" width="336" height="52" rx="16"/><text x="24" y="200" font-size="14">family-gateway · 8080</text></g>
+              <text class="layer-label" font-size="13" x="12" y="246">领域服务</text>
+              <g class="node" data-node="user"><rect x="12" y="256" width="164" height="52" rx="14"/><text x="22" y="278" font-size="13">成员</text><text class="subtext" x="22" y="294" font-size="10">user · 8081</text></g>
+              <g class="node" data-node="content"><rect x="184" y="256" width="164" height="52" rx="14"/><text x="194" y="278" font-size="13">内容</text><text class="subtext" x="194" y="294" font-size="10">content · 8082</text></g>
+              <g class="node" data-node="file"><rect x="12" y="316" width="164" height="52" rx="14"/><text x="22" y="338" font-size="13">文件</text><text class="subtext" x="22" y="354" font-size="10">file · 8087</text></g>
+              <g class="node" data-node="archive"><rect x="184" y="316" width="164" height="52" rx="14"/><text x="194" y="338" font-size="13">档案</text><text class="subtext" x="194" y="354" font-size="10">archive · 8088</text></g>
+              <g class="node" data-node="im"><rect x="12" y="376" width="164" height="52" rx="14"/><text x="22" y="398" font-size="13">消息</text><text class="subtext" x="22" y="414" font-size="10">im · 8089</text></g>
+              <g class="node" data-node="media"><rect x="184" y="376" width="164" height="52" rx="14"/><text x="194" y="398" font-size="13">通话</text><text class="subtext" x="194" y="414" font-size="10">media · 8090</text></g>
+              <g class="node" data-node="ai"><rect x="12" y="436" width="164" height="52" rx="14"/><text x="22" y="458" font-size="13">小助手</text><text class="subtext" x="22" y="474" font-size="10">ai · 8091</text></g>
+              <g class="node" data-node="iot"><rect x="184" y="436" width="164" height="52" rx="14"/><text x="194" y="458" font-size="13">家居</text><text class="subtext" x="194" y="474" font-size="10">iot · 8092</text></g>
+              <g class="node" data-node="ledger"><rect x="12" y="496" width="336" height="52" rx="14"/><text x="24" y="528" font-size="13">账本 · family-ledger-svc · 8093</text></g>
+              <text class="layer-label" font-size="13" x="12" y="574">公共模块</text>
+              <g class="node" data-node="common"><rect x="12" y="584" width="164" height="48" rx="14"/><text x="22" y="614" font-size="12">family-common</text></g>
+              <g class="node" data-node="security"><rect x="184" y="584" width="164" height="48" rx="14"/><text x="194" y="614" font-size="12">family-security</text></g>
+              <g class="node" data-node="messaging"><rect x="12" y="640" width="164" height="48" rx="14"/><text x="22" y="670" font-size="12">family-messaging</text></g>
+              <g class="node" data-node="api"><rect x="184" y="640" width="164" height="48" rx="14"/><text x="194" y="670" font-size="12">family-api</text></g>
+              <text class="layer-label" font-size="13" x="12" y="714">基础设施</text>
+              <g class="node" data-node="mysql"><rect x="12" y="724" width="164" height="44" rx="12"/><text x="24" y="752" font-size="13">MySQL</text></g>
+              <g class="node" data-node="nacos"><rect x="184" y="724" width="164" height="44" rx="12"/><text x="196" y="752" font-size="13">Nacos</text></g>
+              <g class="node" data-node="redis"><rect x="12" y="776" width="164" height="44" rx="12"/><text x="24" y="804" font-size="13">Redis</text></g>
+              <g class="node" data-node="rabbit"><rect x="184" y="776" width="164" height="44" rx="12"/><text x="196" y="804" font-size="13">RabbitMQ</text></g>
+              <g class="node" data-node="object"><rect x="12" y="828" width="164" height="44" rx="12"/><text x="24" y="856" font-size="13">对象存储</text></g>
+              <g class="node" data-node="coturn"><rect x="184" y="828" width="164" height="44" rx="12"/><text x="196" y="856" font-size="13">coturn</text></g>
+              <g class="node" data-node="hass"><rect x="12" y="880" width="164" height="44" rx="12"/><text x="24" y="908" font-size="13">家居中枢</text></g>
+              <g class="node" data-node="model"><rect x="184" y="880" width="164" height="44" rx="12"/><text x="196" y="908" font-size="13">可选模型</text></g>
+            </svg>
+          </figure>
+          <aside class="glass arch-detail" data-arch-detail aria-live="polite">
+            <h3>统一入口</h3>
+            <p class="id">family-gateway · :8080</p>
+            <p>API 入口、路由、跨域和 JWT 前置校验。网关不存放业务表。</p>
+          </aside>
+        </div>
       </div>
     </section>
 
-    <section class="section" id="stack">
+    <section class="section" id="engineering">
       <div class="wrap">
         <div class="section-head">
           <div class="chapter">伍</div>
           <div>
-            <h2>技术栈</h2>
-            <p>版本取自仓库的 Maven 与前端清单，随代码更新，不在这里另造一套。</p>
+            <h2>工程导览</h2>
+            <p>版本取自仓库的 Maven 与前端清单。本地怎么跑，以 README 和各模块配置为准；这个页面不写出口令、密钥或示例密钥。</p>
           </div>
         </div>
-        <dl class="stack-grid">
-          <div>
-            <dt>语言与运行时</dt>
-            <dd>Java 21。构建用 Maven，强制 Java 21。</dd>
-          </div>
-          <div>
-            <dt>服务框架</dt>
-            <dd>Spring Boot 3.3.5，Spring Cloud 2023.0.3，Spring Cloud Alibaba 2023.0.3.2。注册与发现使用 Nacos。</dd>
-          </div>
-          <div>
-            <dt>数据</dt>
-            <dd>MyBatis-Plus 3.5.17，Flyway 迁移。本地开发用各自的 H2；生产配置面向 MySQL。密钥和数据库口令从环境变量读取，不写在这个页面上。</dd>
-          </div>
-          <div>
-            <dt>消息与实时</dt>
-            <dd>Redis、RabbitMQ、WebSocket。领域事件经 Outbox 再通知在线客户端。通话媒体是 WebRTC。</dd>
-          </div>
-          <div>
-            <dt>接口与观测</dt>
-            <dd>springdoc OpenAPI 2.6.0，本地可开 Swagger，生产默认关闭。请求带 <code>X-Request-Id</code>。生产环境暴露 health、info、prometheus。<code>infra/</code> 里有 Prometheus 与 Grafana 的编排。</dd>
-          </div>
-          <div>
-            <dt>前端</dt>
-            <dd>管理端：Vue 3、Element Plus、Vite。小程序与移动端：uni-app（Vue 3）。持续集成使用 Node.js 20 与 pnpm 9 构建管理端。</dd>
-          </div>
-          <div>
-            <dt>工程化</dt>
-            <dd>GitHub Actions 跑后端校验、管理端构建和依赖扫描。网关、成员、内容、文件、档案、消息、通话和家庭小助手这八个服务有多阶段、非 root 的 Dockerfile。<code>infra/docker-compose.yml</code> 编排 MySQL、Nacos、Redis 以及这八个服务。家居和账本已在 Maven 模块和网关路由里，编排文件和 Prometheus 抓取名单还没有它们。</dd>
-          </div>
-          <div>
-            <dt>仓库地图</dt>
-            <dd><code>backend/</code> 服务，<code>apps/</code> 客户端，<code>infra/</code> 编排与监控，<code>docs/</code> 设计笔记和本页，<code>scripts/</code> 通话冒烟脚本。</dd>
-          </div>
+        <div class="tree-grid">
+          <article class="glass">
+            <h3>仓库目录</h3>
+            <ul class="path-list">
+              <li><code>backend/</code><span>十个可运行服务，加 common、security、messaging、api</span></li>
+              <li><code>apps/</code><span>admin-web、mobile-app、mini-family、mini-archive、shared</span></li>
+              <li><code>infra/</code><span>docker-compose、Prometheus、Grafana</span></li>
+              <li><code>docs/</code><span>本页。设计笔记由 _config.yml 排除，不进 Pages</span></li>
+              <li><code>scripts/</code><span>通话冒烟脚本，用法在仓库的通话设计笔记</span></li>
+              <li><code>.github/</code><span>后端 strict verify，以及管理端构建</span></li>
+            </ul>
+          </article>
+          <article class="glass">
+            <h3>本地开发里写明的端口</h3>
+            <ul class="path-list">
+              <li><code>5173–5176</code><span>管理端、家庭端、移动端、档案端，见各自 vite.config.js</span></li>
+              <li><code>8080</code><span>网关。业务端口写在各服务 application.yml</span></li>
+              <li><code>8081–8093</code><span>成员 8081、内容 8082、文件 8087、档案 8088、消息 8089、通话 8090、助手 8091、家居 8092、账本 8093</span></li>
+              <li><code>H2 / MySQL</code><span>本地各服务独立 H2。生产配置面向 MySQL 与 Nacos，口令走环境变量</span></li>
+            </ul>
+            <p class="fine">编排会拉起 MySQL、Nacos、Redis、RabbitMQ、coturn、LiveKit、Prometheus、Alertmanager、Grafana，以及全部十个服务镜像。抓取名单含家居 8092 和账本 8093。告警规则和隔离库恢复演练脚本已经在仓库里，不等于已经在正式环境跑过。</p>
+          </article>
+        </div>
+        <dl class="stack-grid" style="margin-top:12px">
+          <div class="glass"><dt>语言与运行时</dt><dd>Java 21。Maven 强制 Java 21。持续集成用 Temurin 21。</dd></div>
+          <div class="glass"><dt>服务框架</dt><dd>Spring Boot 3.3.5，Spring Cloud 2023.0.3，Spring Cloud Alibaba 2023.0.3.2。注册发现用 Nacos。</dd></div>
+          <div class="glass"><dt>数据</dt><dd>MyBatis-Plus 3.5.17，Flyway。本地 H2，生产配置面向 MySQL。密钥不写在这个页面上。</dd></div>
+          <div class="glass"><dt>消息与实时</dt><dd>Redis、RabbitMQ、WebSocket、Outbox。通话媒体是 WebRTC，TURN 凭据有时效。</dd></div>
+          <div class="glass"><dt>接口与观测</dt><dd>springdoc 2.6.0，本地可开 Swagger，生产默认关闭。请求带 X-Request-Id。生产暴露 health、info、prometheus。</dd></div>
+          <div class="glass"><dt>前端</dt><dd>管理端 Vue 3、Element Plus、Vite。小程序与移动端 uni-app。CI 用 Node.js 20 与 pnpm 9 构建管理端。</dd></div>
         </dl>
       </div>
     </section>
@@ -321,26 +661,28 @@
             <p>README 把「代码里的基础闭环」和「正式上线前还要验收的事」分开写了。这里保持同样的说法。</p>
           </div>
         </div>
-        <div class="status-grid">
-          <article>
+        <div class="status-board">
+          <article class="glass">
             <h3>仓库里已经有的</h3>
             <ul>
-              <li>网关路由与 JWT 前置校验，用户服务的登录、会话和成员管理。</li>
-              <li>内容、文件、档案、消息、通话、家庭小助手、家居和账本各自的数据表与迁移。</li>
-              <li>管理端接到成员、任务、公告、日历、档案和助手设置。账本和家居还没有管理端入口。</li>
-              <li>家庭端与移动端共用面板，账本和家居已接到这两个端；实时刷新、聊天推送和通话信令有对应实现。</li>
-              <li>链路追踪、结构化日志、OpenAPI、容器镜像和持续集成配置已经放进仓库。</li>
+              <li>网关路由与 JWT 前置校验，用户服务的登录、会话、邀请码和成员管理。</li>
+              <li>内容、文件、档案、消息、通话、小助手、家居和账本各自的数据表与迁移。</li>
+              <li>管理端接到成员、任务、公告、日历、档案和助手设置。</li>
+              <li>家庭端与移动端共用面板，账本和家居已接到这两个端。</li>
+              <li>实时刷新、聊天推送、通话信令、录音分段和纪要编排已经在代码里。</li>
+              <li>十个服务都有 Dockerfile，并进入编排。Prometheus 抓取包含家居和账本，仓库里有 9 条告警规则和 Alertmanager 配置。</li>
+              <li>备份脚本和隔离库恢复演练脚本已在 <code>infra/backup/</code>。LiveKit 入房凭证、参与者校验和 20 人上限已在媒体服务里，默认关闭。</li>
             </ul>
           </article>
-          <article>
-            <h3>还不能写成已完成</h3>
+          <article class="glass">
+            <h3>正式上线前待验收</h3>
             <ul>
               <li>MySQL 与 Nacos 实例联调。</li>
               <li>真实短信或微信身份认证。</li>
               <li>对象存储在真实环境中的验收。</li>
-              <li>公网 TURN 的实网穿透与压测，以及 8 人以上所需的 SFU。</li>
+              <li>公网 TURN 的实网穿透与压测。SFU 代码默认关闭，还没有正式环境的多人压测记录。</li>
               <li>两个小程序的真机回归。</li>
-              <li>监控告警，以及备份恢复演练。</li>
+              <li>告警通道和备份恢复在正式环境里的演练。仓库里的规则和脚本还不是演练结果。</li>
             </ul>
           </article>
         </div>
@@ -348,13 +690,17 @@
     </section>
   </main>
 
-  <section class="english" id="english">
-    <div class="wrap">
-      <h2>English</h2>
-      <p>family-platform is a household-scoped system: a Spring Cloud Alibaba backend, an admin console, a mobile client, and two WeChat mini programs. They share APIs and authorize by family and client. It is not a public social network.</p>
-      <p>The backend services are the gateway, members, content, files, archives, messaging, calls, an optional family assistant that stays off until a model is configured, home devices, and a family ledger. Home devices bind to Home Assistant, or to a built-in demo hub that does not call the network. The ledger records income and shared expenses in integer cents, and the monthly totals are computed on the server. These two services are in the Maven modules and gateway routes. The container compose file and the Prometheus scrape list do not include them yet. Source and notes live in the public repository.</p>
-      <p><a href="https://github.com/wangBoYi972/family-platform">github.com/wangBoYi972/family-platform</a></p>
-    </div>
+  <section class="english" id="english" lang="en">
+    <p class="kicker">English</p>
+    <h2>A system for one household</h2>
+    <hr class="rule">
+    <p>family-platform is a household-scoped system, not a public social network. The backend is Java 21 with Spring Boot 3.3.5, Spring Cloud 2023.0.3 and Spring Cloud Alibaba 2023.0.3.2. family-gateway is the only public API entrance: it routes HTTP and WebSocket calls and checks JWTs. Household id comes from the checked session, never from a client-supplied family id.</p>
+    <p>Ten runnable services: gateway, members, content, files, archives, messaging, calls, an optional family assistant, home devices, and a ledger. Four libraries sit beside them: family-common, family-security, family-messaging and family-api. They are not separate processes.</p>
+    <p>Four clients share the APIs. The admin web (port 5173) accepts only an ADMIN session whose client is admin, and shows tasks, members, archives, notices, calendar and assistant settings. The mobile app (5175) and the family mini program (5174) both sign in as client=family and share panels for tasks, ledger, calendar, albums, chat, calls, home devices and health. The archive mini program (5176) signs in as client=archive. Its screen is login plus the archive list. The server additionally allows that client to call auth routes and to GET archives, files, notices and /api/users/me. Other calls are forbidden.</p>
+    <p>Home devices bind to Home Assistant on loopback or a private address by default. A public hostname is accepted only when it is listed exactly in FAMILY_IOT_ALLOWED_HOSTS. Cloud metadata hosts are always rejected. Tokens are encrypted and are not returned, nor is the hub address. The discovery response is a status sentence only. Commands cover lights, switches, scenes, climate temperature (16–35), mode and fan speed, and media-player volume, mute, source and playback. Out-of-range parameters return 400. A real hub gets a WebSocket on startup and after binding, and state changes are written back to the snapshot. The demo hub skips that socket and only updates the local snapshot. Manual devices are household-scoped, editable only when marked MANUAL, and are not overwritten by a sync. Unbind currently deletes every device snapshot in that household. The live socket still requires an address that passes the private-network check. Both home and ledger now have Dockerfiles, compose services and Prometheus scrape jobs on ports 8092 and 8093. The admin console still has no screen for either.</p>
+    <p>The assistant stays off until a model is configured. Unconfigured chat returns 503. Calls default to WebRTC mesh, one-to-one and up to eight people. LiveKit SFU join tokens are implemented and stay off unless enabled: the cap is then 20, the token is issued only to a participant of that household’s live call, and turning the flag off returns the service to mesh. This repository does not record a production load test. Recordings are still mixed on the device. WeChat subscribe-message templates for medication and follow-up reminders are not connected.</p>
+    <p>The repo now includes nine Prometheus alert rules, an Alertmanager config, and backup plus isolated-database restore drill scripts. Those files are not a completed production drill. Still open before launch: MySQL and Nacos integration, real SMS or WeChat identity, object storage, public TURN tests, a production SFU load test, mini program device regression, and running the alert and backup drills against the real environment.</p>
+    <p><a href="https://github.com/wangBoYi972/family-platform">github.com/wangBoYi972/family-platform</a></p>
   </section>
 
   <footer class="site-footer">
