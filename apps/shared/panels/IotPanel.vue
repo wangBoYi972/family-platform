@@ -479,7 +479,7 @@ export default {
         await this.loadDevices();
       } catch (e) {
         const msg = e.message || "操作失败";
-        if (this.detailDevice) this.detailError = msg;
+        if (this.detailDevice?.entityId === device.entityId) this.detailError = msg;
         else this.error = msg;
       } finally {
         const next = { ...this.pending };
