@@ -45,6 +45,7 @@ public class IotDeviceServiceImpl implements IotDeviceService {
 
   @Override
   public List<AreaDevicesVO> getDevicesByArea(Long householdId) {
+    ensureDemoCatalog(householdId);
     List<IotDeviceSnapshot> devices = deviceSnapshotMapper.selectByHouseholdId(householdId);
 
     // 按区域分组
@@ -63,6 +64,28 @@ public class IotDeviceServiceImpl implements IotDeviceService {
                 .collect(Collectors.toList())
         ))
         .collect(Collectors.toList());
+  }
+
+  /**
+   * 已绑定演示中枢的家庭，若快照仍是旧版（无空调/影音），在读取时补种完整演示目录。
+   */
+  private void ensureDemoCatalog(Long householdId) {
+    IotHub hub = hubService.getHubInternal(householdId);
+    if (hub == null || !DemoHub.isDemo(hub.getBaseUrl())) {
+      return;
+    }
+    List<IotDeviceSnapshot> existing = deviceSnapshotMapper.selectByHouseholdId(householdId);
+    boolean hasClimate =
+        existing.stream().anyMatch(d -> "climate".equals(d.getEntityType()));
+    if (hasClimate) {
+      return;
+    }
+    try {
+      seedDemoDevices(householdId);
+      log.info("演示中枢：家庭 {} 已补种空调/影音设备", householdId);
+    } catch (Exception e) {
+      log.warn("演示中枢补种失败 household={}: {}", householdId, e.getMessage());
+    }
   }
 
   @Override
@@ -289,7 +312,7 @@ public class IotDeviceServiceImpl implements IotDeviceService {
               Map.of(
                   "temperature", 24,
                   "current_temperature", 26,
-                  "hvac_mode", "cool",
+                  "hvac_mode", "off",
                   "fan_mode", "low")),
           new DemoDevice("switch.bedroom_humidifier", "加湿器", "主卧", "on", Map.of()),
           new DemoDevice("switch.kitchen_kettle", "电热水壶", "厨房", "off", Map.of()),

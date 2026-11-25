@@ -268,7 +268,12 @@ public class IotCommandServiceImpl implements IotCommandService {
           }
         }
       }
-      case "turn_off" -> state = "off";
+      case "turn_off" -> {
+        state = "off";
+        if ("climate".equals(type)) {
+          attributes.put("hvac_mode", "off");
+        }
+      }
       case "set_temperature" -> {
         if (!parameters.hasNonNull("temperature")) {
           throw new IllegalArgumentException("缺少目标温度");

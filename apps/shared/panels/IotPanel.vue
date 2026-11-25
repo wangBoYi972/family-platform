@@ -106,7 +106,10 @@
                 <span
                   v-if="isSwitchable(device)"
                   class="power-btn"
-                  :class="{ on: isDeviceOn(device) }"
+                  :class="{
+                    on: isDeviceOn(device),
+                    disabled: device.isOnline === false || pending[device.entityId],
+                  }"
                   @click.stop="toggle(device)"
                 >
                   {{ isDeviceOn(device) ? "开" : "关" }}
@@ -192,12 +195,20 @@
 
           <div v-else-if="detail.entityType === 'climate'" class="control-block">
             <div class="temp-row">
-              <button class="ghost-btn square" :disabled="!isDeviceOn(detail)" @click="nudgeTemp(-1)">−</button>
+              <button
+                class="ghost-btn square"
+                :disabled="!isDeviceOn(detail) || pending[detail.entityId]"
+                @click="nudgeTemp(-1)"
+              >−</button>
               <div class="temp-display">
                 <span class="temp-num">{{ getClimateTargetTemp(detail) }}</span>
                 <span class="temp-unit">°C</span>
               </div>
-              <button class="ghost-btn square" :disabled="!isDeviceOn(detail)" @click="nudgeTemp(1)">+</button>
+              <button
+                class="ghost-btn square"
+                :disabled="!isDeviceOn(detail) || pending[detail.entityId]"
+                @click="nudgeTemp(1)"
+              >+</button>
             </div>
             <div class="chip-row">
               <button
@@ -205,6 +216,7 @@
                 :key="mode.value"
                 class="chip-btn"
                 :class="{ on: climateMode(detail) === mode.value }"
+                :disabled="pending[detail.entityId]"
                 @click="setHvacMode(mode.value)"
               >
                 {{ mode.label }}
@@ -216,7 +228,7 @@
                 :key="fan.value"
                 class="chip-btn"
                 :class="{ on: fanMode(detail) === fan.value }"
-                :disabled="!isDeviceOn(detail)"
+                :disabled="!isDeviceOn(detail) || pending[detail.entityId]"
                 @click="setFanMode(fan.value)"
               >
                 {{ fan.label }}
@@ -226,12 +238,12 @@
 
           <div v-else-if="detail.entityType === 'media_player'" class="control-block">
             <div class="temp-row">
-              <button class="ghost-btn square" @click="nudgeVolume(-5)">−</button>
+              <button class="ghost-btn square" :disabled="pending[detail.entityId]" @click="nudgeVolume(-5)">−</button>
               <div class="temp-display">
                 <span class="temp-num">{{ getMediaVolumePct(detail) }}</span>
                 <span class="temp-unit">%</span>
               </div>
-              <button class="ghost-btn square" @click="nudgeVolume(5)">+</button>
+              <button class="ghost-btn square" :disabled="pending[detail.entityId]" @click="nudgeVolume(5)">+</button>
             </div>
             <div class="chip-row">
               <button class="chip-btn" @click="toggleMute">
@@ -385,7 +397,9 @@ export default {
       if (device.entityType === "media_player") {
         if (device.state === "playing") return "播放中";
         if (device.state === "paused") return "已暂停";
-        return "已关闭";
+        if (device.state === "buffering" || device.state === "on") return "已开启";
+        if (device.state === "off" || device.state === "idle" || device.state === "standby") return "已关闭";
+        return this.isDeviceOn(device) ? "已开启" : "已关闭";
       }
       return device.state === "on" ? "已开启" : "已关闭";
     },
@@ -402,6 +416,8 @@ export default {
     },
 
     climateMode(device) {
+      // 关机时以 state 为准，避免 attributes.hvac_mode 残留上次运行模式
+      if (device.state === "off") return "off";
       return device.attributes?.hvac_mode || device.state || "off";
     },
 
@@ -574,45 +590,58 @@ export default {
     },
 
     async toggle(device) {
+      if (device.isOnline === false || this.pending[device.entityId]) return;
       const command = this.isDeviceOn(device) ? "turn_off" : "turn_on";
       await this.executeCommand(device, command);
     },
 
     async nudgeTemp(delta) {
-      if (!this.detail) return;
+      if (!this.detail || this.pending[this.detail.entityId]) return;
       const next = Math.min(35, Math.max(16, this.getClimateTargetTemp(this.detail) + delta));
+      this.detail = {
+        ...this.detail,
+        attributes: { ...(this.detail.attributes || {}), temperature: next },
+      };
       await this.executeCommand(this.detail, "set_temperature", { temperature: next });
     },
 
     async setHvacMode(mode) {
-      if (!this.detail) return;
+      if (!this.detail || this.pending[this.detail.entityId]) return;
       await this.executeCommand(this.detail, "set_hvac_mode", { hvac_mode: mode });
     },
 
     async setFanMode(mode) {
-      if (!this.detail) return;
+      if (!this.detail || this.pending[this.detail.entityId]) return;
       await this.executeCommand(this.detail, "set_fan_mode", { fan_mode: mode });
     },
 
     async nudgeVolume(delta) {
-      if (!this.detail) return;
+      if (!this.detail || this.pending[this.detail.entityId]) return;
       const next = Math.min(100, Math.max(0, this.getMediaVolumePct(this.detail) + delta));
+      this.detail = {
+        ...this.detail,
+        attributes: {
+          ...(this.detail.attributes || {}),
+          volume_level: next / 100,
+          is_volume_muted: false,
+        },
+      };
       await this.executeCommand(this.detail, "volume_set", { volume_level: next / 100 });
     },
 
     async toggleMute() {
-      if (!this.detail) return;
+      if (!this.detail || this.pending[this.detail.entityId]) return;
       const muted = !!this.detail.attributes?.is_volume_muted;
       await this.executeCommand(this.detail, "volume_mute", { is_volume_muted: !muted });
     },
 
     async playPause() {
-      if (!this.detail) return;
+      if (!this.detail || this.pending[this.detail.entityId]) return;
       await this.executeCommand(this.detail, "media_play_pause");
     },
 
     async selectSource(source) {
-      if (!this.detail) return;
+      if (!this.detail || this.pending[this.detail.entityId]) return;
       await this.executeCommand(this.detail, "select_source", { source });
     },
 
@@ -1010,6 +1039,11 @@ button[disabled] {
   background: #4f7dc6;
   border-color: rgba(79, 125, 198, 0.7);
   color: #f4f7ff;
+}
+
+.power-btn.disabled {
+  opacity: 0.45;
+  pointer-events: none;
 }
 
 .power-btn.large {

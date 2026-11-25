@@ -3,6 +3,8 @@ package com.familyhome.iot.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.familyhome.iot.dto.GatewayDeviceReportDTO;
 import com.familyhome.iot.dto.GatewayRegisterDTO;
+import com.familyhome.iot.dto.GatewayStateReportDTO;
+import com.familyhome.iot.gateway.GatewaySessionRegistry;
 import com.familyhome.iot.mapper.IotDeviceSnapshotMapper;
 import com.familyhome.iot.mapper.IotGatewayMapper;
 import com.familyhome.iot.mapper.IotHubMapper;
@@ -13,9 +15,12 @@ import com.familyhome.iot.model.IotHub;
 import com.familyhome.iot.model.IotPairingCode;
 import com.familyhome.iot.service.HomeGatewayService;
 import com.familyhome.iot.service.IotDeviceService;
+import com.familyhome.iot.service.IotHubService;
 import com.familyhome.iot.util.GatewayHub;
 import com.familyhome.iot.util.TokenEncryptor;
 import com.familyhome.iot.vo.GatewayRegisterVO;
+import com.familyhome.iot.vo.GatewayStatusVO;
+import com.familyhome.iot.vo.IotHubVO;
 import com.familyhome.iot.vo.PairingCodeVO;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
@@ -43,6 +48,8 @@ public class HomeGatewayServiceImpl implements HomeGatewayService {
   @Autowired private IotDeviceSnapshotMapper deviceSnapshotMapper;
   @Autowired private TokenEncryptor tokenEncryptor;
   @Autowired private IotDeviceService deviceService;
+  @Autowired private IotHubService hubService;
+  @Autowired(required = false) private GatewaySessionRegistry sessionRegistry;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -197,6 +204,37 @@ public class HomeGatewayServiceImpl implements HomeGatewayService {
   public void updateDeviceState(
       Long householdId, String entityId, String state, java.util.Map<String, Object> attributes) {
     deviceService.updateDeviceState(householdId, entityId, state, attributes);
+  }
+
+  @Override
+  @Transactional
+  public void reportDevices(String gatewayToken, GatewayDeviceReportDTO report) {
+    IotGateway gateway = authenticate(gatewayToken);
+    touch(gateway);
+    replaceDevices(gateway.getHouseholdId(), report);
+  }
+
+  @Override
+  public void reportState(String gatewayToken, GatewayStateReportDTO report) {
+    IotGateway gateway = authenticate(gatewayToken);
+    touch(gateway);
+    updateDeviceState(
+        gateway.getHouseholdId(), report.getEntityId(), report.getState(), report.getAttributes());
+  }
+
+  @Override
+  public GatewayStatusVO status(Long householdId) {
+    IotHubVO hub = hubService.getHub(householdId);
+    GatewayStatusVO vo = new GatewayStatusVO();
+    vo.setConfigured(Boolean.TRUE.equals(hub.getConfigured()));
+    vo.setGateway(Boolean.TRUE.equals(hub.getGateway()));
+    vo.setOnline(isOnline(householdId));
+    return vo;
+  }
+
+  @Override
+  public boolean isOnline(Long householdId) {
+    return sessionRegistry != null && sessionRegistry.isOnline(householdId);
   }
 
   private static String randomCode(int len) {

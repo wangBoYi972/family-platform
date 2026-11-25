@@ -3,18 +3,14 @@ package com.familyhome.iot.controller;
 import com.familyhome.common.api.ApiResponse;
 import com.familyhome.iot.dto.GatewayDeviceReportDTO;
 import com.familyhome.iot.dto.GatewayRegisterDTO;
-import com.familyhome.iot.gateway.GatewaySessionRegistry;
-import com.familyhome.iot.model.IotGateway;
+import com.familyhome.iot.dto.GatewayStateReportDTO;
 import com.familyhome.iot.service.HomeGatewayService;
-import com.familyhome.iot.service.IotHubService;
 import com.familyhome.iot.vo.GatewayRegisterVO;
+import com.familyhome.iot.vo.GatewayStatusVO;
 import com.familyhome.iot.vo.PairingCodeVO;
 import com.familyhome.security.SessionPrincipal;
-import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import java.util.HashMap;
-import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,8 +26,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class GatewayController {
 
   @Autowired private HomeGatewayService homeGatewayService;
-  @Autowired private IotHubService hubService;
-  @Autowired private GatewaySessionRegistry sessionRegistry;
 
   /** 家庭成员创建配对码，给家里的网关进程填写。 */
   @PostMapping("/hub/pairing-code")
@@ -62,9 +56,7 @@ public class GatewayController {
       @RequestHeader(value = "Authorization", required = false) String authorization,
       @Valid @RequestBody GatewayDeviceReportDTO report) {
     try {
-      IotGateway gateway = homeGatewayService.authenticate(resolveToken(headerToken, authorization));
-      homeGatewayService.touch(gateway);
-      homeGatewayService.replaceDevices(gateway.getHouseholdId(), report);
+      homeGatewayService.reportDevices(resolveToken(headerToken, authorization), report);
       return ApiResponse.success(null);
     } catch (IllegalArgumentException e) {
       return ApiResponse.failure(401, e.getMessage());
@@ -79,22 +71,9 @@ public class GatewayController {
   public ApiResponse<Void> reportState(
       @RequestHeader(value = "X-Gateway-Token", required = false) String headerToken,
       @RequestHeader(value = "Authorization", required = false) String authorization,
-      @RequestBody JsonNode body) {
+      @Valid @RequestBody GatewayStateReportDTO report) {
     try {
-      IotGateway gateway = homeGatewayService.authenticate(resolveToken(headerToken, authorization));
-      homeGatewayService.touch(gateway);
-      String entityId = body.path("entityId").asText(null);
-      String state = body.path("state").asText(null);
-      if (entityId == null || state == null) {
-        return ApiResponse.failure(400, "缺少 entityId/state");
-      }
-      Map<String, Object> attributes = new HashMap<>();
-      JsonNode attrs = body.path("attributes");
-      if (attrs.isObject()) {
-        attrs.fields().forEachRemaining(e -> attributes.put(e.getKey(), unwrap(e.getValue())));
-      }
-      homeGatewayService.updateDeviceState(
-          gateway.getHouseholdId(), entityId, state, attributes.isEmpty() ? null : attributes);
+      homeGatewayService.reportState(resolveToken(headerToken, authorization), report);
       return ApiResponse.success(null);
     } catch (IllegalArgumentException e) {
       return ApiResponse.failure(401, e.getMessage());
@@ -106,14 +85,9 @@ public class GatewayController {
 
   /** 成员查看网关是否在线。 */
   @GetMapping("/gateway/status")
-  public ApiResponse<Map<String, Object>> status(HttpServletRequest request) {
+  public ApiResponse<GatewayStatusVO> status(HttpServletRequest request) {
     SessionPrincipal principal = SessionPrincipal.from(request);
-    var hub = hubService.getHub(principal.householdId());
-    Map<String, Object> data = new HashMap<>();
-    data.put("configured", Boolean.TRUE.equals(hub.getConfigured()));
-    data.put("gateway", Boolean.TRUE.equals(hub.getGateway()));
-    data.put("online", sessionRegistry.isOnline(principal.householdId()));
-    return ApiResponse.success(data);
+    return ApiResponse.success(homeGatewayService.status(principal.householdId()));
   }
 
   private static String resolveToken(String headerToken, String authorization) {
@@ -125,13 +99,5 @@ public class GatewayController {
       return authorization.substring(8).trim();
     }
     return null;
-  }
-
-  private static Object unwrap(JsonNode node) {
-    if (node == null || node.isNull()) return null;
-    if (node.isNumber()) return node.numberValue();
-    if (node.isBoolean()) return node.booleanValue();
-    if (node.isTextual()) return node.asText();
-    return node.toString();
   }
 }
