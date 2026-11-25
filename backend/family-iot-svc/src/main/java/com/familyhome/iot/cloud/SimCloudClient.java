@@ -31,7 +31,8 @@ public class SimCloudClient implements IotCloudClient {
     // 联调样例：正式环境由涂鸦账号设备列表替换；便于无密钥时走通「导入 → 控制」全流程
     List<CloudDeviceInfo> out = new ArrayList<>();
     out.add(sample("sim-ac-living", "客厅空调", "格力", "kt", "climate", true));
-    out.add(sample("sim-tv-living", "客厅电视", "小米", "dj", "media_player", true));
+    out.add(sample("sim-tv-living", "客厅电视", "小米", "dsjg", "media_player", true));
+    out.add(sample("sim-light-living", "客厅灯", "小米", "dj", "light", true));
     out.add(sample("sim-ir-bedroom", "卧室红外伴侣", "涂鸦", "wf_ir", "switch", true));
     return out;
   }

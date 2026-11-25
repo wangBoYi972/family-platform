@@ -287,6 +287,8 @@
           <button class="add-tab" :class="{ active: addMode === 'manual' }" @click="switchAddMode('manual')">填写设备 ID</button>
         </div>
 
+        <p v-if="dialogError" class="error-line">{{ dialogError }}</p>
+
         <template v-if="addMode === 'import'">
           <button class="ghost-btn rescan-btn" :disabled="cloudLoading" @click="loadCloudDevices">
             {{ cloudLoading ? "拉取中…" : "刷新云设备列表" }}
@@ -300,9 +302,9 @@
               </div>
               <button
                 class="mini-test"
-                :disabled="importingId === d.cloudDeviceId || (d.name || '').includes('已添加')"
+                :disabled="importingId === d.cloudDeviceId || d.alreadyAdded"
                 @click="importCloud(d)"
-              >{{ importingId === d.cloudDeviceId ? "…" : "添加" }}</button>
+              >{{ d.alreadyAdded ? "已添加" : (importingId === d.cloudDeviceId ? "…" : "添加") }}</button>
             </div>
           </div>
           <p v-else-if="!cloudLoading" class="pair-tip">暂无设备。请先在涂鸦 App 配好红外伴侣/空调，或确认服务端已配置涂鸦密钥（联调模式会显示样例设备）。</p>
@@ -392,6 +394,7 @@ export default {
       cloudDevices: [],
       cloudLoading: false,
       cloudListError: "",
+      dialogError: "",
       importingId: null,
       savingDevice: false,
       addForm: {
@@ -673,12 +676,14 @@ export default {
 
     switchAddMode(mode) {
       this.addMode = mode;
+      this.dialogError = "";
       if (mode === "import") this.loadCloudDevices();
     },
 
     async loadCloudDevices() {
       this.cloudLoading = true;
       this.cloudListError = "";
+      this.dialogError = "";
       try {
         await this.autoDiscoverHub();
         this.cloudDevices = (await request("/iot/devices/cloud")) || [];
@@ -691,9 +696,9 @@ export default {
     },
 
     async importCloud(d) {
-      if (!d?.cloudDeviceId) return;
+      if (!d?.cloudDeviceId || d.alreadyAdded) return;
       this.importingId = d.cloudDeviceId;
-      this.error = "";
+      this.dialogError = "";
       try {
         await request("/iot/devices/cloud-import", {
           method: "POST",
@@ -702,7 +707,7 @@ export default {
         await this.loadDevices();
         await this.loadCloudDevices();
       } catch (e) {
-        this.error = e.message || "导入失败";
+        this.dialogError = e.message || "导入失败";
       } finally {
         this.importingId = null;
       }
@@ -710,11 +715,11 @@ export default {
 
     async submitAddForm() {
       if (!this.addForm.deviceName?.trim()) {
-        this.error = "请填写设备名称";
+        this.dialogError = "请填写设备名称";
         return;
       }
       this.savingDevice = true;
-      this.error = "";
+      this.dialogError = "";
       try {
         await this.autoDiscoverHub();
         const payload = {
@@ -729,7 +734,7 @@ export default {
         this.hubConfigured = true;
         await this.loadDevices();
       } catch (e) {
-        this.error = e.message || "添加失败";
+        this.dialogError = e.message || "添加失败";
       } finally {
         this.savingDevice = false;
       }
@@ -750,6 +755,7 @@ export default {
       this.addMode = "import";
       this.cloudDevices = [];
       this.cloudListError = "";
+      this.dialogError = "";
       this.addForm = {
         deviceName: "",
         entityType: "climate",

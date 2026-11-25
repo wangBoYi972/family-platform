@@ -387,8 +387,10 @@ public class IotDeviceServiceImpl implements IotDeviceService {
       if (cloudClient == null || !cloudClient.isReady()) {
         throw new IllegalStateException("设备云未就绪：请配置涂鸦密钥（FAMILY_IOT_TUYA_*）或使用 provider=sim 联调");
       }
+      String cloudId = dto.getCloudDeviceId().trim();
+      ensureCloudDeviceUnique(householdId, cloudId);
       snapshot.setDeviceSource("CLOUD");
-      snapshot.setCloudDeviceId(dto.getCloudDeviceId().trim());
+      snapshot.setCloudDeviceId(cloudId);
       snapshot.setCloudProvider(cloudClient.providerId());
     } else {
       snapshot.setDeviceSource("MANUAL");
@@ -425,25 +427,29 @@ public class IotDeviceServiceImpl implements IotDeviceService {
   }
 
   @Override
-  public List<com.familyhome.iot.cloud.CloudDeviceInfo> listCloudDevices(Long householdId) throws Exception {
+  public List<com.familyhome.iot.vo.CloudDeviceVO> listCloudDevices(Long householdId) throws Exception {
     if (cloudClient == null || !cloudClient.isReady()) {
       throw new IllegalStateException("设备云未就绪");
     }
-    List<com.familyhome.iot.cloud.CloudDeviceInfo> remote = cloudClient.listDevices();
-    // 已导入的打标记：前端可灰显
     QueryWrapper<IotDeviceSnapshot> qw = new QueryWrapper<>();
     qw.eq("household_id", householdId).eq("device_source", "CLOUD");
     java.util.Set<String> bound = deviceSnapshotMapper.selectList(qw).stream()
         .map(IotDeviceSnapshot::getCloudDeviceId)
         .filter(id -> id != null && !id.isBlank())
-        .collect(java.util.stream.Collectors.toSet());
-    for (com.familyhome.iot.cloud.CloudDeviceInfo info : remote) {
-      // 复用 brand 字段旁路：attributes 没有，用 category 后缀不够干净；前端用 cloudDeviceId 比对即可
-      if (bound.contains(info.getCloudDeviceId())) {
-        info.setName((info.getName() == null ? info.getCloudDeviceId() : info.getName()) + "（已添加）");
-      }
+        .collect(Collectors.toSet());
+    List<com.familyhome.iot.vo.CloudDeviceVO> out = new ArrayList<>();
+    for (com.familyhome.iot.cloud.CloudDeviceInfo info : cloudClient.listDevices()) {
+      com.familyhome.iot.vo.CloudDeviceVO vo = new com.familyhome.iot.vo.CloudDeviceVO();
+      vo.setCloudDeviceId(info.getCloudDeviceId());
+      vo.setName(info.getName());
+      vo.setBrand(info.getBrand());
+      vo.setCategory(info.getCategory());
+      vo.setOnline(info.isOnline());
+      vo.setEntityType(info.getEntityType());
+      vo.setAlreadyAdded(bound.contains(info.getCloudDeviceId()));
+      out.add(vo);
     }
-    return remote;
+    return out;
   }
 
   @Override
@@ -454,13 +460,7 @@ public class IotDeviceServiceImpl implements IotDeviceService {
     if (cloudClient == null || !cloudClient.isReady()) {
       throw new IllegalStateException("设备云未就绪");
     }
-    QueryWrapper<IotDeviceSnapshot> exist = new QueryWrapper<>();
-    exist.eq("household_id", householdId)
-        .eq("cloud_device_id", cloudDeviceId.trim())
-        .eq("device_source", "CLOUD");
-    if (deviceSnapshotMapper.selectCount(exist) > 0) {
-      throw new IllegalArgumentException("该云设备已添加");
-    }
+    ensureCloudDeviceUnique(householdId, cloudDeviceId.trim());
     com.familyhome.iot.cloud.CloudDeviceInfo matched = null;
     for (com.familyhome.iot.cloud.CloudDeviceInfo info : cloudClient.listDevices()) {
       if (cloudDeviceId.trim().equals(info.getCloudDeviceId())) {
@@ -481,6 +481,16 @@ public class IotDeviceServiceImpl implements IotDeviceService {
       dto.setAreaName("家里");
     }
     return addManualDevice(householdId, dto);
+  }
+
+  private void ensureCloudDeviceUnique(Long householdId, String cloudDeviceId) {
+    QueryWrapper<IotDeviceSnapshot> exist = new QueryWrapper<>();
+    exist.eq("household_id", householdId)
+        .eq("cloud_device_id", cloudDeviceId)
+        .eq("device_source", "CLOUD");
+    if (deviceSnapshotMapper.selectCount(exist) > 0) {
+      throw new IllegalArgumentException("该云设备已添加");
+    }
   }
 
   /** 只查用户自管设备（MANUAL / CLOUD），避免越权改/删中枢同步设备。 */

@@ -4,3 +4,7 @@ ALTER TABLE iot_device_snapshot
 
 ALTER TABLE iot_device_snapshot
   ADD COLUMN cloud_provider VARCHAR(32) DEFAULT NULL COMMENT '云平台：tuya / sim';
+
+-- 同一家庭同一云设备只能添加一次（MySQL 允许多个 NULL，不影响 MANUAL）
+CREATE UNIQUE INDEX uk_household_cloud_device
+  ON iot_device_snapshot (household_id, cloud_device_id);

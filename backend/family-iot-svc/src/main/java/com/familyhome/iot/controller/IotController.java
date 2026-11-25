@@ -1,6 +1,7 @@
 package com.familyhome.iot.controller;
 
 import com.familyhome.common.api.ApiResponse;
+import com.familyhome.iot.dto.IotCloudImportDTO;
 import com.familyhome.iot.dto.IotCommandDTO;
 import com.familyhome.iot.dto.IotDeviceUpsertDTO;
 import com.familyhome.iot.dto.IotHubBindDTO;
@@ -8,6 +9,7 @@ import com.familyhome.iot.service.IotCommandService;
 import com.familyhome.iot.service.IotDeviceService;
 import com.familyhome.iot.service.IotHubService;
 import com.familyhome.iot.vo.AreaDevicesVO;
+import com.familyhome.iot.vo.CloudDeviceVO;
 import com.familyhome.iot.vo.DeviceTestResultVO;
 import com.familyhome.iot.vo.HubDiscoveryVO;
 import com.familyhome.iot.vo.IotDeviceVO;
@@ -175,7 +177,7 @@ public class IotController {
    * 云账号下可导入的设备列表（涂鸦 / sim 联调样例）。
    */
   @GetMapping("/devices/cloud")
-  public ApiResponse<List<?>> listCloudDevices(HttpServletRequest r) {
+  public ApiResponse<List<CloudDeviceVO>> listCloudDevices(HttpServletRequest r) {
     long householdId = SessionPrincipal.from(r).householdId();
     try {
       return ApiResponse.success(deviceService.listCloudDevices(householdId));
@@ -193,11 +195,10 @@ public class IotController {
   @PostMapping("/devices/cloud-import")
   public ApiResponse<IotDeviceVO> importCloudDevice(
       HttpServletRequest r,
-      @RequestBody java.util.Map<String, String> body) {
+      @Valid @RequestBody IotCloudImportDTO dto) {
     long householdId = SessionPrincipal.from(r).householdId();
-    String cloudDeviceId = body == null ? null : body.get("cloudDeviceId");
     try {
-      return ApiResponse.success(deviceService.importCloudDevice(householdId, cloudDeviceId));
+      return ApiResponse.success(deviceService.importCloudDevice(householdId, dto.getCloudDeviceId()));
     } catch (IllegalArgumentException | IllegalStateException e) {
       return ApiResponse.failure(400, e.getMessage());
     } catch (Exception e) {

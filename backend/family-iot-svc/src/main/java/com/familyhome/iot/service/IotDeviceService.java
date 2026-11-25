@@ -52,8 +52,8 @@ public interface IotDeviceService {
    */
   void deleteManualDevice(Long householdId, String entityId);
 
-  /** 列出云账号下可导入的设备（已添加的会在名称上标注）。 */
-  java.util.List<com.familyhome.iot.cloud.CloudDeviceInfo> listCloudDevices(Long householdId) throws Exception;
+  /** 列出云账号下可导入的设备。 */
+  java.util.List<com.familyhome.iot.vo.CloudDeviceVO> listCloudDevices(Long householdId) throws Exception;
 
   /** 按云设备 ID 导入到本家庭。 */
   IotDeviceVO importCloudDevice(Long householdId, String cloudDeviceId) throws Exception;

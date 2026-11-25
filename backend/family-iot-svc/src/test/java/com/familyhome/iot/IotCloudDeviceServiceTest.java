@@ -107,4 +107,16 @@ class IotCloudDeviceServiceTest {
     dto.setCloudDeviceId("x");
     assertThrows(IllegalStateException.class, () -> service.addManualDevice(H1, dto));
   }
+
+  @Test
+  void manualAddWithSameCloudIdRejected() {
+    when(cloudClient.isReady()).thenReturn(true);
+    when(mapper.selectCount(any())).thenReturn(1L);
+    IotDeviceUpsertDTO dto = new IotDeviceUpsertDTO();
+    dto.setDeviceName("重复空调");
+    dto.setEntityType("climate");
+    dto.setCloudDeviceId("sim-ac-living");
+    assertThrows(IllegalArgumentException.class, () -> service.addManualDevice(H1, dto));
+    verify(mapper, never()).insert(any(IotDeviceSnapshot.class));
+  }
 }

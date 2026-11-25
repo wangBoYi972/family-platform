@@ -85,10 +85,9 @@ public class TuyaCloudClient implements IotCloudClient {
     ensureReady();
     ArrayNode commands = mapper.createArrayNode();
     ObjectNode cmd = commands.addObject();
-    // 通用开关类用 switch；空调/红外伴侣按 code 映射，可由 attributes.tuyaCode 覆盖
     String code = mapCommandCode(entityType, commandType, parameters);
     cmd.put("code", code);
-    cmd.set("value", mapCommandValue(commandType, parameters));
+    cmd.set("value", mapCommandValue(code, commandType, parameters));
 
     ObjectNode body = mapper.createObjectNode();
     body.set("commands", commands);
@@ -162,54 +161,91 @@ public class TuyaCloudClient implements IotCloudClient {
   private static String mapCategory(String category) {
     if (category == null) return "switch";
     String c = category.toLowerCase();
-    if (c.contains("air") || c.contains("kt") || c.equals("ac")) return "climate";
-    if (c.contains("tv") || c.contains("dj") || c.contains("media")) return "media_player";
-    if (c.contains("light") || c.contains("djb")) return "light";
-    if (c.contains("sensor")) return "sensor";
+    // 涂鸦标准品类：dj=灯；勿把 dj 当成电视
+    if (c.equals("dj") || c.equals("djb") || c.contains("light")) return "light";
+    if (c.contains("air") || c.equals("kt") || c.equals("ac") || c.equals("wk")) return "climate";
+    if (c.contains("tv") || c.equals("dsjg") || c.contains("media")) return "media_player";
+    if (c.contains("sensor") || c.equals("wsdcg")) return "sensor";
     return "switch";
   }
 
   private static String mapCommandCode(String entityType, String commandType, JsonNode parameters) {
-    if (parameters != null && parameters.hasNonNull("tuyaCode")) {
-      return parameters.get("tuyaCode").asText();
-    }
+    // 不信任客户端传的 tuyaCode，避免任意 DP 注入
     if ("set_temperature".equals(commandType)) return "temp_set";
     if ("set_hvac_mode".equals(commandType)) return "mode";
     if ("set_fan_mode".equals(commandType)) return "fan_speed_enum";
     if ("volume_set".equals(commandType)) return "volume_set";
     if ("volume_mute".equals(commandType)) return "mute";
     if ("select_source".equals(commandType)) return "source";
-    if (commandType != null && commandType.startsWith("media_")) return commandType;
-    if ("turn_off".equals(commandType)) return "switch";
+    if ("media_play".equals(commandType)) return "play";
+    if ("media_pause".equals(commandType)) return "pause";
+    if ("media_next_track".equals(commandType)) return "next";
+    if ("media_previous_track".equals(commandType)) return "previous";
+    if ("light".equals(entityType) && "turn_on".equals(commandType)
+        && parameters != null && parameters.has("brightness")) {
+      return "bright_value_v2";
+    }
+    if ("turn_off".equals(commandType) || "turn_on".equals(commandType)) return "switch";
     return "switch";
   }
 
-  private JsonNode mapCommandValue(String commandType, JsonNode parameters) {
-    ObjectNode v = new ObjectMapper().createObjectNode();
-    if ("set_temperature".equals(commandType) && parameters != null && parameters.has("temperature")) {
+  private JsonNode mapCommandValue(String code, String commandType, JsonNode parameters) {
+    var factory = mapper.getNodeFactory();
+    if ("temp_set".equals(code) && parameters != null && parameters.has("temperature")) {
       return parameters.get("temperature");
     }
-    if ("set_hvac_mode".equals(commandType) && parameters != null && parameters.has("hvac_mode")) {
-      return parameters.get("hvac_mode");
+    if ("mode".equals(code) && parameters != null && parameters.has("hvac_mode")) {
+      return factory.textNode(mapHvacMode(parameters.get("hvac_mode").asText()));
     }
-    if ("set_fan_mode".equals(commandType) && parameters != null && parameters.has("fan_mode")) {
-      return parameters.get("fan_mode");
+    if ("fan_speed_enum".equals(code) && parameters != null && parameters.has("fan_mode")) {
+      return factory.textNode(mapFanMode(parameters.get("fan_mode").asText()));
     }
-    if ("volume_set".equals(commandType) && parameters != null && parameters.has("volume_level")) {
+    if ("volume_set".equals(code) && parameters != null && parameters.has("volume_level")) {
       double level = parameters.get("volume_level").asDouble(0);
-      return new ObjectMapper().getNodeFactory().numberNode((int) Math.round(level * 100));
+      return factory.numberNode((int) Math.round(level * 100));
     }
-    if ("volume_mute".equals(commandType) && parameters != null && parameters.has("is_volume_muted")) {
+    if ("mute".equals(code) && parameters != null && parameters.has("is_volume_muted")) {
       return parameters.get("is_volume_muted");
     }
-    if ("select_source".equals(commandType) && parameters != null && parameters.has("source")) {
+    if ("source".equals(code) && parameters != null && parameters.has("source")) {
       return parameters.get("source");
     }
-    if ("turn_off".equals(commandType)) {
-      return new ObjectMapper().getNodeFactory().booleanNode(false);
+    if ("bright_value_v2".equals(code) && parameters != null && parameters.has("brightness")) {
+      int brightness = parameters.get("brightness").asInt(255);
+      // 涂鸦 bright_value_v2 常用 10–1000
+      int scaled = Math.max(10, Math.min(1000, (int) Math.round(brightness / 255.0 * 1000)));
+      return factory.numberNode(scaled);
     }
-    // turn_on 等默认开
-    return new ObjectMapper().getNodeFactory().booleanNode(true);
+    if ("play".equals(code) || "pause".equals(code) || "next".equals(code) || "previous".equals(code)) {
+      return factory.booleanNode(true);
+    }
+    if ("turn_off".equals(commandType)) {
+      return factory.booleanNode(false);
+    }
+    return factory.booleanNode(true);
+  }
+
+  /** Home Assistant 模式名 → 涂鸦标准枚举 */
+  private static String mapHvacMode(String haMode) {
+    if (haMode == null) return "auto";
+    return switch (haMode.toLowerCase()) {
+      case "cool" -> "cold";
+      case "heat" -> "hot";
+      case "dry" -> "wet";
+      case "fan_only" -> "wind";
+      case "off" -> "off";
+      default -> "auto";
+    };
+  }
+
+  private static String mapFanMode(String haMode) {
+    if (haMode == null) return "auto";
+    return switch (haMode.toLowerCase()) {
+      case "low" -> "low";
+      case "medium", "mid", "middle" -> "middle";
+      case "high" -> "high";
+      default -> "auto";
+    };
   }
 
   private String sign(String payload) throws Exception {
