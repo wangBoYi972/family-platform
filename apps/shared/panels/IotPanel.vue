@@ -3,21 +3,20 @@
     <!-- 加载中 -->
     <div v-if="loading" class="mf-empty">正在读取家里的设备…</div>
 
-    <!-- 未配置中枢 -->
+    <!-- 未接通设备通道 -->
     <template v-else-if="!hubConfigured">
       <div class="mf-card setup-card mf-rise">
         <div class="setup-head">
           <div class="setup-icon">🏠</div>
           <div class="setup-copy">
-            <div class="setup-title">自动连接家里的智能中枢</div>
+            <div class="setup-title">用手机控制家里的空调和电视</div>
             <div class="setup-desc">
-              App 在后台静默扫描局域网并自动发现家庭中枢，IP 与令牌由底层自动获取，无需手动填写。
-              连上以后，家里每个人都能控制灯、空调、电视和音响。
+              不需要自建智能中枢。在「涂鸦智能」里把红外伴侣 / 空调配上网后，
+              把设备加进本 App，指令经云端发到家里 Wi‑Fi 设备。
             </div>
           </div>
         </div>
 
-        <!-- 只显示扫描状态，绝不出现地址 / 令牌输入框 -->
         <div class="hub-discover" :class="hubScanState">
           <span class="hub-icon">{{ hubScanIcon }}</span>
           <div class="hub-copy">
@@ -25,33 +24,33 @@
             <span>{{ hubScanMessage }}</span>
           </div>
         </div>
-        <button v-if="hubScanState === 'failed'" class="ghost-btn rescan-btn" :disabled="hubScanning" @click="autoDiscoverHub">重新扫描</button>
+        <button v-if="hubScanState === 'failed'" class="ghost-btn rescan-btn" :disabled="hubScanning" @click="autoDiscoverHub">重新接通</button>
 
         <p v-if="error" class="error-line">{{ error }}</p>
 
         <div class="demo-block">
-          <span class="demo-hint">暂时没有真实中枢？可先用演示设备体验界面效果；手动添加的设备为本地模拟，不能控制真实硬件。</span>
+          <span class="demo-hint">本地联调默认走 sim 云通道（不发真机）。正式环境配置涂鸦密钥后即可控真机。也可先看演示界面。</span>
           <div class="demo-actions">
             <button class="ghost-btn demo-btn" :disabled="binding" @click="bindDemo">
               {{ binding ? "准备中…" : "用演示设备体验" }}
             </button>
-            <button class="solid-btn demo-btn" @click="openAddDialog">添加设备</button>
+            <button class="solid-btn demo-btn" @click="openAddDialog">添加真机</button>
           </div>
         </div>
       </div>
     </template>
 
-    <!-- 已配置中枢 -->
+    <!-- 已接通 -->
     <template v-else>
       <div class="panel-bar">
-        <span class="mf-chip">{{ hubIsDemo ? "演示设备" : "已连接中枢" }}</span>
+        <span class="mf-chip">{{ connectionChip }}</span>
         <div class="panel-bar-actions">
           <button class="mini-btn solid-mini" @click="openAddDialog">＋ 添加设备</button>
-          <button class="mini-btn" @click="showUnbindConfirm = true">更换中枢</button>
+          <button class="mini-btn" @click="showUnbindConfirm = true">重置通道</button>
         </div>
       </div>
 
-      <div v-if="hubOffline" class="offline-banner">⚠️ 中枢暂时连不上，设备状态可能不是最新的（手动设备不受影响）</div>
+      <div v-if="hubOffline" class="offline-banner">⚠️ 部分设备离线，状态可能不是最新</div>
       <p v-if="error" class="error-line">{{ error }}</p>
 
       <div v-if="loadError" class="mf-empty">{{ loadError }}</div>
@@ -63,7 +62,6 @@
             <span class="area-count">{{ devices.length }} 台</span>
           </div>
           <div class="devices-grid">
-            <!-- 设备卡片：图标 / 名称 / 品牌 / 状态，点击进明细 -->
             <div
               v-for="device in devices"
               :key="device.entityId"
@@ -86,7 +84,7 @@
 
         <div v-if="!areaKeys.length" class="mf-empty">
           <span class="mf-empty__mark">🛋️</span>
-          <span>还没有设备，点「添加设备」自动发现中枢</span>
+          <span>还没有设备，点「添加设备」从涂鸦账号导入或填写设备 ID</span>
         </div>
 
         <div v-if="scenes.length" class="area-block">
@@ -105,14 +103,13 @@
         </div>
       </template>
 
-      <!-- 解绑确认 -->
       <div v-if="showUnbindConfirm" class="modal-overlay" @click.self="showUnbindConfirm = false">
         <div class="mf-card modal-card">
-          <p class="modal-title">解绑当前中枢？</p>
-          <p class="modal-desc">中枢同步的设备会清空；你手动添加的设备会保留。</p>
+          <p class="modal-title">重置设备通道？</p>
+          <p class="modal-desc">中枢同步的设备会清空；你添加的云设备与本地模拟设备会保留。</p>
           <div class="modal-actions">
             <button class="ghost-btn" @click="showUnbindConfirm = false">取消</button>
-            <button class="danger-btn" @click="unbindHub">确认解绑</button>
+            <button class="danger-btn" @click="unbindHub">确认重置</button>
           </div>
         </div>
       </div>
@@ -255,7 +252,6 @@
           </div>
         </div>
 
-        <!-- 绑定后：连接诊断（日常控制走网络，不再依赖红外） -->
         <div class="detail-section test-section">
           <div class="section-label">连接诊断</div>
           <button
@@ -266,86 +262,86 @@
           >{{ testingDevice === detailDevice.entityId ? "诊断中…" : "检测连接状态" }}</button>
           <div v-if="testResult" class="test-result" :class="{ fail: !testResult.ok }">
             <span class="test-badge" :class="{ real: testResult.realHardware, sim: !testResult.realHardware }">
-              {{ testResult.realHardware ? (testResult.ok ? "响应正常" : "无响应") : "本地模拟" }}
+              {{ testResult.realHardware ? (testResult.ok ? "云端真机" : "无响应") : "联调 / 模拟" }}
             </span>
             <span class="test-msg">{{ testResult.message }}</span>
           </div>
-          <p class="test-hint">设备已绑定并纳入家庭设备体系，日常开关与调控<b>直接走网络、不再依赖红外</b>；上方明细里可直接调温度 / 频道 / 音量。此按钮仅用于诊断中枢连接。</p>
+          <p class="test-hint">日常控制：手机 → 本平台 → 涂鸦云 → 家里 Wi‑Fi 设备。红外伴侣只需在涂鸦 App 里完成首次学习。</p>
+          <div v-if="detailDevice.deviceSource === 'CLOUD' || detailDevice.deviceSource === 'MANUAL'" class="detail-manual-actions">
+            <button class="danger-btn" @click="removeDevice(detailDevice)">删除设备</button>
+          </div>
         </div>
 
         <div class="detail-footnote">点空白处或「返回」关闭明细</div>
       </div>
     </div>
 
-    <!-- 添加 / 编辑设备弹窗 -->
+    <!-- 添加设备：云账号导入 / 填涂鸦设备 ID -->
     <div v-if="showDeviceDialog" class="modal-overlay" @click.self="closeDeviceDialog">
       <div class="mf-card modal-card device-dialog add-modal">
         <p class="modal-title">添加设备</p>
+        <p class="modal-desc">在涂鸦智能完成配网后，从账号导入，或粘贴设备 ID。不需要自建中枢。</p>
 
-        <!-- 后台自动发现中枢 → 设备配网 → 用户确认红外验证 → 纳入家庭 -->
-          <p class="modal-desc">添加设备<b>无需填写地址或令牌</b>：进入页面后 App 在后台静默扫描局域网、自动发现家庭中枢并建立连接。设备必须由你确认红外响应后才能加入家庭。</p>
-          <div class="add-steps">
-            <span class="add-step" :class="{ done: addStage >= 1 }">① 自动发现中枢</span><span class="add-step-line"></span>
-            <span class="add-step" :class="{ done: addStage >= 2 }">② 设备配网</span><span class="add-step-line"></span>
-            <span class="add-step" :class="{ done: addStage >= 3 }">③ 红外验证</span><span class="add-step-line"></span>
-            <span class="add-step" :class="{ done: addStage >= 4 }">④ 纳入家庭</span>
-          </div>
+        <div class="add-tabs">
+          <button class="add-tab" :class="{ active: addMode === 'import' }" @click="switchAddMode('import')">从云账号导入</button>
+          <button class="add-tab" :class="{ active: addMode === 'manual' }" @click="switchAddMode('manual')">填写设备 ID</button>
+        </div>
 
-          <!-- 中枢发现状态：只显示状态文字，绝无输入框 -->
-          <div class="hub-discover" :class="hubScanState">
-            <span class="hub-icon">{{ hubScanIcon }}</span>
-            <div class="hub-copy">
-              <b>{{ hubScanTitle }}</b>
-              <span>{{ hubScanMessage }}</span>
-            </div>
-          </div>
-          <button v-if="hubScanState === 'failed'" class="ghost-btn rescan-btn" :disabled="hubScanning" @click="autoDiscoverHub">重新扫描</button>
-
-          <template v-if="hubScanState === 'found'">
-            <p class="pair-tip">请让待添加的设备处于<b>配网状态</b>（长按配网键、指示灯闪烁）。App 会自动发现待绑定设备。</p>
-            <button class="ghost-btn rescan-btn" @click="refreshDiscoveredDevices">重新发现待绑定设备</button>
-
-            <div v-if="discoveredDevices.length" class="disc-list">
-              <div
-                v-for="d in discoveredDevices"
-                :key="d.entityId"
-                class="disc-row"
-                :class="{ selected: irCurrentId === d.entityId }"
-                @click="selectIrDevice(d.entityId)"
-              >
-                <div class="disc-info">
-                  <b>{{ d.deviceName || d.entityId }}</b>
-                  <span>{{ typeLabel(d.entityType) }} · {{ d.brand || '—' }} · {{ d.areaName || '未分组' }}</span>
-                </div>
-                <span v-if="irResult(d) === 'ok'" class="ir-badge ok">✓ 验证通过</span>
-                <span v-else-if="irResult(d) === 'fail'" class="ir-badge fail">✗ 未响应</span>
-                <span v-else class="ir-badge pending">待验证</span>
+        <template v-if="addMode === 'import'">
+          <button class="ghost-btn rescan-btn" :disabled="cloudLoading" @click="loadCloudDevices">
+            {{ cloudLoading ? "拉取中…" : "刷新云设备列表" }}
+          </button>
+          <div v-if="cloudListError" class="error-line">{{ cloudListError }}</div>
+          <div v-if="cloudDevices.length" class="disc-list">
+            <div v-for="d in cloudDevices" :key="d.cloudDeviceId" class="disc-row">
+              <div class="disc-info">
+                <b>{{ d.name || d.cloudDeviceId }}</b>
+                <span>{{ typeLabel(d.entityType) }} · {{ d.brand || '—' }} · {{ d.online ? '在线' : '离线' }}</span>
               </div>
+              <button
+                class="mini-test"
+                :disabled="importingId === d.cloudDeviceId || (d.name || '').includes('已添加')"
+                @click="importCloud(d)"
+              >{{ importingId === d.cloudDeviceId ? "…" : "添加" }}</button>
             </div>
+          </div>
+          <p v-else-if="!cloudLoading" class="pair-tip">暂无设备。请先在涂鸦 App 配好红外伴侣/空调，或确认服务端已配置涂鸦密钥（联调模式会显示样例设备）。</p>
+        </template>
 
-            <div class="ir-verify">
-              <div class="ir-verify-label">红外验证（强制阻断）</div>
-              <p class="ir-verify-tip">当前验证：<b>{{ irCurrentName }}</b>。点「红外测试」发射指令后，需由你确认设备是否闪烁 / 蜂鸣。</p>
-              <button class="ghost-btn ir-test-btn" :disabled="irTesting || !irCurrentId" @click="emitIrTest">
-                {{ irTesting ? "已发射，等待你确认…" : "红外测试" }}
-              </button>
+        <template v-else>
+          <label class="field">
+            <span class="field-label">设备名称</span>
+            <input v-model="addForm.deviceName" class="field-input" placeholder="客厅空调" maxlength="64" />
+          </label>
+          <label class="field">
+            <span class="field-label">类型</span>
+            <select v-model="addForm.entityType" class="field-input">
+              <option value="climate">空调</option>
+              <option value="media_player">电视 / 音响</option>
+              <option value="light">灯</option>
+              <option value="switch">插座 / 红外伴侣</option>
+              <option value="sensor">传感器</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-label">品牌（可选）</span>
+            <input v-model="addForm.brand" class="field-input" placeholder="格力 / 小米" maxlength="64" />
+          </label>
+          <label class="field">
+            <span class="field-label">区域（可选）</span>
+            <input v-model="addForm.areaName" class="field-input" placeholder="客厅" maxlength="32" />
+          </label>
+          <label class="field">
+            <span class="field-label">涂鸦设备 ID</span>
+            <input v-model="addForm.cloudDeviceId" class="field-input" placeholder="涂鸦后台 / App 里的 deviceId" maxlength="64" />
+            <span class="field-hint">填写后走云端真机；留空则仅本地模拟，不能控真机。</span>
+          </label>
+          <button class="solid-btn full-btn" :disabled="savingDevice" @click="submitAddForm">
+            {{ savingDevice ? "保存中…" : "加入家庭" }}
+          </button>
+        </template>
 
-              <div v-if="irAwaitingConfirm" class="ir-confirm">
-                <p>请观察设备：<b>刚才是否闪烁 / 蜂鸣？</b><br />红外为单向发射，系统无法自动检测，需由你确认。</p>
-                <div class="ir-confirm-actions">
-                  <button class="ghost-btn" @click="confirmIrResponse(false)">没反应，重试</button>
-                  <button class="solid-btn" @click="confirmIrResponse(true)">有响应，验证通过</button>
-                </div>
-              </div>
-              <p v-if="irResultText" class="ir-verify-result" :class="irResultClass">{{ irResultText }}</p>
-
-              <button class="solid-btn full-btn" :disabled="irVerifiedCount === 0" @click="finishIrAdd">
-                下一步 · 加入家庭（{{ irVerifiedCount }}）
-              </button>
-            </div>
-            <p class="bind-note">加入家庭后，家庭成员在 App 内<b>直接通过网络下发指令</b>开关与调控，<b>不再使用红外</b>；设备明细里可调温度 / 频道 / 音量。</p>
-          </template>
-        <div class="modal-actions"><button class="ghost-btn" @click="closeDeviceDialog">取消</button></div>
+        <div class="modal-actions"><button class="ghost-btn" @click="closeDeviceDialog">关闭</button></div>
       </div>
     </div>
   </div>
@@ -375,6 +371,7 @@ export default {
       loading: true,
       hubConfigured: false,
       hubIsDemo: false,
+      hubIsCloud: false,
       binding: false,
       hubScanState: "scanning",
       hubScanning: false,
@@ -391,14 +388,19 @@ export default {
       showDeviceDialog: false,
       testResult: null,
       testingDevice: null,
-      addStage: 0,
-      discoveredDevices: [],
-      irResults: {},
-      irCurrentId: null,
-      irTesting: false,
-      irAwaitingConfirm: false,
-      irResultText: "",
-      irResultClass: "",
+      addMode: "import",
+      cloudDevices: [],
+      cloudLoading: false,
+      cloudListError: "",
+      importingId: null,
+      savingDevice: false,
+      addForm: {
+        deviceName: "",
+        entityType: "climate",
+        brand: "",
+        areaName: "客厅",
+        cloudDeviceId: "",
+      },
     };
   },
 
@@ -406,10 +408,15 @@ export default {
     areaKeys() {
       return Object.keys(this.devicesByArea);
     },
+    connectionChip() {
+      if (this.hubIsDemo) return "演示设备";
+      if (this.hubIsCloud) return "云端直连";
+      return "已连接";
+    },
     hubOffline() {
       const all = this.areaKeys.flatMap(area => this.devicesByArea[area] || []);
-      const hubDevices = all.filter(d => d.deviceSource !== "MANUAL");
-      return hubDevices.length > 0 && hubDevices.every(d => d.isOnline === false);
+      const live = all.filter(d => d.deviceSource !== "MANUAL");
+      return live.length > 0 && live.every(d => d.isOnline === false);
     },
     hubScanIcon() {
       if (this.hubScanState === "found") return "✓";
@@ -417,21 +424,14 @@ export default {
       return "◎";
     },
     hubScanTitle() {
-      if (this.hubScanState === "found") return "已自动发现家庭中枢";
-      if (this.hubScanState === "failed") return "未发现家庭中枢";
-      return "正在扫描局域网…";
+      if (this.hubScanState === "found") return "设备通道已就绪";
+      if (this.hubScanState === "failed") return "尚未接通设备云";
+      return "正在接通设备云…";
     },
     hubScanMessage() {
-      if (this.hubScanState === "found") return "已静默建立连接，无需填写地址或令牌";
-      if (this.hubScanState === "failed") return "请检查中枢是否通电/连接同一WiFi";
-      return "正在自动发现家庭中枢，请稍候";
-    },
-    irCurrentName() {
-      const d = this.discoveredDevices.find(x => x.entityId === this.irCurrentId);
-      return d ? (d.deviceName || d.entityId) : "—";
-    },
-    irVerifiedCount() {
-      return this.discoveredDevices.filter(d => this.irResults[d.entityId] === "ok").length;
+      if (this.hubScanState === "found") return "可添加空调 / 电视，指令经云端发到家里 Wi‑Fi";
+      if (this.hubScanState === "failed") return "请配置涂鸦密钥，或确认服务端 FAMILY_IOT_CLOUD_PROVIDER=sim 联调";
+      return "正在接通家庭设备云，请稍候";
     },
   },
 
@@ -491,19 +491,20 @@ export default {
         const hub = await request("/iot/hub");
         this.hubConfigured = !!hub?.configured;
         this.hubIsDemo = !!hub?.demo;
+        this.hubIsCloud = !!hub?.cloud;
         await this.loadDevices();
       } catch (e) {
         if (e.status === 401) {
           this.$emit("session-ended");
           return;
         }
-        this.loadError = e.message || "读取中枢配置失败";
+        this.loadError = e.message || "读取设备通道失败";
       } finally {
         this.loading = false;
       }
     },
 
-    /** 后台静默发现中枢：地址/令牌由服务端底层封装，前端只见状态文案。 */
+    /** 后台接通设备云（涂鸦 / sim），前端只见状态文案。 */
     async autoDiscoverHub() {
       if (this.hubScanning) return;
       this.hubScanning = true;
@@ -515,9 +516,9 @@ export default {
           this.hubScanState = "found";
           this.hubConfigured = true;
           this.hubIsDemo = !!res.demo;
+          const hub = await request("/iot/hub");
+          this.hubIsCloud = !!hub?.cloud;
           await this.loadDevices();
-          this.refreshDiscoveredDevices();
-          this.addStage = Math.max(this.addStage, 1);
         } else {
           this.hubScanState = "failed";
         }
@@ -539,6 +540,7 @@ export default {
         await request("/iot/hub", { method: "PUT", data: payload });
         this.hubConfigured = true;
         this.hubIsDemo = payload.baseUrl === DEMO_HUB.baseUrl;
+        this.hubIsCloud = false;
         await this.loadDevices();
       } catch (e) {
         this.error = e.message || "绑定失败";
@@ -553,10 +555,11 @@ export default {
         await request("/iot/hub", { method: "DELETE" });
         this.hubConfigured = false;
         this.hubIsDemo = false;
+        this.hubIsCloud = false;
         this.detailDevice = null;
         await this.loadDevices();
       } catch (e) {
-        this.error = e.message || "解绑失败";
+        this.error = e.message || "重置失败";
       }
     },
 
@@ -663,83 +666,99 @@ export default {
       await this.executeCommand(device, command);
     },
 
-    // -------- 添加设备：自动发现中枢 + 用户确认红外验证 --------
     typeLabel(t) {
       const m = { climate: "空调", media_player: "电视 / 音响", light: "灯", switch: "插座 / 开关", sensor: "传感器" };
       return m[t] || t;
     },
 
-    /** 从已同步的设备里列出待绑定设备（中枢发现成功后自动执行）。 */
-    refreshDiscoveredDevices() {
-      const all = Object.values(this.devicesByArea).flat();
-      this.discoveredDevices = all.filter(d => d.deviceSource !== "MANUAL");
-      this.irResults = {};
-      this.irCurrentId = this.discoveredDevices.length ? this.discoveredDevices[0].entityId : null;
-      this.irTesting = false;
-      this.irAwaitingConfirm = false;
-      this.irResultText = "";
-      this.irResultClass = "";
-      if (this.discoveredDevices.length) this.addStage = Math.max(this.addStage, 2);
+    switchAddMode(mode) {
+      this.addMode = mode;
+      if (mode === "import") this.loadCloudDevices();
     },
 
-    irResult(device) {
-      return this.irResults[device.entityId] || null;
-    },
-
-    selectIrDevice(id) {
-      this.irCurrentId = id;
-      this.irAwaitingConfirm = false;
-      this.irTesting = false;
-      this.irResultText = "";
-      this.irResultClass = "";
-    },
-
-    /** 只负责发射红外测试指令，不做任何自动判定。 */
-    emitIrTest() {
-      if (!this.irCurrentId) return;
-      this.irTesting = true;
-      this.irResultText = "已发射红外测试指令，请观察设备是否闪烁 / 蜂鸣…";
-      this.irResultClass = "pending";
-      this.irAwaitingConfirm = true;   // 判定权交给用户
-    },
-
-    /** 用户确认设备是否产生物理响应：确认「有响应」才放行。 */
-    confirmIrResponse(responded) {
-      const id = this.irCurrentId;
-      this.irAwaitingConfirm = false;
-      this.irTesting = false;
-      if (responded) {
-        this.irResults = { ...this.irResults, [id]: "ok" };
-        this.irResultText = "✓ 验证通过（由你确认设备有响应），「下一步」已激活";
-        this.irResultClass = "ok";
-        this.addStage = 3;
-      } else {
-        this.irResults = { ...this.irResults, [id]: "fail" };
-        this.irResultText = "未检测到响应，请重试（「下一步」保持不可用，停留在本环节）";
-        this.irResultClass = "fail";
-        this.addStage = 2;   // 无限停留在验证环节
+    async loadCloudDevices() {
+      this.cloudLoading = true;
+      this.cloudListError = "";
+      try {
+        await this.autoDiscoverHub();
+        this.cloudDevices = (await request("/iot/devices/cloud")) || [];
+      } catch (e) {
+        this.cloudDevices = [];
+        this.cloudListError = e.message || "拉取云设备失败";
+      } finally {
+        this.cloudLoading = false;
       }
     },
 
-    async finishIrAdd() {
-      if (this.irVerifiedCount === 0) return;
-      this.addStage = 4;
-      this.closeDeviceDialog();
-      await this.loadDevices();
+    async importCloud(d) {
+      if (!d?.cloudDeviceId) return;
+      this.importingId = d.cloudDeviceId;
+      this.error = "";
+      try {
+        await request("/iot/devices/cloud-import", {
+          method: "POST",
+          data: { cloudDeviceId: d.cloudDeviceId },
+        });
+        await this.loadDevices();
+        await this.loadCloudDevices();
+      } catch (e) {
+        this.error = e.message || "导入失败";
+      } finally {
+        this.importingId = null;
+      }
     },
 
-    // -------- 添加设备弹窗 --------
+    async submitAddForm() {
+      if (!this.addForm.deviceName?.trim()) {
+        this.error = "请填写设备名称";
+        return;
+      }
+      this.savingDevice = true;
+      this.error = "";
+      try {
+        await this.autoDiscoverHub();
+        const payload = {
+          deviceName: this.addForm.deviceName.trim(),
+          entityType: this.addForm.entityType,
+          brand: this.addForm.brand?.trim() || null,
+          areaName: this.addForm.areaName?.trim() || null,
+          cloudDeviceId: this.addForm.cloudDeviceId?.trim() || null,
+        };
+        await request("/iot/devices", { method: "POST", data: payload });
+        this.closeDeviceDialog();
+        this.hubConfigured = true;
+        await this.loadDevices();
+      } catch (e) {
+        this.error = e.message || "添加失败";
+      } finally {
+        this.savingDevice = false;
+      }
+    },
+
+    async removeDevice(device) {
+      if (!device?.entityId) return;
+      try {
+        await request(`/iot/devices/${encodeURIComponent(device.entityId)}`, { method: "DELETE" });
+        this.closeDetail();
+        await this.loadDevices();
+      } catch (e) {
+        this.error = e.message || "删除失败";
+      }
+    },
+
     openAddDialog() {
-      this.addStage = 0;
-      this.discoveredDevices = [];
-      this.irResults = {};
-      this.irCurrentId = null;
-      this.irTesting = false;
-      this.irAwaitingConfirm = false;
-      this.irResultText = "";
-      this.irResultClass = "";
+      this.addMode = "import";
+      this.cloudDevices = [];
+      this.cloudListError = "";
+      this.addForm = {
+        deviceName: "",
+        entityType: "climate",
+        brand: "",
+        areaName: "客厅",
+        cloudDeviceId: "",
+      };
       this.showDeviceDialog = true;
-      this.autoDiscoverHub();   // 进入添加设备页面即后台静默扫描
+      this.loadCloudDevices();
     },
 
     closeDeviceDialog() {
@@ -795,9 +814,7 @@ export default {
   },
 
   mounted() {
-    this.init();
-    // 启动即后台静默扫描局域网中枢：UI 只见状态文案，不出现任何输入框
-    this.autoDiscoverHub();
+    this.init().then(() => this.autoDiscoverHub());
     this.pollTimer = setInterval(() => {
       if (!this.loading) this.loadDevices();
     }, 5000);

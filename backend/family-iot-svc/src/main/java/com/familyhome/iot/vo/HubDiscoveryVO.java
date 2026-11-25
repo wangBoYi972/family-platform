@@ -31,26 +31,26 @@ public class HubDiscoveryVO {
     vo.setFound(true);
     vo.setDemo(demo);
     vo.setProvisioned(true);
-    vo.setMessage("已连接家庭中枢");
+    vo.setMessage(demo ? "已接入演示设备" : "设备通道已就绪");
     return vo;
   }
 
-  /** 从未接入中枢：需要引导用户部署家庭网关 / 网关盒子并用配对码绑定。 */
+  /** 从未接入：引导添加涂鸦云设备（普通家庭无需自建中枢）。 */
   public static HubDiscoveryVO notProvisioned() {
     HubDiscoveryVO vo = new HubDiscoveryVO();
     vo.setFound(false);
     vo.setDemo(false);
     vo.setProvisioned(false);
-    vo.setMessage("本家庭尚未绑定中枢：请先在家里部署平台配套网关或接入官方网关盒子，再用家庭配对码完成绑定");
+    vo.setMessage("请添加设备：在涂鸦智能配好红外伴侣/空调后导入，或联系管理员配置涂鸦云密钥");
     return vo;
   }
 
-  /** 接入过但当前不可达：网关离线或换网。 */
+  /** 接入过但当前不可达。 */
   public static HubDiscoveryVO offline() {
     HubDiscoveryVO vo = new HubDiscoveryVO();
     vo.setFound(false);
     vo.setProvisioned(true);
-    vo.setMessage("请检查中枢是否通电/连接同一WiFi");
+    vo.setMessage("设备通道暂时不可达，请稍后重试");
     return vo;
   }
 }

@@ -7,6 +7,8 @@ import com.familyhome.iot.mapper.IotHubMapper;
 import com.familyhome.iot.model.IotDeviceSnapshot;
 import com.familyhome.iot.model.IotHub;
 import com.familyhome.iot.service.IotHubService;
+import com.familyhome.iot.cloud.IotCloudClient;
+import com.familyhome.iot.util.CloudHub;
 import com.familyhome.iot.util.DemoHub;
 import com.familyhome.iot.util.HubUrlValidator;
 import com.familyhome.iot.util.TokenEncryptor;
@@ -40,6 +42,9 @@ public class IotHubServiceImpl implements IotHubService {
   @Autowired
   private IotDeviceSnapshotMapper deviceSnapshotMapper;
 
+  @Autowired
+  private IotCloudClient cloudClient;
+
   /** @Lazy 打破与 IotWebSocketServiceImpl 的循环依赖（后者依赖本服务读取中枢配置）。 */
   @Autowired
   @org.springframework.context.annotation.Lazy
@@ -56,18 +61,17 @@ public class IotHubServiceImpl implements IotHubService {
   private String autoHubToken;
 
   /**
-   * 查询本家庭已注册的中枢网关状态。
+   * 接入家庭设备通道。
    *
-   * <p>注意：云端后端不在家庭局域网内，无法也不应该"扫描"用户家里的设备。
-   * 真正的局域网发现由运行在家庭侧的网关完成，网关主动向平台注册并上报
-   * 地址与令牌（配合家庭配对码关联 householdId）。本方法只读取注册结果。
+   * <p>优先云端直连（涂鸦等）：普通家庭不需要自建 Home Assistant。
+   * 云通道就绪时自动绑定 {@code cloud://tuya}，前端不展示 IP/令牌。
    */
   @Override
   public HubDiscoveryVO autoDiscover(Long householdId) {
     IotHub existing = hubMapper.selectByHouseholdId(householdId);
     if (existing != null) {
-      if (DemoHub.isDemo(existing.getBaseUrl())) {
-        return HubDiscoveryVO.found(true);
+      if (DemoHub.isDemo(existing.getBaseUrl()) || CloudHub.isCloud(existing.getBaseUrl())) {
+        return HubDiscoveryVO.found(DemoHub.isDemo(existing.getBaseUrl()));
       }
       try {
         IotHub hub = getHubInternal(householdId);
@@ -80,7 +84,22 @@ public class IotHubServiceImpl implements IotHubService {
       return HubDiscoveryVO.offline();
     }
 
-    // 自托管 / 同网部署：部署环境预置的凭据，客户端依然不接触
+    // 推荐落地：云端直连（涂鸦 / sim）
+    if (cloudClient != null && cloudClient.isReady()) {
+      try {
+        IotHubBindDTO dto = new IotHubBindDTO();
+        dto.setBaseUrl(CloudHub.CLOUD_BASE_URL);
+        dto.setAccessToken(cloudClient.providerId());
+        bindHub(householdId, dto);
+        HubDiscoveryVO vo = HubDiscoveryVO.found(false);
+        vo.setMessage("已接通家庭设备云，可添加空调/电视");
+        return vo;
+      } catch (Exception e) {
+        log.warn("家庭 {} 绑定云通道失败：{}", householdId, e.getMessage());
+      }
+    }
+
+    // 可选：同网预置 HA（进阶，非普通用户路径）
     if (autoHubUrl != null && !autoHubUrl.isBlank()
         && autoHubToken != null && !autoHubToken.isBlank()) {
       try {
@@ -96,7 +115,10 @@ public class IotHubServiceImpl implements IotHubService {
         log.warn("家庭 {} 自动绑定预置中枢失败：{}", householdId, e.getMessage());
       }
     }
-    return HubDiscoveryVO.notProvisioned();
+
+    HubDiscoveryVO vo = HubDiscoveryVO.notProvisioned();
+    vo.setMessage("请添加设备：在涂鸦智能中配好红外伴侣/空调后，把设备 ID 填进 App；或联系管理员配置涂鸦云密钥");
+    return vo;
   }
 
   @Override
@@ -106,6 +128,7 @@ public class IotHubServiceImpl implements IotHubService {
       IotHubVO vo = new IotHubVO();
       vo.setConfigured(false);
       vo.setDemo(false);
+      vo.setCloud(false);
       return vo;
     }
 
@@ -113,7 +136,8 @@ public class IotHubServiceImpl implements IotHubService {
     vo.setId(hub.getId());
     vo.setConfigured(true);
     vo.setDemo(DemoHub.isDemo(hub.getBaseUrl()));
-    // 注意：不返回 baseUrl 给客户端，只返回 configured 状态
+    vo.setCloud(CloudHub.isCloud(hub.getBaseUrl()));
+    // 注意：不返回 baseUrl 给客户端，只返回 configured / demo / cloud 状态
     vo.setUpdatedAt(hub.getUpdatedAt());
     return vo;
   }
@@ -121,18 +145,19 @@ public class IotHubServiceImpl implements IotHubService {
   @Override
   public IotHubVO bindHub(Long householdId, IotHubBindDTO dto) throws Exception {
     boolean demo = DemoHub.isDemo(dto.getBaseUrl());
+    boolean cloud = CloudHub.isCloud(dto.getBaseUrl());
 
-    // 1. 验证 URL 安全性（演示中枢不走网络，不需要校验地址）
-    if (!demo && !hubUrlValidator.isAllowed(dto.getBaseUrl())) {
+    // 1. 验证 URL 安全性（演示 / 云端伪协议不走网络）
+    if (!demo && !cloud && !hubUrlValidator.isAllowed(dto.getBaseUrl())) {
       throw new IllegalArgumentException("中枢地址不在允许范围内（私网地址，或已加入远程白名单的主机）");
     }
 
-    // 2. 测试连接
-    if (!demo && !homeAssistantClient.testConnection(dto.getBaseUrl(), dto.getAccessToken())) {
+    // 2. 测试连接（仅真实 HA；云端直连不测 HA）
+    if (!demo && !cloud && !homeAssistantClient.testConnection(dto.getBaseUrl(), dto.getAccessToken())) {
       throw new RuntimeException("无法连接到 Home Assistant，请检查地址和令牌");
     }
 
-    String baseUrl = demo ? DemoHub.DEMO_BASE_URL : dto.getBaseUrl();
+    String baseUrl = demo ? DemoHub.DEMO_BASE_URL : (cloud ? CloudHub.CLOUD_BASE_URL : dto.getBaseUrl());
 
     // 3. 加密令牌
     String encryptedToken = tokenEncryptor.encrypt(dto.getAccessToken());
@@ -151,8 +176,8 @@ public class IotHubServiceImpl implements IotHubService {
       hubMapper.insert(hub);
     }
 
-    // 绑定成功后尝试建立实时连接（演示中枢跳过；失败不影响绑定结果）
-    if (!demo) {
+    // 绑定成功后尝试建立实时连接（演示 / 云端跳过）
+    if (!demo && !cloud) {
       final Long hid = householdId;
       Thread t = new Thread(() -> {
         try {
@@ -177,18 +202,18 @@ public class IotHubServiceImpl implements IotHubService {
     qw.eq("household_id", householdId);
     hubMapper.delete(qw);
 
-    // 设备快照属于中枢的缓存，解绑后一并清掉，避免重新绑定前看到幽灵设备
+    // 只清中枢同步的 HUB 快照；MANUAL / CLOUD 是用户自管，解绑后保留
     QueryWrapper<IotDeviceSnapshot> devices = new QueryWrapper<>();
-    devices.eq("household_id", householdId);
+    devices.eq("household_id", householdId).eq("device_source", "HUB");
     deviceSnapshotMapper.delete(devices);
 
-    log.info("家庭 {} 的中枢已解绑", householdId);
+    log.info("家庭 {} 的设备通道已解绑（已保留手动/云设备）", householdId);
   }
 
   @Override
   public boolean testConnection(IotHubBindDTO dto) throws Exception {
-    if (DemoHub.isDemo(dto.getBaseUrl())) {
-      return true;
+    if (DemoHub.isDemo(dto.getBaseUrl()) || CloudHub.isCloud(dto.getBaseUrl())) {
+      return cloudClient != null && cloudClient.isReady();
     }
     if (!hubUrlValidator.isAllowed(dto.getBaseUrl())) {
       throw new IllegalArgumentException("中枢地址不在允许范围内（私网地址，或已加入远程白名单的主机）");
@@ -213,9 +238,9 @@ public class IotHubServiceImpl implements IotHubService {
 
   @Override
   public java.util.List<Long> listBoundHouseholdIds() {
-    // 排除演示中枢：demo:// 没有可连接的 WebSocket 地址
+    // 排除演示 / 云端：没有可连接的 HA WebSocket
     return hubMapper.selectList(null).stream()
-        .filter(hub -> !DemoHub.isDemo(hub.getBaseUrl()))
+        .filter(hub -> !DemoHub.isDemo(hub.getBaseUrl()) && !CloudHub.isCloud(hub.getBaseUrl()))
         .map(IotHub::getHouseholdId)
         .filter(java.util.Objects::nonNull)
         .distinct()

@@ -20,5 +20,8 @@ public class IotHubVO {
   // 是否为内置演示中枢（没有真实 Home Assistant 时用来体验）
   private Boolean demo;
 
+  /** 是否为云端直连（涂鸦等，无需自建 Home Assistant） */
+  private Boolean cloud;
+
   private LocalDateTime updatedAt;
 }

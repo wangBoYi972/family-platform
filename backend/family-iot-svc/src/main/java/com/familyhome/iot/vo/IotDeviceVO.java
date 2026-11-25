@@ -21,8 +21,14 @@ public class IotDeviceVO {
   // 实体类型（light/switch/sensor/scene/climate/media_player）
   private String entityType;
 
-  // 设备来源：HUB（中枢同步）/ MANUAL（手动添加，可编辑删除）
+  // 设备来源：HUB / MANUAL / CLOUD
   private String deviceSource;
+
+  /** 云平台设备 ID；CLOUD 设备有值 */
+  private String cloudDeviceId;
+
+  /** 云平台：tuya / sim */
+  private String cloudProvider;
 
   // 区域名称
   private String areaName;

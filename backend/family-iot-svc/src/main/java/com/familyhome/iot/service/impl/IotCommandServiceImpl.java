@@ -13,6 +13,8 @@ import com.familyhome.iot.service.IotCommandService;
 import com.familyhome.iot.service.IotDeviceService;
 import com.familyhome.iot.service.IotHubService;
 import com.familyhome.iot.client.HomeAssistantClient;
+import com.familyhome.iot.cloud.IotCloudClient;
+import com.familyhome.iot.util.CloudHub;
 import com.familyhome.iot.util.DemoHub;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -60,6 +62,9 @@ public class IotCommandServiceImpl implements IotCommandService {
   private HomeAssistantClient homeAssistantClient;
 
   @Autowired
+  private IotCloudClient cloudClient;
+
+  @Autowired
   private IotDeviceService deviceService;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
@@ -83,20 +88,22 @@ public class IotCommandServiceImpl implements IotCommandService {
       throw new IllegalArgumentException("不支持的命令");
     }
 
-    // 手动设备是本地模拟设备：不需要中枢，也不把命令转发给 HA（HA 里没有这个 entity_id）。
     boolean manual = "MANUAL".equals(device.getDeviceSource());
+    boolean cloud = "CLOUD".equals(device.getDeviceSource());
     boolean demo = false;
     IotHub hub = null;
-    if (!manual) {
-      // 中枢同步设备必须有已配置的中枢才能下发命令
+    if (!manual && !cloud) {
       hub = hubService.getHubInternal(householdId);
       if (hub == null) {
-        throw new RuntimeException("中枢未配置");
+        throw new RuntimeException("设备通道未配置");
       }
       demo = DemoHub.isDemo(hub.getBaseUrl());
+      if (CloudHub.isCloud(hub.getBaseUrl())) {
+        // 云通道下不应再有 HUB 源设备走 HA
+        throw new IllegalStateException("请将设备按云设备添加（填写涂鸦设备 ID）");
+      }
     }
 
-    // 构建命令日志记录
     IotCommandLog cmdLog = new IotCommandLog();
     cmdLog.setHouseholdId(householdId);
     cmdLog.setUserId(userId);
@@ -106,9 +113,6 @@ public class IotCommandServiceImpl implements IotCommandService {
     cmdLog.setCommandService(dto.getCommandType());
 
     try {
-      // 准备服务参数
-      // 注意：前端不传参数时 JSON body 里是 null，Jackson 会映射成 NullNode 而不是 null，
-      // 直接强转 ObjectNode 会抛 ClassCastException（开关类命令必踩），所以先判 isNull。
       JsonNode parameters = dto.getParameters();
       if (parameters == null || parameters.isNull()) {
         parameters = objectMapper.createObjectNode();
@@ -119,17 +123,30 @@ public class IotCommandServiceImpl implements IotCommandService {
       ((com.fasterxml.jackson.databind.node.ObjectNode) parameters).put("entity_id", entityId);
       cmdLog.setRequestData(parameters);
 
-      // 手动设备 / 演示中枢 / 演示设备 → 只改本地状态；
-      // 真实中枢同步的设备 → 下发到 Home Assistant。
-      boolean success = (demo || manual)
-          ? applyDemoCommand(device, dto.getCommandType(), parameters)
-          : homeAssistantClient.callService(hub, device.getEntityType(), dto.getCommandType(), parameters);
+      boolean success;
+      if (cloud) {
+        if (device.getCloudDeviceId() == null || device.getCloudDeviceId().isBlank()) {
+          throw new IllegalStateException("云设备缺少 cloudDeviceId");
+        }
+        success = cloudClient.sendCommand(
+            device.getCloudDeviceId(), device.getEntityType(), dto.getCommandType(), parameters);
+        if (success) {
+          // 乐观更新本地快照，便于 App 立刻反馈
+          applyDemoCommand(device, dto.getCommandType(), parameters);
+        }
+      } else if (demo || manual) {
+        success = applyDemoCommand(device, dto.getCommandType(), parameters);
+      } else {
+        success = homeAssistantClient.callService(
+            hub, device.getEntityType(), dto.getCommandType(), parameters);
+      }
       cmdLog.setSuccess(success);
 
       if (!success) {
-        String reason = (demo || manual) ? "设备不支持该操作或参数不合法" : "Home Assistant 返回失败状态";
+        String reason = cloud ? "云端设备未响应"
+            : (demo || manual) ? "设备不支持该操作或参数不合法"
+            : "Home Assistant 返回失败状态";
         cmdLog.setErrorMessage(reason);
-        // 必须抛异常让接口返回失败：否则前端收到 2xx 会以为设置成功，实际状态没变。
         throw new IllegalArgumentException(reason);
       }
     } catch (Exception e) {
@@ -137,7 +154,6 @@ public class IotCommandServiceImpl implements IotCommandService {
       cmdLog.setErrorMessage(e.getMessage());
       throw e;
     } finally {
-      // 记录命令日志（成功和失败都记）
       commandLogMapper.insert(cmdLog);
     }
   }

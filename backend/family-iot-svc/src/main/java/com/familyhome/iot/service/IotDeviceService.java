@@ -38,19 +38,25 @@ public interface IotDeviceService {
   void markHubOffline(Long householdId);
 
   /**
-   * 手动添加一个设备（本地模拟，不依赖中枢）
+   * 添加设备：不填 cloudDeviceId 为本地模拟；填写则为云端真机（涂鸦等）。
    */
   IotDeviceVO addManualDevice(Long householdId, IotDeviceUpsertDTO dto);
 
   /**
-   * 编辑手动设备。只能编辑 device_source=MANUAL 的设备。
+   * 编辑用户自管设备（MANUAL / CLOUD）。
    */
   IotDeviceVO updateManualDevice(Long householdId, String entityId, IotDeviceUpsertDTO dto);
 
   /**
-   * 删除手动设备。只能删除 device_source=MANUAL 的设备。
+   * 删除用户自管设备（MANUAL / CLOUD）。
    */
   void deleteManualDevice(Long householdId, String entityId);
+
+  /** 列出云账号下可导入的设备（已添加的会在名称上标注）。 */
+  java.util.List<com.familyhome.iot.cloud.CloudDeviceInfo> listCloudDevices(Long householdId) throws Exception;
+
+  /** 按云设备 ID 导入到本家庭。 */
+  IotDeviceVO importCloudDevice(Long householdId, String cloudDeviceId) throws Exception;
 
   /**
    * 探测单台设备是否真实响应。

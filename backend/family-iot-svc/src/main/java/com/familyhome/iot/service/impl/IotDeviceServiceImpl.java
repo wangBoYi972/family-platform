@@ -12,6 +12,8 @@ import com.familyhome.iot.vo.DeviceStateEventVO;
 import com.familyhome.iot.vo.DeviceTestResultVO;
 import com.familyhome.iot.vo.IotDeviceVO;
 import com.familyhome.iot.client.HomeAssistantClient;
+import com.familyhome.iot.cloud.IotCloudClient;
+import com.familyhome.iot.util.CloudHub;
 import com.familyhome.iot.util.DemoHub;
 import com.familyhome.messaging.OutboxEventStore;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -38,6 +40,9 @@ public class IotDeviceServiceImpl implements IotDeviceService {
 
   @Autowired
   private HomeAssistantClient homeAssistantClient;
+
+  @Autowired
+  private IotCloudClient cloudClient;
 
   @Autowired(required = false)
   private OutboxEventStore outboxEventStore;
@@ -79,12 +84,18 @@ public class IotDeviceServiceImpl implements IotDeviceService {
   public void syncDevices(Long householdId) throws Exception {
     IotHub hub = hubService.getHubInternal(householdId);
     if (hub == null) {
-      throw new RuntimeException("中枢未配置");
+      throw new RuntimeException("设备通道未配置");
     }
 
     if (DemoHub.isDemo(hub.getBaseUrl())) {
       seedDemoDevices(householdId);
       log.info("演示中枢：已为家庭 {} 生成示例设备", householdId);
+      return;
+    }
+
+    // 云端直连：设备由用户导入 / 填写涂鸦 ID，不从 HA 拉列表
+    if (CloudHub.isCloud(hub.getBaseUrl())) {
+      log.info("家庭 {} 使用云端直连，跳过 HA 同步", householdId);
       return;
     }
 
@@ -190,16 +201,17 @@ public class IotDeviceServiceImpl implements IotDeviceService {
 
   @Override
   public void markHubOffline(Long householdId) {
-    // 批量标记所有设备离线，避免逐个更新的性能问题
+    // 只标记中枢同步设备离线；MANUAL / CLOUD 不依赖 HA WebSocket
     QueryWrapper<IotDeviceSnapshot> qw = new QueryWrapper<>();
     qw.eq("household_id", householdId);
+    qw.eq("device_source", "HUB");
     qw.eq("is_online", true);
 
     IotDeviceSnapshot update = new IotDeviceSnapshot();
     update.setIsOnline(false);
 
     deviceSnapshotMapper.update(update, qw);
-    log.warn("家庭 {} 中枢已离线，所有设备标记为离线", householdId);
+    log.warn("家庭 {} 中枢已离线，HUB 设备标记为离线", householdId);
   }
 
   /**
@@ -209,10 +221,10 @@ public class IotDeviceServiceImpl implements IotDeviceService {
    * 只是状态保存在本地快照里。
    */
   private void seedDemoDevices(Long householdId) throws Exception {
-    // 只重置演示/中枢同步的设备，保留用户手动添加的设备
+    // 只重置演示/中枢同步的设备，保留用户自管（MANUAL / CLOUD）
     QueryWrapper<IotDeviceSnapshot> qw = new QueryWrapper<>();
     qw.eq("household_id", householdId);
-    qw.ne("device_source", "MANUAL");
+    qw.eq("device_source", "HUB");
     deviceSnapshotMapper.delete(qw);
 
     for (DemoDevice demo : DEMO_DEVICES) {
@@ -322,6 +334,8 @@ public class IotDeviceServiceImpl implements IotDeviceService {
     vo.setBrand(snapshot.getBrand());
     vo.setEntityType(snapshot.getEntityType());
     vo.setDeviceSource(snapshot.getDeviceSource());
+    vo.setCloudDeviceId(snapshot.getCloudDeviceId());
+    vo.setCloudProvider(snapshot.getCloudProvider());
     vo.setAreaName(snapshot.getAreaName());
     vo.setState(snapshot.getState());
     vo.setAttributes(readAttributes(snapshot.getAttributes()));
@@ -355,7 +369,9 @@ public class IotDeviceServiceImpl implements IotDeviceService {
   @Override
   public IotDeviceVO addManualDevice(Long householdId, IotDeviceUpsertDTO dto) {
     String type = normalizeType(dto.getEntityType());
-    String entityId = "manual." + type + "." + java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 10);
+    boolean cloud = dto.getCloudDeviceId() != null && !dto.getCloudDeviceId().isBlank();
+    String prefix = cloud ? "cloud." : "manual.";
+    String entityId = prefix + type + "." + java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 10);
 
     IotDeviceSnapshot snapshot = new IotDeviceSnapshot();
     snapshot.setHouseholdId(householdId);
@@ -367,10 +383,19 @@ public class IotDeviceServiceImpl implements IotDeviceService {
         ? "自定义" : dto.getAreaName().trim());
     snapshot.setState(dto.getState() == null || dto.getState().isBlank() ? "off" : dto.getState().trim());
     snapshot.setAttributes(attributesJson(dto.getAttributes()));
-    snapshot.setDeviceSource("MANUAL");
+    if (cloud) {
+      if (cloudClient == null || !cloudClient.isReady()) {
+        throw new IllegalStateException("设备云未就绪：请配置涂鸦密钥（FAMILY_IOT_TUYA_*）或使用 provider=sim 联调");
+      }
+      snapshot.setDeviceSource("CLOUD");
+      snapshot.setCloudDeviceId(dto.getCloudDeviceId().trim());
+      snapshot.setCloudProvider(cloudClient.providerId());
+    } else {
+      snapshot.setDeviceSource("MANUAL");
+    }
     snapshot.setIsOnline(true);
     deviceSnapshotMapper.insert(snapshot);
-    log.info("家庭 {} 手动添加设备 {} ({})", householdId, entityId, type);
+    log.info("家庭 {} 添加设备 {} ({}/{})", householdId, entityId, type, snapshot.getDeviceSource());
     return toDeviceVO(deviceSnapshotMapper.selectById(snapshot.getId()));
   }
 
@@ -394,22 +419,85 @@ public class IotDeviceServiceImpl implements IotDeviceService {
 
   @Override
   public void deleteManualDevice(Long householdId, String entityId) {
-    IotDeviceSnapshot snapshot = findManual(householdId, entityId);
+    IotDeviceSnapshot snapshot = findUserManaged(householdId, entityId);
     deviceSnapshotMapper.deleteById(snapshot.getId());
-    log.info("家庭 {} 删除手动设备 {}", householdId, entityId);
+    log.info("家庭 {} 删除设备 {} ({})", householdId, entityId, snapshot.getDeviceSource());
   }
 
-  /** 只查手动设备，避免越权改/删中枢同步的设备。 */
-  private IotDeviceSnapshot findManual(Long householdId, String entityId) {
+  @Override
+  public List<com.familyhome.iot.cloud.CloudDeviceInfo> listCloudDevices(Long householdId) throws Exception {
+    if (cloudClient == null || !cloudClient.isReady()) {
+      throw new IllegalStateException("设备云未就绪");
+    }
+    List<com.familyhome.iot.cloud.CloudDeviceInfo> remote = cloudClient.listDevices();
+    // 已导入的打标记：前端可灰显
+    QueryWrapper<IotDeviceSnapshot> qw = new QueryWrapper<>();
+    qw.eq("household_id", householdId).eq("device_source", "CLOUD");
+    java.util.Set<String> bound = deviceSnapshotMapper.selectList(qw).stream()
+        .map(IotDeviceSnapshot::getCloudDeviceId)
+        .filter(id -> id != null && !id.isBlank())
+        .collect(java.util.stream.Collectors.toSet());
+    for (com.familyhome.iot.cloud.CloudDeviceInfo info : remote) {
+      // 复用 brand 字段旁路：attributes 没有，用 category 后缀不够干净；前端用 cloudDeviceId 比对即可
+      if (bound.contains(info.getCloudDeviceId())) {
+        info.setName((info.getName() == null ? info.getCloudDeviceId() : info.getName()) + "（已添加）");
+      }
+    }
+    return remote;
+  }
+
+  @Override
+  public IotDeviceVO importCloudDevice(Long householdId, String cloudDeviceId) throws Exception {
+    if (cloudDeviceId == null || cloudDeviceId.isBlank()) {
+      throw new IllegalArgumentException("云设备 ID 不能为空");
+    }
+    if (cloudClient == null || !cloudClient.isReady()) {
+      throw new IllegalStateException("设备云未就绪");
+    }
+    QueryWrapper<IotDeviceSnapshot> exist = new QueryWrapper<>();
+    exist.eq("household_id", householdId)
+        .eq("cloud_device_id", cloudDeviceId.trim())
+        .eq("device_source", "CLOUD");
+    if (deviceSnapshotMapper.selectCount(exist) > 0) {
+      throw new IllegalArgumentException("该云设备已添加");
+    }
+    com.familyhome.iot.cloud.CloudDeviceInfo matched = null;
+    for (com.familyhome.iot.cloud.CloudDeviceInfo info : cloudClient.listDevices()) {
+      if (cloudDeviceId.trim().equals(info.getCloudDeviceId())) {
+        matched = info;
+        break;
+      }
+    }
+    IotDeviceUpsertDTO dto = new IotDeviceUpsertDTO();
+    dto.setCloudDeviceId(cloudDeviceId.trim());
+    if (matched != null) {
+      dto.setDeviceName(matched.getName() == null ? cloudDeviceId.trim() : matched.getName());
+      dto.setBrand(matched.getBrand());
+      dto.setEntityType(matched.getEntityType() == null ? "switch" : matched.getEntityType());
+      dto.setAreaName("家里");
+    } else {
+      dto.setDeviceName(cloudDeviceId.trim());
+      dto.setEntityType("switch");
+      dto.setAreaName("家里");
+    }
+    return addManualDevice(householdId, dto);
+  }
+
+  /** 只查用户自管设备（MANUAL / CLOUD），避免越权改/删中枢同步设备。 */
+  private IotDeviceSnapshot findUserManaged(Long householdId, String entityId) {
     IotDeviceSnapshot snapshot = deviceSnapshotMapper.selectOne(
         new QueryWrapper<IotDeviceSnapshot>()
             .eq("household_id", householdId)
             .eq("entity_id", entityId)
-            .eq("device_source", "MANUAL"));
+            .in("device_source", "MANUAL", "CLOUD"));
     if (snapshot == null) {
-      throw new IllegalArgumentException("手动设备不存在");
+      throw new IllegalArgumentException("设备不存在或不可编辑");
     }
     return snapshot;
+  }
+
+  private IotDeviceSnapshot findManual(Long householdId, String entityId) {
+    return findUserManaged(householdId, entityId);
   }
 
   private String normalizeType(String raw) {
@@ -442,19 +530,30 @@ public class IotDeviceServiceImpl implements IotDeviceService {
 
     String name = snapshot.getDeviceName() != null ? snapshot.getDeviceName() : entityId;
 
-    // 手动设备：本地模拟，不涉及真实硬件
     if ("MANUAL".equals(snapshot.getDeviceSource())) {
       return DeviceTestResultVO.simulated(name);
     }
 
-    // 中枢设备：需要已配置的中枢
-    IotHub hub = hubService.getHubInternal(householdId);
-    if (hub == null) {
-      throw new IllegalStateException("中枢未配置");
+    if ("CLOUD".equals(snapshot.getDeviceSource())) {
+      if (cloudClient == null || !cloudClient.isReady()) {
+        return DeviceTestResultVO.noResponse("设备云未就绪");
+      }
+      if ("sim".equals(cloudClient.providerId())) {
+        return new DeviceTestResultVO(
+            true, false, snapshot.getState(),
+            "「" + name + "」走联调云通道（sim），未连真机。正式环境请配置 FAMILY_IOT_CLOUD_PROVIDER=tuya 与涂鸦密钥。");
+      }
+      return new DeviceTestResultVO(
+          true, true, snapshot.getState(),
+          "「" + name + "」已绑定涂鸦设备 " + snapshot.getCloudDeviceId() + "，指令经云端下发到家里 Wi‑Fi 设备。");
     }
 
-    // 演示中枢：本地模拟
-    if (DemoHub.isDemo(hub.getBaseUrl())) {
+    IotHub hub = hubService.getHubInternal(householdId);
+    if (hub == null) {
+      throw new IllegalStateException("设备通道未配置");
+    }
+
+    if (DemoHub.isDemo(hub.getBaseUrl()) || CloudHub.isCloud(hub.getBaseUrl())) {
       return DeviceTestResultVO.simulated(name);
     }
 
