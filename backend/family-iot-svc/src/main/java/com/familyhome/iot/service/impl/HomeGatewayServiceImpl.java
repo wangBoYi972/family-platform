@@ -92,6 +92,11 @@ public class HomeGatewayServiceImpl implements HomeGatewayService {
     pairing.setUsedAt(LocalDateTime.now());
     pairingCodeMapper.updateById(pairing);
 
+    // 重新配对前踢掉旧 WebSocket，避免命令仍打到旧网关进程
+    if (sessionRegistry != null) {
+      sessionRegistry.disconnect(pairing.getHouseholdId());
+    }
+
     String gatewayId = "gw_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
     String gatewayToken = "gtk_" + UUID.randomUUID().toString().replace("-", "");
     String displayName =

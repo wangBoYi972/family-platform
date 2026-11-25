@@ -44,6 +44,18 @@ public class GatewaySessionRegistry {
         (id, current) -> current.getId().equals(session.getId()) ? null : current);
   }
 
+  /** 解绑/重新配对时踢掉旧网关连接，避免命令仍打到旧进程。 */
+  public void disconnect(Long householdId) {
+    WebSocketSession session = sessions.remove(householdId);
+    if (session != null && session.isOpen()) {
+      try {
+        session.close();
+      } catch (IOException e) {
+        log.warn("关闭家庭 {} 旧网关连接失败: {}", householdId, e.getMessage());
+      }
+    }
+  }
+
   public boolean isOnline(Long householdId) {
     WebSocketSession session = sessions.get(householdId);
     return session != null && session.isOpen();

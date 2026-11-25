@@ -478,16 +478,6 @@ export default {
         if (this.hubConfigured) {
           this.pairingCode = "";
           await this.loadDevices();
-        } else if (this.pairingCode) {
-          // 配对码已生成：轮询等待网关注册成功
-          const again = await request("/iot/hub");
-          if (again?.configured) {
-            this.hubConfigured = true;
-            this.hubIsGateway = !!again.gateway;
-            this.gatewayOnline = !!again.gatewayOnline;
-            this.pairingCode = "";
-            await this.loadDevices();
-          }
         }
       } catch (e) {
         if (e.status === 401) {
@@ -497,6 +487,23 @@ export default {
         this.loadError = e.message || "读取中枢配置失败";
       } finally {
         this.loading = false;
+      }
+    },
+
+    /** 等待网关注册时静默轮询，不打 loading，避免配对码被遮住。 */
+    async pollWhilePairing() {
+      if (!this.pairingCode || this.hubConfigured || this.loading || this.pairingBusy) return;
+      try {
+        const hub = await request("/iot/hub");
+        if (!hub?.configured) return;
+        this.hubConfigured = true;
+        this.hubIsDemo = !!hub.demo;
+        this.hubIsGateway = !!hub.gateway;
+        this.gatewayOnline = !!hub.gatewayOnline;
+        this.pairingCode = "";
+        await this.loadDevices();
+      } catch (e) {
+        if (e.status === 401) this.$emit("session-ended");
       }
     },
 
@@ -634,13 +641,14 @@ export default {
           request("/iot/devices"),
           request("/iot/scenes"),
         ];
+        // 网关在线状态走需登录的 /iot/hub（含 gatewayOnline），避免匿名路径误放行
         if (this.hubIsGateway) {
-          tasks.push(request("/iot/gateway/status").catch(() => null));
+          tasks.push(request("/iot/hub").catch(() => null));
         }
-        const [areas, scenes, status] = await Promise.all(tasks);
-        if (status) {
-          this.gatewayOnline = !!status.online;
-          this.hubIsGateway = !!status.gateway || this.hubIsGateway;
+        const [areas, scenes, hub] = await Promise.all(tasks);
+        if (hub) {
+          this.gatewayOnline = !!hub.gatewayOnline;
+          this.hubIsGateway = !!hub.gateway || this.hubIsGateway;
         }
         const grouped = {};
         for (const group of areas || []) {
@@ -796,7 +804,7 @@ export default {
     this.pollTimer = setInterval(() => {
       if (this.loading) return;
       if (this.hubConfigured) this.loadDevices();
-      else if (this.pairingCode) this.init();
+      else if (this.pairingCode) this.pollWhilePairing();
     }, 5000);
   },
 

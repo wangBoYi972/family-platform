@@ -23,8 +23,13 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         String path = exchange.getRequest().getURI().getPath();
         // WebSocket 握手无法携带 Authorization 头，改用一次性 ticket 鉴权，由媒体/IM 服务校验。
         if (path.startsWith("/ws/")) return chain.filter(exchange);
-        // 家侧网关：注册靠配对码；上报靠 X-Gateway-Token，由 iot-svc 校验。
-        if (path.startsWith("/api/iot/gateway/")) return chain.filter(exchange);
+        // 家侧网关匿名三条：注册靠配对码；上报靠 X-Gateway-Token（iot-svc 校验）。status 需登录。
+        if (exchange.getRequest().getMethod() == HttpMethod.POST
+                && (path.equals("/api/iot/gateway/register")
+                        || path.equals("/api/iot/gateway/devices")
+                        || path.equals("/api/iot/gateway/state"))) {
+            return chain.filter(exchange);
+        }
         if ((exchange.getRequest().getMethod() == HttpMethod.POST
                         && (path.equals("/api/auth/login")
                                 || path.equals("/api/auth/password-login")

@@ -129,6 +129,9 @@ public class IotHubServiceImpl implements IotHubService {
   public void unbindHub(Long householdId) {
     // 先断开实时连接，避免解绑后仍在接收并写入已清除的快照
     wsService.disconnect(householdId);
+    if (gatewaySessionRegistry != null) {
+      gatewaySessionRegistry.disconnect(householdId);
+    }
 
     QueryWrapper<IotHub> qw = new QueryWrapper<>();
     qw.eq("household_id", householdId);
