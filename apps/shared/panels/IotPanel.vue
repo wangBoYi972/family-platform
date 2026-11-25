@@ -2,63 +2,57 @@
   <div class="iot-panel">
     <div v-if="loading" class="mf-empty">正在读取家里的设备…</div>
 
-    <!-- 未配置：手机直接用；真机靠家里 WiFi 直连中枢 -->
+    <!-- 未配置：正式落地 = 手机连家里 WiFi → 直连 Home Assistant -->
     <template v-else-if="!hubConfigured">
       <div class="mf-card setup-card mf-rise">
         <div class="setup-head">
           <div class="setup-icon">🏠</div>
           <div class="setup-copy">
-            <div class="setup-title">家里的设备</div>
+            <div class="setup-title">连接家里的中枢</div>
             <div class="setup-desc">
-              用手机就能操作。没有真实中枢时先用演示；家里已有 Home Assistant 时，请连着家里 WiFi，由手机直接访问中枢。
+              这是正式客户端，不是演示站。手机连着<strong>家里 WiFi</strong>，填写家里
+              Home Assistant 地址与长效令牌后，开关会直达真设备。
             </div>
           </div>
         </div>
 
-        <button class="solid-btn demo-primary" :disabled="binding" @click="bindDemo">
-          {{ binding ? "准备中…" : "用手机开始（演示设备）" }}
-        </button>
-        <p class="demo-hint">演示在手机里就能开关空调/电视界面，不依赖其它设备。</p>
+        <p class="field-hint setup-wifi-hint">
+          落地条件：家里已运行 Home Assistant，且空调/电视等已在 HA 中接入（红外、米家等集成在 HA 侧完成）。
+        </p>
+
+        <label class="field">
+          <span class="field-label">中枢地址</span>
+          <input
+            v-model="hubForm.baseUrl"
+            class="field-input"
+            type="url"
+            placeholder="http://192.168.1.100:8123"
+          />
+        </label>
+        <label class="field">
+          <span class="field-label">访问令牌</span>
+          <input
+            v-model="hubForm.accessToken"
+            class="field-input"
+            type="password"
+            placeholder="HA → 个人资料 → 长期访问令牌"
+          />
+        </label>
+        <div class="setup-actions">
+          <button class="ghost-btn" :disabled="testing" @click="testConnection">
+            {{ testing ? "测试中…" : "测试连接" }}
+          </button>
+          <button class="solid-btn" :disabled="binding || !connected" @click="bindHub">
+            {{ binding ? "连接中…" : "连接并同步设备" }}
+          </button>
+        </div>
 
         <p v-if="error" class="error-line">{{ error }}</p>
 
-        <details class="advanced-ha" open>
-          <summary>家里有中枢（手机连 WiFi 直连）</summary>
-          <p class="field-hint setup-wifi-hint">
-            请确认手机已连<strong>家里 WiFi</strong>（不要用流量）。云端进不了你家路由器，但手机在家里可以。
-          </p>
-          <label class="field">
-            <span class="field-label">中枢地址</span>
-            <input
-              v-model="hubForm.baseUrl"
-              class="field-input"
-              type="url"
-              placeholder="http://192.168.1.100:8123"
-            />
-          </label>
-          <label class="field">
-            <span class="field-label">访问令牌</span>
-            <input
-              v-model="hubForm.accessToken"
-              class="field-input"
-              type="password"
-              placeholder="Home Assistant 长效令牌"
-            />
-          </label>
-          <div class="setup-actions">
-            <button class="ghost-btn" :disabled="testing" @click="testConnection">
-              {{ testing ? "测试中…" : "用手机测试" }}
-            </button>
-            <button class="solid-btn" :disabled="binding || !connected" @click="bindHub">
-              {{ binding ? "连接中…" : "用手机连接" }}
-            </button>
-          </div>
-        </details>
-
         <details class="advanced-ha">
-          <summary>进阶：外出时用家里电脑网关</summary>
+          <summary>外出遥控（家里电脑网关）</summary>
           <p class="field-hint setup-wifi-hint">
-            人不在家、手机不在家里 WiFi 时，可让家里常开电脑跑网关。日常在家请优先用上面的手机直连。
+            人不在家、手机不在家里 WiFi 时使用。日常在家请用上方直连。
           </p>
           <button
             class="ghost-btn demo-secondary"
@@ -86,6 +80,16 @@
               </button>
             </div>
           </div>
+        </details>
+
+        <details class="advanced-ha">
+          <summary>仅开发联调（虚拟设备，不控真机）</summary>
+          <p class="demo-hint">
+            没有 HA 时才用。只改云端快照，空调电视不会真的动。
+          </p>
+          <button class="ghost-btn demo-secondary" :disabled="binding" @click="bindDemo">
+            {{ binding ? "准备中…" : "加载虚拟设备" }}
+          </button>
         </details>
       </div>
     </template>
@@ -387,8 +391,8 @@ export default {
       return Object.keys(this.devicesByArea);
     },
     hubModeLabel() {
-      if (this.hubIsDemo) return "手机演示";
-      if (this.hubIsPhoneLocal) return this.localHaUnreachable ? "未连家里 WiFi" : "手机直连家里";
+      if (this.hubIsDemo) return "虚拟设备（非真机）";
+      if (this.hubIsPhoneLocal) return this.localHaUnreachable ? "未连家里 WiFi" : "已连家里中枢";
       if (this.hubIsGateway) return this.gatewayOnline ? "家庭网关在线" : "家庭网关离线";
       return "已连接中枢";
     },
