@@ -21,6 +21,8 @@ family:
     mock-login-enabled: true
     mock-code: ${FAMILY_AUTH_MOCK_CODE:888888}
     jwt-secret: ${FAMILY_JWT_SECRET:local-development-secret-32-characters-min}
+    # 本地常无 Redis；允许限流降级，避免 mock 登录 503
+    login-rate-limit-failopen: true
 springdoc:
   api-docs:
     enabled: true
