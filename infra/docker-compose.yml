@@ -51,10 +51,10 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       NACOS_SERVER_ADDR: nacos:8848
       FAMILY_JWT_SECRET: ${FAMILY_JWT_SECRET:?请在 .env 中配置 JWT 密钥}
-      FAMILY_RATE_LIMIT_ENABLED: ${FAMILY_RATE_LIMIT_ENABLED:true}
+      FAMILY_RATE_LIMIT_ENABLED: ${FAMILY_RATE_LIMIT_ENABLED:-true}
       REDIS_HOST: redis
-      FAMILY_RATE_LIMIT_REPLENISH: ${FAMILY_RATE_LIMIT_REPLENISH:20}
-      FAMILY_RATE_LIMIT_BURST: ${FAMILY_RATE_LIMIT_BURST:40}
+      FAMILY_RATE_LIMIT_REPLENISH: ${FAMILY_RATE_LIMIT_REPLENISH:-20}
+      FAMILY_RATE_LIMIT_BURST: ${FAMILY_RATE_LIMIT_BURST:-40}
     ports:
       - "8080:8080"
     depends_on:
@@ -75,9 +75,9 @@ services:
       FAMILY_USER_DB_PASSWORD: ${MYSQL_APP_PASSWORD:?}
       FAMILY_JWT_SECRET: ${FAMILY_JWT_SECRET:?}
       FAMILY_BOOTSTRAP_ENABLED: "true"
-      FAMILY_BOOTSTRAP_HOUSEHOLD_NAME: ${FAMILY_BOOTSTRAP_HOUSEHOLD_NAME:}
-      FAMILY_BOOTSTRAP_ADMIN_PHONE: ${FAMILY_BOOTSTRAP_ADMIN_PHONE:}
-      FAMILY_BOOTSTRAP_ADMIN_PASSWORD: ${FAMILY_BOOTSTRAP_ADMIN_PASSWORD:}
+      FAMILY_BOOTSTRAP_HOUSEHOLD_NAME: ${FAMILY_BOOTSTRAP_HOUSEHOLD_NAME:-}
+      FAMILY_BOOTSTRAP_ADMIN_PHONE: ${FAMILY_BOOTSTRAP_ADMIN_PHONE:-}
+      FAMILY_BOOTSTRAP_ADMIN_PASSWORD: ${FAMILY_BOOTSTRAP_ADMIN_PASSWORD:-}
     depends_on:
       - nacos
       - mysql
@@ -93,7 +93,7 @@ services:
       FAMILY_CONTENT_DB_USERNAME: family_app
       FAMILY_CONTENT_DB_PASSWORD: ${MYSQL_APP_PASSWORD:?}
       FAMILY_JWT_SECRET: ${FAMILY_JWT_SECRET:?}
-      FAMILY_MESSAGING_ENABLED: ${FAMILY_MESSAGING_ENABLED:true}
+      FAMILY_MESSAGING_ENABLED: ${FAMILY_MESSAGING_ENABLED:-true}
       REDIS_HOST: redis
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?}
@@ -114,17 +114,17 @@ services:
       FAMILY_FILE_DB_USERNAME: family_app
       FAMILY_FILE_DB_PASSWORD: ${MYSQL_APP_PASSWORD:?}
       FAMILY_JWT_SECRET: ${FAMILY_JWT_SECRET:?}
-      FAMILY_MESSAGING_ENABLED: ${FAMILY_MESSAGING_ENABLED:true}
+      FAMILY_MESSAGING_ENABLED: ${FAMILY_MESSAGING_ENABLED:-true}
       REDIS_HOST: redis
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?}
-      FAMILY_FILE_STORAGE_TYPE: ${FAMILY_FILE_STORAGE_TYPE:local}
+      FAMILY_FILE_STORAGE_TYPE: ${FAMILY_FILE_STORAGE_TYPE:-local}
       FAMILY_FILE_ROOT: /data/files
-      FAMILY_S3_ENDPOINT: ${FAMILY_S3_ENDPOINT:}
-      FAMILY_S3_REGION: ${FAMILY_S3_REGION:us-east-1}
-      FAMILY_S3_BUCKET: ${FAMILY_S3_BUCKET:}
-      FAMILY_S3_ACCESS_KEY: ${FAMILY_S3_ACCESS_KEY:}
-      FAMILY_S3_SECRET_KEY: ${FAMILY_S3_SECRET_KEY:}
+      FAMILY_S3_ENDPOINT: ${FAMILY_S3_ENDPOINT:-}
+      FAMILY_S3_REGION: ${FAMILY_S3_REGION:-us-east-1}
+      FAMILY_S3_BUCKET: ${FAMILY_S3_BUCKET:-}
+      FAMILY_S3_ACCESS_KEY: ${FAMILY_S3_ACCESS_KEY:-}
+      FAMILY_S3_SECRET_KEY: ${FAMILY_S3_SECRET_KEY:-}
     volumes:
       - file-data:/data/files
     depends_on:
@@ -160,7 +160,7 @@ services:
       FAMILY_IM_DB_USERNAME: family_app
       FAMILY_IM_DB_PASSWORD: ${MYSQL_APP_PASSWORD:?}
       FAMILY_JWT_SECRET: ${FAMILY_JWT_SECRET:?}
-      FAMILY_MESSAGING_ENABLED: ${FAMILY_MESSAGING_ENABLED:true}
+      FAMILY_MESSAGING_ENABLED: ${FAMILY_MESSAGING_ENABLED:-true}
       REDIS_HOST: redis
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?}
@@ -182,13 +182,22 @@ services:
       FAMILY_MEDIA_DB_PASSWORD: ${MYSQL_APP_PASSWORD:?}
       FAMILY_JWT_SECRET: ${FAMILY_JWT_SECRET:?}
       # 多副本部署时信令与票据必须走 Redis，否则两个实例上的家人互相收不到呼叫。
-      FAMILY_MESSAGING_ENABLED: ${FAMILY_MESSAGING_ENABLED:true}
+      FAMILY_MESSAGING_ENABLED: ${FAMILY_MESSAGING_ENABLED:-true}
       REDIS_HOST: redis
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?}
       FAMILY_TURN_SECRET: ${FAMILY_TURN_SECRET:?请在 .env 中配置 TURN 静态密钥}
       FAMILY_TURN_URLS: ${FAMILY_TURN_URLS:-turn:127.0.0.1:3478?transport=udp,turn:127.0.0.1:3478?transport=tcp}
       FAMILY_STUN_URLS: ${FAMILY_STUN_URLS:-stun:127.0.0.1:3478}
+      # LiveKit SFU：总开关默认关闭；开启前必须在 .env 配齐 key/secret/public-url。
+      FAMILY_LIVEKIT_ENABLED: ${FAMILY_LIVEKIT_ENABLED:-false}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+      LIVEKIT_PUBLIC_URL: ${LIVEKIT_PUBLIC_URL:-}
+      LIVEKIT_INTERNAL_URL: ${LIVEKIT_INTERNAL_URL:-http://127.0.0.1:7880}
+      LIVEKIT_ROOM_PREFIX: ${LIVEKIT_ROOM_PREFIX:-family-}
+      LIVEKIT_TOKEN_TTL_SECONDS: ${LIVEKIT_TOKEN_TTL_SECONDS:-3600}
+      LIVEKIT_MAX_PARTICIPANTS: ${LIVEKIT_MAX_PARTICIPANTS:-20}
     depends_on:
       - nacos
       - mysql
@@ -221,6 +230,44 @@ services:
       - family-file-svc
       - family-archive-svc
 
+  family-iot-svc:
+    build:
+      context: ..
+      dockerfile: backend/family-iot-svc/Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      NACOS_SERVER_ADDR: nacos:8848
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: family_app
+      MYSQL_PASSWORD: ${MYSQL_APP_PASSWORD:?}
+      FAMILY_JWT_SECRET: ${FAMILY_JWT_SECRET:?}
+      # 设备访问令牌用 AES 加密入库；留空时服务能启动，但保存设备会失败
+      FAMILY_IOT_ENCRYPTION_KEY: ${FAMILY_IOT_ENCRYPTION_KEY:-}
+      # 远程中枢白名单：不在家要控制设备时填家里 HA 的主机名（逗号分隔）
+      FAMILY_IOT_ALLOWED_HOSTS: ${FAMILY_IOT_ALLOWED_HOSTS:-}
+    depends_on:
+      - nacos
+      - mysql
+      - family-user-svc
+
+  family-ledger-svc:
+    build:
+      context: ..
+      dockerfile: backend/family-ledger-svc/Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      NACOS_SERVER_ADDR: nacos:8848
+      FAMILY_LEDGER_DB_URL: jdbc:mysql://mysql:3306/family_ledger?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+      FAMILY_LEDGER_DB_USERNAME: family_app
+      FAMILY_LEDGER_DB_PASSWORD: ${MYSQL_APP_PASSWORD:?}
+      FAMILY_JWT_SECRET: ${FAMILY_JWT_SECRET:?}
+      FAMILY_USER_URL: http://family-user-svc:8081
+    depends_on:
+      - nacos
+      - mysql
+      - family-user-svc
+
   # NAT 穿透兜底。P2P 直连失败（对称型 NAT、移动网络）时媒体经 TURN 中继。
   # 使用 host 网络：UDP 中继端口段无法用 docker 端口映射高效覆盖，宿主即 coturn 所在机。
   coturn:
@@ -242,14 +289,30 @@ services:
       # 公网部署必须显式声明外网地址，否则返回的 relay 候选不可达：--external-ip=<公网IP>
 
 
+  # LiveKit SFU：8 人以上多人通话的媒体服务器（隐私可控、媒体经自建节点）。
+  # 使用 host 网络：WebRTC 的 UDP 媒体端口段无法用 docker 端口映射高效覆盖。
+  # 公网部署务必在 livekit.yaml 配置 external_ip 或 use_external_ip，并在防火墙放行 50100-50200/udp。
+  livekit:
+    # 起步用 latest 便于拉到可用版本；生产上线前锁定到验证过的具体 tag（docker pull 后记录 digest）
+    image: livekit/livekit-server:latest
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      LIVEKIT_CONFIG: /etc/livekit.yaml
+    volumes:
+      - ./livekit/livekit.yaml:/etc/livekit.yaml:ro
+    command: --config /etc/livekit.yaml --bind 0.0.0.0
+
   prometheus:
     image: prom/prometheus:v2.53.0
     ports:
       - "9090:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
       - prometheus-data:/prometheus
     depends_on:
+      - alertmanager
       - family-gateway
       - family-user-svc
       - family-content-svc
@@ -258,6 +321,18 @@ services:
       - family-im-svc
       - family-media-svc
       - family-ai-svc
+      - family-iot-svc
+      - family-ledger-svc
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
 
   grafana:
     image: grafana/grafana:11.1.0
@@ -277,5 +352,6 @@ volumes:
   redis-data:
   file-data:
   prometheus-data:
+  alertmanager-data:
   grafana-data:
   rabbitmq-data:

@@ -19,6 +19,13 @@ spring:
   flyway:
     enabled: true
   cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            # 与其它服务对齐：默认 10s/60s 会让 user-svc 卡住时把本服务的线程一起拖死。
+            connectTimeout: 2000
+            readTimeout: 5000
     nacos:
       discovery:
         server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}

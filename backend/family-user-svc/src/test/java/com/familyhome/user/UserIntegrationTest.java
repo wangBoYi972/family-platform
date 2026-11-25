@@ -130,6 +130,89 @@ class UserIntegrationTest {
     }
 
     @Test
+    @DisplayName("批量查用户不能跨家庭泄露，非法ID容错，超限拒绝")
+    void batchGetUsersIsHouseholdScoped() throws Exception {
+        // 家庭 A：登录用户 + 一个本机成员
+        var homeA = new Household();
+        homeA.setName("批量查询家庭A");
+        households.insert(homeA);
+        for (String phone : new String[] {"19900001001", "19900001002"}) {
+            var w = new WhitelistEntry();
+            w.setPhone(phone);
+            w.setHouseholdId(homeA.getId());
+            w.setRole(phone.endsWith("001") ? "ADMIN" : "MEMBER");
+            w.setEnabled(true);
+            whitelist.insert(w);
+        }
+        var ua = new FamilyUser();
+        ua.setPhone("19900001001");
+        ua.setDisplayName("A家庭成员");
+        ua.setCreatedAt(java.time.LocalDateTime.now());
+        users.insert(ua);
+        var ua2 = new FamilyUser();
+        ua2.setPhone("19900001002");
+        ua2.setDisplayName("A家庭另一成员");
+        ua2.setCreatedAt(java.time.LocalDateTime.now());
+        users.insert(ua2);
+
+        // 家庭 B：外部用户（不应被 A 查到）
+        var homeB = new Household();
+        homeB.setName("批量查询家庭B");
+        households.insert(homeB);
+        var wb = new WhitelistEntry();
+        wb.setPhone("19900002001");
+        wb.setHouseholdId(homeB.getId());
+        wb.setRole("ADMIN");
+        wb.setEnabled(true);
+        whitelist.insert(wb);
+        var ub = new FamilyUser();
+        ub.setPhone("19900002001");
+        ub.setDisplayName("B家庭外部用户");
+        ub.setCreatedAt(java.time.LocalDateTime.now());
+        users.insert(ub);
+
+        String tokenA = token("19900001001");
+
+        // 本家庭成员能查到
+        mvc.perform(get("/api/users/batch")
+                        .param("ids", String.valueOf(ua2.getId()))
+                        .header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data['" + ua2.getId() + "'].displayName").value("A家庭另一成员"));
+
+        // 跨家庭用户查不到（关键：漏洞回归）
+        mvc.perform(get("/api/users/batch")
+                        .param("ids", String.valueOf(ub.getId()))
+                        .header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data['" + ub.getId() + "']").doesNotExist());
+
+        // 混合查询：只返回本家庭的，外部用户被过滤
+        mvc.perform(get("/api/users/batch")
+                        .param("ids", ua2.getId() + "," + ub.getId())
+                        .header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data['" + ub.getId() + "']").doesNotExist());
+
+        // 非法 ID 片段不导致 500
+        mvc.perform(get("/api/users/batch")
+                        .param("ids", "abc,not-a-number," + ua2.getId())
+                        .header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1));
+
+        // 超过 200 个不同的 ID 直接 400（去重后仍需超限，避免 distinct 绕过）
+        String many = java.util.stream.IntStream.rangeClosed(1, 201)
+                .mapToObj(String::valueOf)
+                .collect(java.util.stream.Collectors.joining(","));
+        mvc.perform(get("/api/users/batch")
+                        .param("ids", many)
+                        .header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     @DisplayName("普通成员不能登录管理端或登记白名单")
     void memberCannotAdminister() throws Exception {
         var h = new Household();

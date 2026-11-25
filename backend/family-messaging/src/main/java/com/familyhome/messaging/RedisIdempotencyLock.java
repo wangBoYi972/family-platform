@@ -12,6 +12,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 @Component
 @ConditionalOnProperty(name = "family.messaging.enabled", havingValue = "true")
 public class RedisIdempotencyLock {
+    /** 仅在 token 匹配时删除，避免误删别人续期的锁。脚本只编译一次。 */
+    private static final RedisScript<Long> RELEASE_SCRIPT =
+            RedisScript.of(
+                    "if redis.call('get', KEYS[1]) == ARGV[1] then "
+                            + "return redis.call('del', KEYS[1]) else return 0 end",
+                    Long.class);
+
     @Autowired private RedisTemplate<String, String> redis;
 
     public Lease tryAcquire(String key, Duration ttl) {
@@ -24,16 +31,6 @@ public class RedisIdempotencyLock {
 
     public void release(Lease lease) {
         if (lease == null) return;
-
-        // 使用 Lua 脚本保证原子性：仅在 token 匹配时删除
-        String luaScript =
-            "if redis.call('get', KEYS[1]) == ARGV[1] then " +
-            "    return redis.call('del', KEYS[1]) " +
-            "else " +
-            "    return 0 " +
-            "end";
-
-        RedisScript<Long> script = RedisScript.of(luaScript, Long.class);
-        redis.execute(script, Collections.singletonList(lease.key()), lease.token());
+        redis.execute(RELEASE_SCRIPT, Collections.singletonList(lease.key()), lease.token());
     }
 }

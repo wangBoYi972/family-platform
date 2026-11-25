@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.familyhome.iot.mapper.IotDeviceSnapshotMapper">
+    <select id="selectByHouseholdId" resultType="com.familyhome.iot.model.IotDeviceSnapshot">
+        SELECT * FROM iot_device_snapshot WHERE household_id = #{householdId}
+    </select>
+
+    <select id="selectByHouseholdAndArea" resultType="com.familyhome.iot.model.IotDeviceSnapshot">
+        SELECT * FROM iot_device_snapshot
+        WHERE household_id = #{householdId} AND area_name = #{areaName}
+    </select>
+</mapper>

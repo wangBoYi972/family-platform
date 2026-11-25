@@ -8,12 +8,14 @@ import com.familyhome.iot.model.IotDeviceSnapshot;
 import com.familyhome.iot.model.IotHub;
 import com.familyhome.iot.service.IotHubService;
 import com.familyhome.iot.util.DemoHub;
+import com.familyhome.iot.util.HubUrlValidator;
 import com.familyhome.iot.util.TokenEncryptor;
-import com.familyhome.iot.util.UrlValidator;
+import com.familyhome.iot.vo.HubDiscoveryVO;
 import com.familyhome.iot.vo.IotHubVO;
 import com.familyhome.iot.client.HomeAssistantClient;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
@@ -27,6 +29,9 @@ public class IotHubServiceImpl implements IotHubService {
   private IotHubMapper hubMapper;
 
   @Autowired
+  private HubUrlValidator hubUrlValidator;
+
+  @Autowired
   private TokenEncryptor tokenEncryptor;
 
   @Autowired
@@ -34,6 +39,65 @@ public class IotHubServiceImpl implements IotHubService {
 
   @Autowired
   private IotDeviceSnapshotMapper deviceSnapshotMapper;
+
+  /** @Lazy 打破与 IotWebSocketServiceImpl 的循环依赖（后者依赖本服务读取中枢配置）。 */
+  @Autowired
+  @org.springframework.context.annotation.Lazy
+  private com.familyhome.iot.service.IotWebSocketService wsService;
+
+  /**
+   * 自托管 / 平台与中枢同网部署时预置的凭据（由部署环境注入，不经过 UI）。
+   * 公网 SaaS 场景下中枢由家庭侧网关主动注册，不使用这两个值。
+   */
+  @Value("${family.iot.auto-hub-url:}")
+  private String autoHubUrl;
+
+  @Value("${family.iot.auto-hub-token:}")
+  private String autoHubToken;
+
+  /**
+   * 查询本家庭已注册的中枢网关状态。
+   *
+   * <p>注意：云端后端不在家庭局域网内，无法也不应该"扫描"用户家里的设备。
+   * 真正的局域网发现由运行在家庭侧的网关完成，网关主动向平台注册并上报
+   * 地址与令牌（配合家庭配对码关联 householdId）。本方法只读取注册结果。
+   */
+  @Override
+  public HubDiscoveryVO autoDiscover(Long householdId) {
+    IotHub existing = hubMapper.selectByHouseholdId(householdId);
+    if (existing != null) {
+      if (DemoHub.isDemo(existing.getBaseUrl())) {
+        return HubDiscoveryVO.found(true);
+      }
+      try {
+        IotHub hub = getHubInternal(householdId);
+        if (hub != null && homeAssistantClient.testConnection(hub.getBaseUrl(), hub.getAccessToken())) {
+          return HubDiscoveryVO.found(false);
+        }
+      } catch (Exception e) {
+        log.warn("家庭 {} 已绑定中枢但当前不可达：{}", householdId, e.getMessage());
+      }
+      return HubDiscoveryVO.offline();
+    }
+
+    // 自托管 / 同网部署：部署环境预置的凭据，客户端依然不接触
+    if (autoHubUrl != null && !autoHubUrl.isBlank()
+        && autoHubToken != null && !autoHubToken.isBlank()) {
+      try {
+        if (hubUrlValidator.isAllowed(autoHubUrl)
+            && homeAssistantClient.testConnection(autoHubUrl, autoHubToken)) {
+          IotHubBindDTO dto = new IotHubBindDTO();
+          dto.setBaseUrl(autoHubUrl);
+          dto.setAccessToken(autoHubToken);
+          bindHub(householdId, dto);
+          return HubDiscoveryVO.found(false);
+        }
+      } catch (Exception e) {
+        log.warn("家庭 {} 自动绑定预置中枢失败：{}", householdId, e.getMessage());
+      }
+    }
+    return HubDiscoveryVO.notProvisioned();
+  }
 
   @Override
   public IotHubVO getHub(Long householdId) {
@@ -59,8 +123,8 @@ public class IotHubServiceImpl implements IotHubService {
     boolean demo = DemoHub.isDemo(dto.getBaseUrl());
 
     // 1. 验证 URL 安全性（演示中枢不走网络，不需要校验地址）
-    if (!demo && !UrlValidator.isSafeUrl(dto.getBaseUrl())) {
-      throw new IllegalArgumentException("中枢地址必须为私网或 localhost");
+    if (!demo && !hubUrlValidator.isAllowed(dto.getBaseUrl())) {
+      throw new IllegalArgumentException("中枢地址不在允许范围内（私网地址，或已加入远程白名单的主机）");
     }
 
     // 2. 测试连接
@@ -87,11 +151,28 @@ public class IotHubServiceImpl implements IotHubService {
       hubMapper.insert(hub);
     }
 
+    // 绑定成功后尝试建立实时连接（演示中枢跳过；失败不影响绑定结果）
+    if (!demo) {
+      final Long hid = householdId;
+      Thread t = new Thread(() -> {
+        try {
+          wsService.connect(hid);
+        } catch (Exception e) {
+          log.warn("家庭 {} 绑定后实时连接未建立（可依赖轮询兜底）: {}", hid, e.getMessage());
+        }
+      }, "iot-ws-connect-" + hid);
+      t.setDaemon(true);
+      t.start();
+    }
+
     return getHub(householdId);
   }
 
   @Override
   public void unbindHub(Long householdId) {
+    // 先断开实时连接，避免解绑后仍在接收并写入已清除的快照
+    wsService.disconnect(householdId);
+
     QueryWrapper<IotHub> qw = new QueryWrapper<>();
     qw.eq("household_id", householdId);
     hubMapper.delete(qw);
@@ -109,8 +190,8 @@ public class IotHubServiceImpl implements IotHubService {
     if (DemoHub.isDemo(dto.getBaseUrl())) {
       return true;
     }
-    if (!UrlValidator.isSafeUrl(dto.getBaseUrl())) {
-      throw new IllegalArgumentException("中枢地址必须为私网或 localhost");
+    if (!hubUrlValidator.isAllowed(dto.getBaseUrl())) {
+      throw new IllegalArgumentException("中枢地址不在允许范围内（私网地址，或已加入远程白名单的主机）");
     }
     return homeAssistantClient.testConnection(dto.getBaseUrl(), dto.getAccessToken());
   }
@@ -128,5 +209,16 @@ public class IotHubServiceImpl implements IotHubService {
       }
     }
     return hub;
+  }
+
+  @Override
+  public java.util.List<Long> listBoundHouseholdIds() {
+    // 排除演示中枢：demo:// 没有可连接的 WebSocket 地址
+    return hubMapper.selectList(null).stream()
+        .filter(hub -> !DemoHub.isDemo(hub.getBaseUrl()))
+        .map(IotHub::getHouseholdId)
+        .filter(java.util.Objects::nonNull)
+        .distinct()
+        .toList();
   }
 }

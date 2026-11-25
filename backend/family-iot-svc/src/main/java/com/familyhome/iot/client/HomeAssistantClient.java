@@ -3,7 +3,7 @@ package com.familyhome.iot.client;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.familyhome.iot.model.IotHub;
-import com.familyhome.iot.util.UrlValidator;
+import com.familyhome.iot.util.HubUrlValidator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import java.net.URI;
@@ -25,11 +25,14 @@ public class HomeAssistantClient {
   private final HttpClient httpClient;
   private final int commandTimeout;
   private final ObjectMapper objectMapper;
+  private final HubUrlValidator hubUrlValidator;
 
-  public HomeAssistantClient(com.familyhome.iot.config.IotConfig iotConfig) {
+  public HomeAssistantClient(
+      com.familyhome.iot.config.IotConfig iotConfig, HubUrlValidator hubUrlValidator) {
     this.httpClient = HttpClient.newHttpClient();
     this.commandTimeout = iotConfig.getCommandTimeout();
     this.objectMapper = new ObjectMapper();
+    this.hubUrlValidator = hubUrlValidator;
   }
 
   /**
@@ -37,7 +40,7 @@ public class HomeAssistantClient {
    */
   public boolean testConnection(String baseUrl, String accessToken) {
     try {
-      if (!UrlValidator.isSafeUrl(baseUrl)) {
+      if (!hubUrlValidator.isAllowed(baseUrl)) {
         log.warn("不安全的 URL: {}", baseUrl);
         return false;
       }
@@ -62,7 +65,7 @@ public class HomeAssistantClient {
    * 获取所有实体状态
    */
   public JsonNode getStates(IotHub hub) throws Exception {
-    if (!UrlValidator.isSafeUrl(hub.getBaseUrl())) {
+    if (!hubUrlValidator.isAllowed(hub.getBaseUrl())) {
       throw new IllegalArgumentException("不安全的 URL");
     }
 
@@ -83,10 +86,42 @@ public class HomeAssistantClient {
   }
 
   /**
+   * 读取单个实体的实时状态（用于设备响应探测）
+   *
+   * @return 实体状态 JSON；实体不存在返回 null。抛异常表示中枢不可达/令牌错误。
+   */
+  public JsonNode getState(IotHub hub, String entityId) throws Exception {
+    if (!hubUrlValidator.isAllowed(hub.getBaseUrl())) {
+      throw new IllegalArgumentException("不安全的 URL");
+    }
+    if (entityId == null || entityId.isBlank()) {
+      throw new IllegalArgumentException("entityId 不能为空");
+    }
+
+    String baseUrl = hub.getBaseUrl().endsWith("/") ? hub.getBaseUrl() : hub.getBaseUrl() + "/";
+    String url = baseUrl + "api/states/" + java.net.URLEncoder.encode(entityId, java.nio.charset.StandardCharsets.UTF_8);
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .timeout(Duration.ofSeconds(commandTimeout))
+        .header(AUTHORIZATION_HEADER, BEARER_PREFIX + hub.getAccessToken())
+        .GET()
+        .build();
+
+    HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    if (response.statusCode() == 404) {
+      return null; // 实体在中枢里不存在
+    }
+    if (response.statusCode() != 200) {
+      throw new RuntimeException("探测设备状态失败: " + response.statusCode());
+    }
+    return objectMapper.readTree(response.body());
+  }
+
+  /**
    * 执行服务调用
    */
   public boolean callService(IotHub hub, String domain, String service, JsonNode data) throws Exception {
-    if (!UrlValidator.isSafeUrl(hub.getBaseUrl())) {
+    if (!hubUrlValidator.isAllowed(hub.getBaseUrl())) {
       throw new IllegalArgumentException("不安全的 URL");
     }
 

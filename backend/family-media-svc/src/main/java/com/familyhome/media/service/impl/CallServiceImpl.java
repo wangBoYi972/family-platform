@@ -6,6 +6,7 @@ import com.familyhome.common.api.PageQuery;
 import com.familyhome.api.user.feign.UserFeignClient;
 import com.familyhome.api.user.vo.MemberApiVO;
 import com.familyhome.common.api.ApiResponse;
+import com.familyhome.media.config.LiveKitProperties;
 import com.familyhome.media.config.MediaProperties;
 import com.familyhome.media.dto.CallStartDTO;
 import com.familyhome.media.mapper.CallParticipantMapper;
@@ -54,6 +55,8 @@ public class CallServiceImpl implements CallService {
     @Autowired
     private MediaProperties properties;
     @Autowired
+    private LiveKitProperties liveKit;
+    @Autowired
     private ObjectProvider<UserFeignClient> userClient;
 
     /**
@@ -68,7 +71,7 @@ public class CallServiceImpl implements CallService {
         targets.remove(principal.userId());
         if (targets.isEmpty())
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请至少选择一位家人");
-        int max = Math.max(2, properties.getMaxParticipants());
+        int max = effectiveMaxParticipants();
         if (targets.size() + 1 > max)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "一次通话最多 " + max + " 人");
         if (activeFor(principal.userId(), principal.householdId()) != null)
@@ -120,7 +123,7 @@ public class CallServiceImpl implements CallService {
         if (!Calls.STATE_INVITED.equals(me.getState()))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "通话状态已变化，无法接听");
 
-        int max = Math.max(2, properties.getMaxParticipants());
+        int max = effectiveMaxParticipants();
         if (countJoined(callId) + 1 > max)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "通话人数已满");
 
@@ -393,6 +396,19 @@ public class CallServiceImpl implements CallService {
     }
 
     // ---------------------------------------------------------------- 内部方法
+
+    /**
+     * 人数上限随媒体栈切换：mesh 下每端上行 N-1 路，8 人是音视频可用上限；
+     * SFU 下每端只推 1 路，由 LiveKit 侧配置决定（默认 20）。
+     * 关掉 feature flag 后立刻回落到原上限，无需改数据。
+     */
+    private int effectiveMaxParticipants() {
+        int configured =
+                liveKit.isEnabled()
+                        ? liveKit.getMaxParticipants()
+                        : properties.getMaxParticipants();
+        return Math.max(2, configured);
+    }
 
     private void detach(CallSession call, CallParticipant me) {
         participants.update(

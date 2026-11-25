@@ -1,4 +1,4 @@
-# 家庭综合平台 MySQL 备份脚本（Windows / PowerShell）
+﻿# 家庭综合平台 MySQL 备份脚本（Windows / PowerShell）
 # 用法：$env:MYSQL_ROOT_PASSWORD="..." ; ./backup-mysql.ps1
 # 备份全部业务库到 backups/<时间戳>/，默认保留最近 7 份。
 $ErrorActionPreference = 'Stop'
@@ -9,7 +9,8 @@ $mysqlUser = 'root'
 $mysqlPassword = $env:MYSQL_ROOT_PASSWORD
 if (-not $mysqlPassword) { throw '请设置 MYSQL_ROOT_PASSWORD 环境变量' }
 
-$databases = @('family_user','family_content','family_file','family_archive','family_im','family_media')
+# 与 infra/mysql/init/00-databases.sql 保持一致（9 个业务库）
+$databases = @('family_user','family_content','family_file','family_archive','family_im','family_media','family_ai','family_iot','family_ledger')
 $backupRoot = Join-Path $PSScriptRoot 'backups'
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $targetDir = Join-Path $backupRoot $stamp

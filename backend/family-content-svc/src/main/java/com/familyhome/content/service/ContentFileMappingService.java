@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +29,10 @@ public class ContentFileMappingService {
     /** 回填批量大小，避免一次性把整表读进内存。 */
     private static final int BACKFILL_BATCH = 200;
 
+    /** 允许出现在 SQL 表名位置的白名单。${table} 只能取这里的值，别的值一律拒绝。 */
+    private static final Set<String> TABLES =
+            Set.of("family_notice", "family_calendar", "family_dynamic", "family_album");
+
     /** kind → (content_type, 业务表名)。表名是白名单常量，绝不拼接外部输入。 */
     private static final Map<String, Kind> KINDS =
             Map.of(
@@ -36,7 +41,15 @@ public class ContentFileMappingService {
                     "dynamics", new Kind("DYNAMIC", "family_dynamic"),
                     "albums", new Kind("ALBUM", "family_album"));
 
-    private record Kind(String contentType, String table) {}
+    /**
+     * 表名会以 {@code ${table}} 拼进 SQL，所以构造时就卡白名单：
+     * 将来有人把外部参数透进来，会在这里立刻失败，而不是变成注入面。
+     */
+    private record Kind(String contentType, String table) {
+        Kind {
+            if (!TABLES.contains(table)) throw new IllegalArgumentException("未登记的表名: " + table);
+        }
+    }
 
     @Autowired private ContentFileMappingMapper mapping;
 

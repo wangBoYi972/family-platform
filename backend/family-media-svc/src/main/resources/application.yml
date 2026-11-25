@@ -68,4 +68,16 @@ family:
       ttl-seconds: ${FAMILY_TURN_TTL_SECONDS:3600}
       urls: ${FAMILY_TURN_URLS:turn:127.0.0.1:3478?transport=udp,turn:127.0.0.1:3478?transport=tcp}
       stun-urls: ${FAMILY_STUN_URLS:stun:127.0.0.1:3478}
+  # LiveKit SFU。默认关闭 -> 完全保持原 mesh 行为；开启前必须配齐三项凭据。
+  livekit:
+    enabled: ${FAMILY_LIVEKIT_ENABLED:false}
+    api-key: ${LIVEKIT_API_KEY:}
+    # HS256 签名要求 >= 32 字节；生产用 openssl rand -hex 32 生成，且与 livekit.yaml 一致。
+    api-secret: ${LIVEKIT_API_SECRET:}
+    # 浏览器连接的 WSS 地址（由 Nginx/Caddy 终止 TLS 后反代到 7880）。
+    public-url: ${LIVEKIT_PUBLIC_URL:}
+    internal-url: ${LIVEKIT_INTERNAL_URL:http://127.0.0.1:7880}
+    room-prefix: ${LIVEKIT_ROOM_PREFIX:family-}
+    token-ttl-seconds: ${LIVEKIT_TOKEN_TTL_SECONDS:3600}
+    max-participants: ${LIVEKIT_MAX_PARTICIPANTS:20}
 

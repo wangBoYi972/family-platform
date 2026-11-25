@@ -1,0 +1,100 @@
+# 家庭综合平台告警规则
+# 指标来源：各服务 Spring Boot Actuator /actuator/prometheus（Micrometer 标准命名）。
+# 业务指标来自 family-common 的 BusinessMetrics（family_* 前缀）。
+groups:
+  - name: family-availability
+    rules:
+      - alert: ServiceDown
+        expr: up{job=~"family-.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "服务 {{ $labels.job }} 已下线"
+          description: "实例 {{ $labels.instance }} 连续 1 分钟无法抓取 /actuator/prometheus，请检查进程、端口与依赖。"
+
+      - alert: ServiceFlapping
+        expr: changes(up{job=~"family-.*"}[15m]) >= 4
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "服务 {{ $labels.job }} 15 分钟内反复重启 {{ $value }} 次"
+          description: "可能是 OOM、健康检查失败或 JVM 参数不足，请查容器日志。"
+
+  - name: family-http
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          sum by (job) (rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+          / clamp_min(sum by (job) (rate(http_server_requests_seconds_count[5m])), 0.001) > 0.05
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} 5xx 错误率 {{ $value | humanizePercentage }}"
+          description: "近 5 分钟 5xx 占比超过 5%，可能依赖（DB/Redis/RabbitMQ/Feign）异常。"
+
+      - alert: HighLatency
+        expr: |
+          sum by (job) (rate(http_server_requests_seconds_sum[5m]))
+          / clamp_min(sum by (job) (rate(http_server_requests_seconds_count[5m])), 0.001) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} P95 级别平均响应耗时 {{ $value }}s"
+          description: "近 5 分钟平均响应超过 1s，请检查慢 SQL、Feign 超时与线程池。"
+
+  - name: family-jvm
+    rules:
+      - alert: HighHeapUsage
+        expr: |
+          jvm_memory_used_bytes{area="heap"}
+          / clamp_min(jvm_memory_max_bytes{area="heap"}, 1) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} 堆内存使用率 {{ $value | humanizePercentage }}"
+          description: "堆内存持续高于 85%，本地部署 10 个 JVM 时常见，建议调 -Xmx 或排查泄漏。"
+
+      - alert: FrequentGC
+        expr: rate(jvm_gc_pause_seconds_count[5m]) > 2
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "{{ $labels.job }} GC 频繁 {{ $value }} 次/秒"
+          description: "GC 压力偏高，结合堆内存使用率判断是否需要扩容。"
+
+  - name: family-business
+    rules:
+      - alert: ServiceCallFailure
+        expr: |
+          sum by (job) (rate(family_service_call_total{status="failure"}[5m]))
+          / clamp_min(sum by (job) (rate(family_service_call_total[5m])), 0.001) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} 内部服务调用失败率 {{ $value | humanizePercentage }}"
+          description: "Feign/内部调用失败超过 10%，通常是下游服务或网络问题。"
+
+      - alert: OutboxPublishFailure
+        expr: rate(family_event_published_total{status="failure"}[10m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} Outbox 事件发布持续失败"
+          description: "RabbitMQ 可能不可用，事件无法投递；消息与通知会延迟，请检查 RabbitMQ。"
+
+      - alert: NoActiveHousehold
+        expr: family_household_active < 1
+        for: 30m
+        labels:
+          severity: info
+        annotations:
+          summary: "活跃家庭数为 0"
+          description: "若为生产环境且非维护窗口，可能是登录链路或 bootstrap 异常。"

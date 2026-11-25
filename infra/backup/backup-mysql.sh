@@ -8,7 +8,8 @@ MYSQL_USER="${MYSQL_USER:-root}"
 MYSQL_PASSWORD="${MYSQL_PASSWORD:?请设置 MYSQL_ROOT_PASSWORD 环境变量}"
 KEEP="${1:-7}"
 
-DATABASES=(family_user family_content family_file family_archive family_im family_media family_ai)
+# 与 infra/mysql/init/00-databases.sql 保持一致（9 个业务库）
+DATABASES=(family_user family_content family_file family_archive family_im family_media family_ai family_iot family_ledger)
 BACKUP_ROOT="$(cd "$(dirname "$0")" && pwd)/backups"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 TARGET_DIR="$BACKUP_ROOT/$STAMP"

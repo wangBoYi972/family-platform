@@ -1,0 +1,51 @@
+# LiveKit SFU 服务器配置（家庭综合平台）
+# 生产部署前：替换 keys 的 api_key/api_secret 为强随机值，配置 external_ip/TLS 域名。
+# 单机起步够用；多副本时把 redis.address 指向 Redis，多节点会自动组成集群。
+port: 7880
+
+# 媒体与 TURN
+rtc:
+  tcp_port: 7881              # UDP 不通时的 ICE/TCP 回退，必须直接暴露，不能放在 LB/TLS 后面
+  port_range_start: 50100     # WebRTC UDP 媒体端口段
+  port_range_end: 50200
+  use_external_ip: true       # 云 NAT 环境建议 true；有独立公网网卡且多 IP 时改用 external_ip 显式指定
+  # external_ip: 203.0.113.10 # 多 IP / 复杂 NAT 时填写公网 IP
+  congestion_control:
+    enabled: true             # 拥塞控制 + 自适应码率，弱网必备
+
+# 鉴权：JWT 的 api_key -> api_secret。必须与 Java 服务端 LIVEKIT_API_KEY/SECRET 完全一致。
+# 生产用 openssl rand -hex 32 生成 secret；不要用 devkey/secret。
+keys:
+  # Java 侧 HS256 签名要求密钥 >= 32 字节，示例值已满足；生产务必用 openssl rand -hex 32 重新生成。
+  family-livekit: change-me-livekit-api-secret-32bytes
+
+# 内置 TURN（可选）。本项目已有独立 coturn 占宿主机 3478，默认关闭、复用 coturn。
+# 若想让 LiveKit 全包（简化部署），设 enabled: true 并把 udp_port 改成未占用端口（如 3479），
+# 同时从 compose 移除 coturn；LiveKit 会自动向客户端下发自己的 TURN 配置。
+turn:
+  enabled: false
+  udp_port: 3479
+  # tls_port: 5349
+  # external_tls: true
+
+# Redis：单节点可留空（address: ""），多副本必须配置为同一个 Redis
+redis:
+  address: redis:6379
+
+# 房间
+room:
+  # 必须为 true：Java 签发 token 时房间尚未创建，若关闭且服务端没有 RoomService 建房调用，
+  # 客户端 join 会直接失败。客户端无法自建任意房间——房间名由服务端 token 固定为 family-<callId>，
+  # 且 grant 中没有 roomCreate，安全性不受影响。
+  auto_create: true
+  empty_timeout: 120          # 空房间 2 分钟后回收
+  departure_timeout: 20
+  max_participants: 30        # 上限 20+，留余量
+
+# 监控：暴露 /metrics 供 Prometheus 抓取
+prometheus:
+  port: 6789
+
+logging:
+  level: info
+  json: true

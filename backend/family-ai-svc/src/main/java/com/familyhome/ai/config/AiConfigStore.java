@@ -13,7 +13,14 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.AclEntry;
+import java.nio.file.attribute.AclEntryPermission;
+import java.nio.file.attribute.AclEntryType;
+import java.nio.file.attribute.AclFileAttributeView;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.nio.file.attribute.UserPrincipal;
+import java.util.EnumSet;
+import java.util.List;
 
 /**
  * AI 助手的运行时配置：管理员在管理端填写的 key 与开关。
@@ -140,8 +147,36 @@ public class AiConfigStore {
     private void restrictPermissions() {
         try {
             Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------"));
+            return;
         } catch (UnsupportedOperationException | IOException ignored) {
-            // Windows 没有 POSIX 权限位；兜底是 .local 目录本身不进版本库
+            // Windows 没有 POSIX 权限位，落到下面的 ACL 分支
+        }
+        restrictByAcl();
+    }
+
+    /**
+     * Windows 上把 ACL 收紧到「仅属主」。
+     *
+     * <p>原来的实现遇到 Windows 直接放弃，等于 {@code .local/ai-settings.json} 继承父目录权限，
+     * 同机其它账户可读。这里清空继承项、只留属主一条完全控制；失败不阻断保存，
+     * 因为放不宽松的边界仍然是这台机器的账号权限，但至少不再无声无息。
+     */
+    private void restrictByAcl() {
+        try {
+            AclFileAttributeView view =
+                    Files.getFileAttributeView(file, AclFileAttributeView.class);
+            if (view == null) return;
+            UserPrincipal owner = view.getOwner();
+            if (owner == null) return;
+            AclEntry ownerOnly =
+                    AclEntry.newBuilder()
+                            .setType(AclEntryType.ALLOW)
+                            .setPrincipal(owner)
+                            .setPermissions(EnumSet.allOf(AclEntryPermission.class))
+                            .build();
+            view.setAcl(List.of(ownerOnly));
+        } catch (IOException | RuntimeException e) {
+            log.warn("无法收紧 AI 配置文件权限，请人工确认 {} 仅本账号可读：{}", file, e.getMessage());
         }
     }
 

@@ -44,6 +44,14 @@ public class CallSocket extends TextWebSocketHandler implements WebSocketConfigu
     private static final long HEARTBEAT_TIMEOUT_MS = 45_000L; // 45秒：缩短异常连接占用时间
     private static final int MAX_MESSAGES_PER_MINUTE = 600;
 
+    /**
+     * 与 ImSocket 保持同一口径：默认只放行本机来源，生产用 FAMILY_MEDIA_ALLOWED_ORIGINS 覆盖。
+     * 原来这里是 "*"，等于任何站点都能发起信令握手。
+     */
+    @org.springframework.beans.factory.annotation.Value(
+            "${family.media.allowed-origins:http://localhost:*,http://127.0.0.1:*}")
+    private String[] allowedOrigins;
+
     private record Ticket(SessionPrincipal principal, long expiry) {}
 
     private record PendingLeave(long householdId, long deadline) {}
@@ -144,7 +152,7 @@ public class CallSocket extends TextWebSocketHandler implements WebSocketConfigu
                                     WebSocketHandler handler,
                                     Exception exception) {}
                         })
-                .setAllowedOriginPatterns("*");
+                .setAllowedOriginPatterns(allowedOrigins);
     }
 
     @Override

@@ -14,9 +14,11 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * WebSocket 连接服务实现
@@ -27,7 +29,7 @@ import java.util.concurrent.CompletableFuture;
 @Service
 public class IotWebSocketServiceImpl implements IotWebSocketService {
 
-  private final Map<Long, WebSocket> wsConnections = new HashMap<>();
+  private final Map<Long, WebSocket> wsConnections = new ConcurrentHashMap<>();
   private final HttpClient httpClient;
 
   @Autowired
@@ -45,10 +47,15 @@ public class IotWebSocketServiceImpl implements IotWebSocketService {
 
   @Override
   public void connect(Long householdId) throws Exception {
-    // 检查是否已连接
-    if (wsConnections.containsKey(householdId)) {
-      log.debug("家庭 {} 已连接", householdId);
-      return;
+    // 检查是否已有可用连接：失效连接要清掉，否则永远不会重连
+    WebSocket existing = wsConnections.get(householdId);
+    if (existing != null) {
+      if (!existing.isInputClosed()) {
+        log.debug("家庭 {} 已连接", householdId);
+        return;
+      }
+      wsConnections.remove(householdId);
+      log.info("家庭 {} 的中枢 WebSocket 连接已失效，准备重连", householdId);
     }
 
     var hub = hubService.getHubInternal(householdId);
@@ -70,16 +77,30 @@ public class IotWebSocketServiceImpl implements IotWebSocketService {
 
     log.info("正在连接家庭 {} 的中枢 WebSocket: {}", householdId, fullWsUrl);
 
-    WebSocket.Listener listener = new IotWebSocketListener(householdId, hub.getAccessToken(), deviceService);
+    // 连接关闭/出错时从注册表移除，使下次 connect() 能重连
+    Runnable onClosed = () -> {
+      wsConnections.remove(householdId);
+      deviceService.markHubOffline(householdId);
+    };
+    WebSocket.Listener listener = new IotWebSocketListener(householdId, hub.getAccessToken(), deviceService, onClosed);
 
     CompletableFuture<WebSocket> cf = httpClient.newWebSocketBuilder()
         .buildAsync(URI.create(fullWsUrl), listener);
 
     try {
-      WebSocket ws = cf.join();
+      // 用配置的连接超时，避免中枢不可达时无限期挂起启动线程
+      int timeout = Math.max(1, iotConfig.getWsTimeout());
+      WebSocket ws;
+      try {
+        ws = cf.get(timeout, TimeUnit.SECONDS);
+      } catch (TimeoutException te) {
+        cf.cancel(true);
+        throw new IllegalStateException("连接中枢 WebSocket 超时（" + timeout + "s）", te);
+      }
       wsConnections.put(householdId, ws);
+      log.info("家庭 {} 的中枢 WebSocket 已连接", householdId);
     } catch (Exception e) {
-      log.error("WebSocket 连接失败", e);
+      log.error("WebSocket 连接失败: householdId={}", householdId, e);
       throw e;
     }
   }
@@ -113,12 +134,15 @@ class IotWebSocketListener implements WebSocket.Listener {
   private final String accessToken;
   private final IotDeviceService deviceService;
   private final ObjectMapper objectMapper;
+  private final Runnable onClosed;
 
-  public IotWebSocketListener(Long householdId, String accessToken, IotDeviceService deviceService) {
+  public IotWebSocketListener(Long householdId, String accessToken, IotDeviceService deviceService,
+                              Runnable onClosed) {
     this.householdId = householdId;
     this.accessToken = accessToken;
     this.deviceService = deviceService;
     this.objectMapper = new ObjectMapper();
+    this.onClosed = onClosed;
   }
 
   @Override
@@ -156,23 +180,25 @@ class IotWebSocketListener implements WebSocket.Listener {
     } catch (Exception e) {
       log.error("处理 WebSocket 消息失败", e);
     }
-    return new CompletableFuture<>().completedFuture(null);
+    return CompletableFuture.completedFuture(null);
   }
 
   @Override
   public CompletableFuture<?> onBinary(WebSocket webSocket, java.nio.ByteBuffer data, boolean last) {
-    return new CompletableFuture<>().completedFuture(null);
+    return CompletableFuture.completedFuture(null);
   }
 
   @Override
   public CompletableFuture<?> onClose(WebSocket webSocket, int statusCode, String reason) {
     log.warn("WebSocket 已关闭：家庭 {}，原因: {}", householdId, reason);
-    return new CompletableFuture<>().completedFuture(null);
+    if (onClosed != null) onClosed.run();
+    return CompletableFuture.completedFuture(null);
   }
 
   @Override
   public void onError(WebSocket webSocket, Throwable error) {
     log.error("WebSocket 错误：家庭 {}", householdId, error);
+    if (onClosed != null) onClosed.run();
   }
 
   private void processStateChange(JsonNode msg) {

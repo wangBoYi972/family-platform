@@ -5,6 +5,7 @@ import { request, uploadBlob } from "@app/utils/request";
 import { CallClient } from "./call-client.js";
 import { CallRecorder, extensionFor } from "./call-recorder.mjs";
 import { MeshRtc } from "./webrtc-mesh.js";
+import { LiveKitMedia } from "./livekit-media.js";
 import CallVideo from "./CallVideo.vue";
 import CallAudio from "./CallAudio.vue";
 
@@ -42,10 +43,21 @@ const camState = reactive({});
 
 let client = null;
 let mesh = null;
+let livekit = null;
+let liveJoined = false;
 let recorder = null;
 let preparing = null;
 let ticker = null;
 let resetTimer = null;
+
+// 媒体栈开关由服务端下发；默认 false，未拉到配置时一律走原 mesh，绝不擅自切 SFU。
+const sfuEnabled = ref(false);
+const sfuUrl = ref("");
+const livekitMax = ref(0);
+const maxPeople = computed(() =>
+  sfuEnabled.value && livekitMax.value > 0 ? livekitMax.value : props.maxParticipants
+);
+const mediaReady = () => (sfuEnabled.value ? !!livekit : !!mesh);
 
 const selfId = computed(() => String(self.value?.userId ?? ""));
 const liveParticipants = computed(() => (call.value?.participants || []).filter(item => item.state === "JOINED"));
@@ -99,6 +111,7 @@ watch(
 async function boot() {
   if (!props.active || client) return;
   loadRoster();
+  await loadMediaConfig();
   client = new CallClient({ onEvent: handleEvent });
   try {
     await client.connect();
@@ -114,6 +127,27 @@ function shutdown() {
   visible.value = false;
   call.value = null;
   stage.value = "dial";
+}
+
+/** 媒体栈由服务端决定；读取失败一律退回 mesh，不能因为配置接口抖动就中断通话。 */
+async function loadMediaConfig() {
+  try {
+    const config = await request("/media/config");
+    // 小程序端没有浏览器 WebRTC，livekit-client 依赖 window/MediaStream，不能加载；
+    // 这里强制保持 mesh，避免服务端全局开关打开后小程序白屏。
+    const webrtcAvailable =
+      typeof window !== "undefined" &&
+      typeof navigator !== "undefined" &&
+      !!navigator.mediaDevices?.getUserMedia;
+    sfuEnabled.value = !!config?.sfuEnabled && webrtcAvailable;
+    sfuUrl.value = config?.publicUrl || "";
+    livekitMax.value = Number(config?.maxParticipants) || 0;
+  } catch (error) {
+    sfuEnabled.value = false;
+    sfuUrl.value = "";
+    livekitMax.value = 0;
+    warn("读取媒体配置失败，退回 mesh", error);
+  }
 }
 
 async function loadRoster(force = false) {
@@ -163,7 +197,7 @@ function togglePick(id) {
 }
 
 function pickAll() {
-  picked.value = roster.value.slice(0, props.maxParticipants - 1).map(item => String(item.id));
+  picked.value = roster.value.slice(0, Math.max(1, maxPeople.value - 1)).map(item => String(item.id));
 }
 
 async function handleEvent(message) {
@@ -198,13 +232,18 @@ async function handleEvent(message) {
         uni.showToast({ title: nameOf(message.by) + " 开启了通话录音", icon: "none", duration: 2600 });
       }
       return;
+    // SFU 模式下媒体协商由 LiveKit SDK 完成，这三类 mesh 信令一律忽略；
+    // 保留分支是为了关掉开关后能立刻退回 mesh，不需要重新发版。
     case "webrtc.offer":
+      if (sfuEnabled.value) return;
       mesh?.handleOffer(message.from, message.sdp).catch(error => warn("处理 offer 失败", error));
       return;
     case "webrtc.answer":
+      if (sfuEnabled.value) return;
       mesh?.handleAnswer(message.from, message.sdp).catch(error => warn("处理 answer 失败", error));
       return;
     case "webrtc.ice":
+      if (sfuEnabled.value) return;
       mesh?.handleIce(message.from, message.candidate).catch(error => warn("处理 ICE 失败", error));
       return;
     case "error":
@@ -254,11 +293,18 @@ async function onAccepted(message) {
     stage.value = "active";
     startTimer();
   }
-  if (String(message.user) === selfId.value) {
-    // 我是接听方：由我向房间内已有成员发起 offer
-    await startMedia(true);
-  } else if (!mesh) {
-    await startMedia(false);
+  try {
+    if (String(message.user) === selfId.value) {
+      // 我是接听方：mesh 下由我向房间内已有成员发起 offer；SFU 下则是拿 token 入房
+      await startMedia(true);
+    } else if (!mediaReady()) {
+      await startMedia(false);
+    }
+  } catch (error) {
+    // 信令层状态是对的，但媒体没接上必须让用户知道，不能假装通话正常
+    errorText.value = mediaError(error);
+    warn("加入媒体房间失败", error);
+    uni.showToast({ title: "媒体连接失败，请检查网络后重拨", icon: "none", duration: 2600 });
   }
 }
 
@@ -280,24 +326,46 @@ function applySnapshot(snapshot) {
  * 两者都会调用 startMedia；如果并发进入，会各自 new 一个 MeshRtc 并互相覆盖，
  * 后一个还没采集完就被拿去做 offer，导致 SDP 没有 m-line（max-bundle 报错、对方永远收不到画面）。
  */
+/** 远端流统一入口：两种媒体栈都走这里，录音器无需知道自己接的是 mesh 还是 SFU。 */
+function handleRemoteStream(id, stream) {
+  streams[id] = stream;
+  // 录音中后加入的成员也要进混音，否则他那段话在纪要里会凭空消失
+  recorder?.addStream(id, stream);
+}
+
+function handlePeerState(id, state) {
+  peerStates[id] = state;
+}
+
 async function prepareMedia() {
-  if (mesh) return;
+  if (mediaReady()) return;
   if (preparing) return preparing;
   preparing = (async () => {
+    if (sfuEnabled.value) {
+      const candidate = new LiveKitMedia({
+        kind: kind.value,
+        selfId: selfId.value,
+        onStream: handleRemoteStream,
+        onPeerState: handlePeerState,
+        onDisconnected: () => warn("LiveKit 连接已断开")
+      });
+      try {
+        localStream.value = await candidate.openLocal();
+        livekit = candidate;
+      } catch (error) {
+        candidate.close();
+        throw error;
+      }
+      return;
+    }
     const iceServers = await request("/media/ice-servers");
     const candidate = new MeshRtc({
       iceServers,
       kind: kind.value,
       selfId: selfId.value,
       send: payload => client?.send({ ...payload, callId: call.value?.id }),
-      onStream: (id, stream) => {
-        streams[id] = stream;
-        // 录音中后加入的成员也要进混音，否则他那段话在纪要里会凭空消失
-        recorder?.addStream(id, stream);
-      },
-      onPeerState: (id, state) => {
-        peerStates[id] = state;
-      }
+      onStream: handleRemoteStream,
+      onPeerState: handlePeerState
     });
     try {
       await candidate.openLocal();
@@ -317,6 +385,11 @@ async function prepareMedia() {
 
 async function startMedia(initiator) {
   await prepareMedia();
+  if (sfuEnabled.value) {
+    // SFU 下不区分谁发起：每个参与者拿自己的凭证进同一个房间，SDK 自动订阅其他人
+    await joinLiveKit();
+    return;
+  }
   if (!initiator || !mesh) return;
   const others = liveParticipants.value.filter(item => String(item.userId) !== selfId.value);
   for (const person of others) {
@@ -327,6 +400,14 @@ async function startMedia(initiator) {
       warn("发起 SDP 协商失败", error);
     }
   }
+}
+
+/** 用当前会话兑换入房凭证；服务端会校验参与者身份，身份不取客户端参数。 */
+async function joinLiveKit() {
+  if (!livekit || !call.value?.id || liveJoined) return;
+  const vo = await request(`/media/calls/${call.value.id}/livekit-token`, { method: "POST" });
+  await livekit.join({ url: vo.url || sfuUrl.value, token: vo.token });
+  liveJoined = true;
 }
 
 async function dial(kindWanted) {
@@ -449,6 +530,9 @@ function resetMedia() {
   recordBusy.value = false;
   mesh?.close();
   mesh = null;
+  livekit?.close();
+  livekit = null;
+  liveJoined = false;
   localStream.value = null;
   Object.keys(streams).forEach(key => delete streams[key]);
   Object.keys(peerStates).forEach(key => delete peerStates[key]);
@@ -475,9 +559,10 @@ function stopTimer() {
 }
 
 async function toggleMic() {
-  if (!mesh) return;
+  const media = sfuEnabled.value ? livekit : mesh;
+  if (!media) return;
   micOn.value = !micOn.value;
-  mesh.setMic(micOn.value);
+  media.setMic(micOn.value);
   if (call.value) {
     request(`/media/calls/${call.value.id}/state`, {
       method: "POST",
@@ -488,9 +573,10 @@ async function toggleMic() {
 }
 
 async function toggleCam() {
-  if (!mesh) return;
+  const media = sfuEnabled.value ? livekit : mesh;
+  if (!media) return;
   camOn.value = !camOn.value;
-  mesh.setCam(camOn.value);
+  media.setCam(camOn.value);
   if (call.value) {
     request(`/media/calls/${call.value.id}/state`, {
       method: "POST",
@@ -501,7 +587,8 @@ async function toggleCam() {
 }
 
 async function flipCamera() {
-  if (kind.value !== "VIDEO" || !mesh || typeof navigator === "undefined") return;
+  const media = sfuEnabled.value ? livekit : mesh;
+  if (kind.value !== "VIDEO" || !media || typeof navigator === "undefined") return;
   facing.value = facing.value === "user" ? "environment" : "user";
   try {
     const fresh = await navigator.mediaDevices.getUserMedia({
@@ -509,7 +596,7 @@ async function flipCamera() {
       audio: false
     });
     const track = fresh.getVideoTracks()[0];
-    const updated = await mesh.replaceVideoTrack(track);
+    const updated = await media.replaceVideoTrack(track);
     localStream.value = updated;
   } catch {
     facing.value = facing.value === "user" ? "environment" : "user";
@@ -640,7 +727,7 @@ defineExpose({ openDial, openDialWith });
       <template v-if="stage === 'dial'">
         <view class="head">
           <text class="title">发起通话</text>
-          <text class="sub">最多 {{ maxParticipants }} 人同时在线 · 媒体点对点直连，服务器只做信令</text>
+          <text class="sub">最多 {{ maxPeople }} 人同时在线 · {{ sfuEnabled ? '媒体经自建 SFU 转发，隐私可控' : '媒体点对点直连，服务器只做信令' }}</text>
         </view>
         <view class="pick-head">
           <text class="pick-label">选择家人（已选 {{ picked.length }} 人）</text>

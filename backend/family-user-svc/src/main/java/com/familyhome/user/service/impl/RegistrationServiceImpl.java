@@ -45,6 +45,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class RegistrationServiceImpl implements RegistrationService {
     private static final Set<String> CLIENTS = Set.of("admin", "family", "archive");
     private static final int HOUSEHOLD_MEMBER_LIMIT = 10;
+    @Autowired private com.familyhome.user.config.DbClock clock;
     @org.springframework.beans.factory.annotation.Value("${family.auth.register-attempt-limit:5}")
     private int attemptLimit;
 
@@ -81,7 +82,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         int usedCount = code.getUsedCount() == null ? 0 : code.getUsedCount();
         if (usedCount >= maxUses)
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "邀请码已被使用，请联系管理员重新发放");
-        if (code.getExpiresAt() != null && code.getExpiresAt().isBefore(LocalDateTime.now()))
+        if (code.getExpiresAt() != null && code.getExpiresAt().isBefore(clock.now()))
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "邀请码已过期，请联系管理员重新发放");
         // 管理端只接受管理员邀请码，防止拿成员邀请码注册出可进后台的账号。
         if (client.equals("admin") && !"ADMIN".equals(code.getRole()))
@@ -155,8 +156,9 @@ public class RegistrationServiceImpl implements RegistrationService {
         session.setHouseholdId(householdId);
         session.setRole(code.getRole());
         session.setClient(client);
-        Instant expiresAt = Instant.now().plusSeconds(properties.getTokenExpirationMinutes() * 60);
-        session.setExpiresAt(LocalDateTime.ofInstant(expiresAt, ZoneId.systemDefault()));
+        // 与 AuthServiceImpl 一致：JWT 用 Instant，数据库列用数据库时钟推算。
+        Instant expiresAt = Instant.now().plusSeconds(properties.getTokenExpirationMinutes() * 60L);
+        session.setExpiresAt(clock.now().plusMinutes(properties.getTokenExpirationMinutes()));
         session.setRevoked(false);
         sessions.insert(session);
         return new LoginVO(
