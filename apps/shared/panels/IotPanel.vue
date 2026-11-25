@@ -504,19 +504,23 @@ export default {
     },
 
     async syncFromPhoneHa() {
-      if (this.syncingLocal) return;
-      this.syncingLocal = true;
-      try {
-        const creds = await this.ensureLocalHaAccess();
-        const { devices } = await fetchHaDevicesForSync(creds.baseUrl, creds.accessToken);
-        await request("/iot/devices/local-sync", {
-          method: "PUT",
-          data: { devices: devices || [] },
-        });
-        this.localHaUnreachable = false;
-      } finally {
-        this.syncingLocal = false;
-      }
+      // 串行排队：轮询与开关命令不能互相跳过，否则会写回旧快照
+      const run = async () => {
+        this.syncingLocal = true;
+        try {
+          const creds = await this.ensureLocalHaAccess();
+          const { devices } = await fetchHaDevicesForSync(creds.baseUrl, creds.accessToken);
+          await request("/iot/devices/local-sync", {
+            method: "PUT",
+            data: { devices: devices || [] },
+          });
+          this.localHaUnreachable = false;
+        } finally {
+          this.syncingLocal = false;
+        }
+      };
+      this._localSyncPromise = (this._localSyncPromise || Promise.resolve()).then(run, run);
+      return this._localSyncPromise;
     },
 
     async init() {
@@ -596,19 +600,24 @@ export default {
 
     async copyFamilyGuide() {
       const text = this.familyGuideText();
+      const copyViaUni = () =>
+        new Promise((resolve, reject) => {
+          if (typeof uni === "undefined" || !uni.setClipboardData) {
+            reject(new Error("clipboard unavailable"));
+            return;
+          }
+          uni.setClipboardData({ data: text, success: resolve, fail: reject });
+        });
       try {
-        if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(text);
-        } else if (typeof uni !== "undefined" && uni.setClipboardData) {
-          await new Promise((resolve, reject) => {
-            uni.setClipboardData({
-              data: text,
-              success: resolve,
-              fail: reject,
-            });
-          });
-        } else {
-          throw new Error("clipboard unavailable");
+        try {
+          if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(text);
+          } else {
+            await copyViaUni();
+          }
+        } catch {
+          // Clipboard API 在非 HTTPS / App WebView 常拒绝，回退 uni
+          await copyViaUni();
         }
         this.copiedGuide = true;
         this.error = "";
