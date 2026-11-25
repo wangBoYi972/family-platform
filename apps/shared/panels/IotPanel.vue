@@ -2,7 +2,7 @@
   <div class="iot-panel">
     <div v-if="loading" class="mf-empty">正在读取家里的设备…</div>
 
-    <!-- 未配置：真控走家庭网关，演示与 HA 次之 -->
+    <!-- 未配置：演示人人可用；真机走「找家里人帮装一次」向导 -->
     <template v-else-if="!hubConfigured">
       <div class="mf-card setup-card mf-rise">
         <div class="setup-head">
@@ -10,28 +10,52 @@
           <div class="setup-copy">
             <div class="setup-title">家里的设备</div>
             <div class="setup-desc">
-              想控制真实空调/电视：在家里电脑或树莓派跑网关进程，用配对码连上。也可先用演示设备熟悉界面。
+              手机连不上你家路由器，所以真空调/电视要靠家里一台常开电脑当「小助手」。不会装软件也没关系——先体验演示，或把配对说明发给会操作电脑的家人。
             </div>
           </div>
         </div>
 
-        <button class="solid-btn demo-primary" :disabled="pairingBusy" @click="createPairingCode">
-          {{ pairingBusy ? "生成中…" : "配对家庭网关（真机控制）" }}
-        </button>
-        <div v-if="pairingCode" class="pairing-box">
-          <div class="pairing-code">{{ pairingCode }}</div>
-          <p class="pairing-hint">
-            15 分钟内有效。在家里机器执行：
-            <code>PAIRING_CODE={{ pairingCode }} npm start</code>
-            （目录 <code>infra/iot-gateway</code>）
-          </p>
-          <button class="ghost-btn" :disabled="pairingBusy" @click="createPairingCode">重新生成</button>
-        </div>
-
-        <button class="ghost-btn demo-secondary" :disabled="binding" @click="bindDemo">
+        <button class="solid-btn demo-primary" :disabled="binding" @click="bindDemo">
           {{ binding ? "准备中…" : "先用演示设备体验" }}
         </button>
-        <p class="demo-hint">演示不依赖家里硬件；真控需网关在线并上报设备。</p>
+        <p class="demo-hint">演示立刻能开关空调/电视界面，不需要家里装任何东西。</p>
+
+        <button
+          class="ghost-btn demo-secondary"
+          :disabled="pairingBusy"
+          @click="startPairingWizard"
+        >
+          {{ pairingBusy ? "生成中…" : "控制真空调/电视（需家里人帮忙）" }}
+        </button>
+
+        <div v-if="pairingCode" class="pairing-box">
+          <p class="pairing-step-title">把下面配对码交给家里人</p>
+          <div class="pairing-code">{{ pairingCode }}</div>
+          <ol class="pairing-steps">
+            <li>找一台<strong>家里常开</strong>的电脑（笔记本、台式或树莓派都行）。</li>
+            <li>打开平台里的 <code>infra/iot-gateway</code> 文件夹，双击
+              <strong>「启动网关」</strong>（Windows 用 <code>启动网关.bat</code>，Mac 用 <code>启动网关.command</code>）。</li>
+            <li>程序用中文问你配对码时，输入上面这 8 位，回车。</li>
+            <li>看到「配对成功」后回到本页，稍等几秒即可出现设备。</li>
+          </ol>
+          <div class="pairing-actions">
+            <button class="solid-btn" type="button" @click="copyFamilyGuide">
+              {{ copiedGuide ? "已复制，去发给家人" : "复制给家人的说明" }}
+            </button>
+            <button class="ghost-btn" type="button" :disabled="pairingBusy" @click="createPairingCode">
+              重新生成配对码
+            </button>
+          </div>
+          <p class="pairing-hint">配对码 15 分钟内有效，用过一次就作废。本页会自动检测是否连上。</p>
+          <details class="advanced-ha pairing-tech">
+            <summary>给会用命令行的人</summary>
+            <p class="pairing-hint">
+              <code>cd infra/iot-gateway && npm i && npm start</code>
+              ，按提示输入配对码即可；也可用
+              <code>PAIRING_CODE={{ pairingCode }} npm start</code>。
+            </p>
+          </details>
+        </div>
 
         <p v-if="error" class="error-line">{{ error }}</p>
 
@@ -76,7 +100,7 @@
       </div>
 
       <div v-if="hubIsGateway && !gatewayOnline" class="offline-banner">
-        家庭网关未在线，请确认家里的网关进程已启动
+        家里的「小助手」还没连上。请让电脑上的「启动网关」窗口保持打开。
       </div>
       <div v-else-if="hubOffline" class="offline-banner">中枢暂时连不上，设备状态可能不是最新的</div>
       <p v-if="error" class="error-line">{{ error }}</p>
@@ -320,6 +344,7 @@ export default {
       pairingBusy: false,
       pairingCode: "",
       pairingExpiresAt: null,
+      copiedGuide: false,
       error: "",
       loadError: "",
       devicesByArea: {},
@@ -475,9 +500,15 @@ export default {
       }
     },
 
+    async startPairingWizard() {
+      this.copiedGuide = false;
+      await this.createPairingCode();
+    },
+
     async createPairingCode() {
       this.pairingBusy = true;
       this.error = "";
+      this.copiedGuide = false;
       try {
         const vo = await request("/iot/hub/pairing-code", { method: "POST" });
         this.pairingCode = vo?.code || "";
@@ -491,6 +522,44 @@ export default {
         this.error = e.message || "生成配对码失败";
       } finally {
         this.pairingBusy = false;
+      }
+    },
+
+    familyGuideText() {
+      const code = this.pairingCode || "（请先在 App 生成）";
+      return [
+        "【家庭设备配对】请帮家里手机 App 装一次「家庭网关」",
+        "",
+        "1. 用家里常开的电脑打开文件夹：infra/iot-gateway",
+        "2. 双击「启动网关」（Windows：启动网关.bat；Mac：启动网关.command）",
+        "3. 若提示安装 Node.js，按提示打开官网装 LTS 后，再双击一次",
+        `4. 程序问配对码时输入：${code}`,
+        "5. 看到「配对成功」后告诉手机这边的人，在「家居」页等几秒",
+        "",
+        "配对码约 15 分钟有效，输错过期就让对方在 App 里点「重新生成」。",
+      ].join("\n");
+    },
+
+    async copyFamilyGuide() {
+      const text = this.familyGuideText();
+      try {
+        if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else if (typeof uni !== "undefined" && uni.setClipboardData) {
+          await new Promise((resolve, reject) => {
+            uni.setClipboardData({
+              data: text,
+              success: resolve,
+              fail: reject,
+            });
+          });
+        } else {
+          throw new Error("clipboard unavailable");
+        }
+        this.copiedGuide = true;
+        this.error = "";
+      } catch {
+        this.error = "复制失败，请手动把配对码和步骤发给家人";
       }
     },
 
@@ -803,6 +872,14 @@ export default {
   border: 1px solid var(--c-glass-line);
 }
 
+.pairing-step-title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--c-ink-2);
+  text-align: center;
+}
+
 .pairing-code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 28px;
@@ -812,8 +889,36 @@ export default {
   color: var(--c-ink);
 }
 
+.pairing-steps {
+  margin: 12px 0 0;
+  padding-left: 1.2em;
+  font-size: 12px;
+  line-height: 1.75;
+  color: var(--c-muted);
+}
+
+.pairing-steps code {
+  font-size: 11px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.pairing-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.pairing-actions .solid-btn,
+.pairing-actions .ghost-btn {
+  width: 100%;
+  height: 44px;
+  border-radius: 22px;
+}
+
 .pairing-hint {
-  margin: 10px 0 12px;
+  margin: 10px 0 0;
   font-size: 12px;
   line-height: 1.7;
   color: var(--c-muted);
@@ -825,6 +930,11 @@ export default {
   padding: 1px 4px;
   border-radius: 4px;
   background: rgba(0, 0, 0, 0.06);
+}
+
+.pairing-tech {
+  margin-top: 12px;
+  padding-top: 10px;
 }
 
 .demo-hint {

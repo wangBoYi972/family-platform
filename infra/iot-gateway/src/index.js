@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 /**
- * 家侧 IoT 网关进程。
- * 用法：
- *   PAIRING_CODE=ABCD1234 npm start          # 首次配对并常驻
- *   npm start                                 # 用已保存的令牌重连
- *   CLOUD_API=http://host:8080/api CLOUD_WS=ws://host:8080 npm start
+ * 家侧 IoT 网关进程（给家里人用）。
+ *
+ * 推荐：双击「启动网关」→ 按中文提示输入 App 上的配对码。
+ * 也可：npm start / PAIRING_CODE=xxxx npm start
  */
 import fs from "node:fs";
 import path from "node:path";
+import readline from "node:readline/promises";
+import { stdin as input, stdout as output } from "node:process";
 import { fileURLToPath } from "node:url";
 import WebSocket from "ws";
 import { defaultDevices } from "./devices.js";
@@ -31,11 +32,36 @@ function saveState(state) {
   fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
 }
 
+function saveConfig(config) {
+  const next = { ...loadJson(CONFIG_FILE, {}), ...config };
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(next, null, 2));
+}
+
 function envOr(config, key, envKeys, fallback) {
   for (const k of envKeys) {
     if (process.env[k]) return process.env[k];
   }
   return config[key] ?? fallback;
+}
+
+async function ask(question) {
+  if (!input.isTTY) {
+    throw new Error("无法交互输入。请在 App 复制说明后，用「启动网关」双击运行，或设置 PAIRING_CODE。");
+  }
+  const rl = readline.createInterface({ input, output });
+  try {
+    return (await rl.question(question)).trim();
+  } finally {
+    rl.close();
+  }
+}
+
+function pauseIfNeeded() {
+  // Windows 双击黑窗一闪而过时，方便家人看清错误
+  if (process.platform === "win32" && process.env.FAMILY_GATEWAY_PAUSE === "1") {
+    return ask("按回车键关闭窗口…").catch(() => {});
+  }
+  return Promise.resolve();
 }
 
 async function register(cloudApi, pairingCode, displayName) {
@@ -161,16 +187,62 @@ function connectWs(cloudWs, gatewayId, token, onCommand) {
   };
 }
 
+async function resolveCloudEndpoints(fileConfig) {
+  let cloudApi = envOr(fileConfig, "cloudApi", ["CLOUD_API"], "");
+  let cloudWs = envOr(fileConfig, "cloudWs", ["CLOUD_WS"], "");
+  if (!cloudApi) {
+    console.log("");
+    console.log("还没配置云端地址。问一下家里用手机 App 的人要填哪个网址。");
+    console.log("正式环境一般是 https://你的域名/api");
+    console.log("自己电脑调试可直接回车，使用本机 http://127.0.0.1:8080/api");
+    const typed = await ask("请输入云端 API 地址（直接回车=本机调试）：");
+    cloudApi = typed || "http://127.0.0.1:8080/api";
+    if (!cloudWs) {
+      try {
+        const u = new URL(cloudApi.replace(/\/api\/?$/, ""));
+        u.protocol = u.protocol === "https:" ? "wss:" : "ws:";
+        cloudWs = u.origin;
+      } catch {
+        cloudWs = await ask("请输入云端 WebSocket 地址（如 wss://你的域名）：");
+      }
+    }
+    saveConfig({ cloudApi, cloudWs });
+    console.log("已记住地址，下次不用再问。");
+  }
+  if (!cloudWs) {
+    try {
+      const u = new URL(cloudApi.replace(/\/api\/?$/, ""));
+      u.protocol = u.protocol === "https:" ? "wss:" : "ws:";
+      cloudWs = u.origin;
+    } catch {
+      cloudWs = "ws://127.0.0.1:8080";
+    }
+  }
+  return { cloudApi, cloudWs };
+}
+
 async function main() {
+  console.log("========== 家庭网关 ==========");
+  console.log("作用：让手机 App 能控制家里的空调/电视。");
+  console.log("窗口请保持打开；关掉就断连了。");
+  console.log("");
+
   const fileConfig = loadJson(CONFIG_FILE, {});
-  const cloudApi = envOr(fileConfig, "cloudApi", ["CLOUD_API"], "http://127.0.0.1:8080/api");
-  const cloudWs = envOr(fileConfig, "cloudWs", ["CLOUD_WS"], "ws://127.0.0.1:8080");
+  const { cloudApi, cloudWs } = await resolveCloudEndpoints(fileConfig);
   const displayName = envOr(fileConfig, "displayName", ["GATEWAY_NAME"], "家庭网关");
-  const pairingCode = process.env.PAIRING_CODE || process.argv.find((a) => a.startsWith("--code="))?.slice(7);
+  let pairingCode =
+    process.env.PAIRING_CODE || process.argv.find((a) => a.startsWith("--code="))?.slice(7) || "";
 
   let state = loadJson(STATE_FILE, null);
+  const forcePair = process.argv.includes("--register") || process.argv.includes("--pair");
+
+  if ((!state?.gatewayId || !state?.token || forcePair) && !pairingCode) {
+    console.log("请打开手机 App → 家居 → 生成配对码，然后输入到这里。");
+    pairingCode = await ask("请输入 8 位配对码：");
+  }
+
   if (pairingCode) {
-    console.log("使用配对码注册…");
+    console.log("正在配对…");
     const reg = await register(cloudApi, pairingCode, displayName);
     state = {
       gatewayId: reg.gatewayId,
@@ -179,11 +251,14 @@ async function main() {
       registeredAt: new Date().toISOString(),
     };
     saveState(state);
-    console.log("注册成功 gatewayId=", state.gatewayId);
+    console.log("");
+    console.log("★ 配对成功！请让手机那边的人回到「家居」页等几秒。");
+    console.log("");
   }
 
   if (!state?.gatewayId || !state?.token) {
-    console.error("尚未配对。请设置 PAIRING_CODE=八位码 后重试，或先在 App 生成配对码。");
+    console.error("还没有配对成功。请先在 App 生成配对码，再重新运行本程序。");
+    await pauseIfNeeded();
     process.exit(1);
   }
 
@@ -227,10 +302,14 @@ async function main() {
   };
 
   connectWs(cloudWs, state.gatewayId, state.token, handleCommand);
-  console.log("网关运行中。Ctrl+C 退出。");
+  console.log("网关已在线。手机上可以开关设备了。");
+  console.log("不要关这个窗口。要退出请按 Ctrl+C。");
 }
 
-main().catch((e) => {
-  console.error(e.message || e);
+main().catch(async (e) => {
+  console.error("");
+  console.error("出错了：", e.message || e);
+  console.error("可把这段文字发给家里用 App 的人一起排查。");
+  await pauseIfNeeded();
   process.exit(1);
 });
