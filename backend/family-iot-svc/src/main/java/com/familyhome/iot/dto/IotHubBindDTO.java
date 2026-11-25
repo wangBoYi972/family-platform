@@ -15,4 +15,9 @@ public class IotHubBindDTO {
 
   @NotBlank(message = "访问令牌不能为空")
   private String accessToken;
+
+  /**
+   * 手机已在家里 WiFi 测通中枢。云端跳过连通性探测（云端进不了家庭局域网）。
+   */
+  private Boolean phoneLocal;
 }

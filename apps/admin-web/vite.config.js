@@ -6,7 +6,13 @@ export default defineConfig({
   plugins: [vue()],
   resolve: {
     // 与小程序端共用同一份请求错误文案（apps/shared/request-message.js）
-    alias: { "@shared": fileURLToPath(new URL("../shared", import.meta.url)) }
+    // lunar-javascript 由 calendar-marks.mjs 引入；CI 只装 admin-web 依赖，需显式指到本包 node_modules。
+    alias: {
+      "@shared": fileURLToPath(new URL("../shared", import.meta.url)),
+      "lunar-javascript": fileURLToPath(
+        new URL("./node_modules/lunar-javascript", import.meta.url)
+      ),
+    },
   },
   server: {
     // 端口在 README 与网关 CORS 里都固定为 5173：不写死会退到默认 5174，

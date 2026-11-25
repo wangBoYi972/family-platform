@@ -51,6 +51,14 @@ public class ServiceSecurity implements WebMvcConfigurer {
                                 if ("POST".equals(request.getMethod())
                                         && Set.of("/api/auth/login", "/api/auth/password-login", "/api/auth/register")
                                                 .contains(path)) return true;
+                                // 家侧网关匿名入口（仅这三条）；status 等仍需登录。
+                                // 注册靠配对码；devices/state 在控制器内校验 X-Gateway-Token。
+                                if (("POST".equals(request.getMethod())
+                                                && Set.of(
+                                                                "/api/iot/gateway/register",
+                                                                "/api/iot/gateway/devices",
+                                                                "/api/iot/gateway/state")
+                                                        .contains(path))) return true;
                                 String bearer = request.getHeader("Authorization");
                                 SessionPrincipal principal;
                                 try {

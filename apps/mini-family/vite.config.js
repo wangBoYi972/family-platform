@@ -11,7 +11,12 @@ export default defineConfig({
   // 使用 uni-app 平台运行时提供的 Vue，确保页面和生命周期正常挂载。
   plugins: [uni()],
   resolve: {
-    alias: { "@app": appSrc, "@shared": shared }
+    alias: {
+      "@app": appSrc,
+      "@shared": shared,
+      "livekit-client": fileURLToPath(new URL("./node_modules/livekit-client", import.meta.url)),
+      "lunar-javascript": fileURLToPath(new URL("./node_modules/lunar-javascript", import.meta.url)),
+    },
   },
   server: {
     // 与管理端（5173）错开端口；API 默认指向本机网关 8080（跑 18080 验收环境时改 FAMILY_API_TARGET）

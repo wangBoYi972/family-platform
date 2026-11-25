@@ -3,13 +3,18 @@ package com.familyhome.iot.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.familyhome.iot.dto.IotHubBindDTO;
 import com.familyhome.iot.mapper.IotDeviceSnapshotMapper;
+import com.familyhome.iot.mapper.IotGatewayMapper;
 import com.familyhome.iot.mapper.IotHubMapper;
 import com.familyhome.iot.model.IotDeviceSnapshot;
+import com.familyhome.iot.model.IotGateway;
 import com.familyhome.iot.model.IotHub;
 import com.familyhome.iot.service.IotHubService;
+import com.familyhome.iot.gateway.GatewaySessionRegistry;
 import com.familyhome.iot.util.DemoHub;
+import com.familyhome.iot.util.GatewayHub;
 import com.familyhome.iot.util.TokenEncryptor;
 import com.familyhome.iot.util.UrlValidator;
+import com.familyhome.iot.vo.IotHubAccessVO;
 import com.familyhome.iot.vo.IotHubVO;
 import com.familyhome.iot.client.HomeAssistantClient;
 import lombok.extern.slf4j.Slf4j;
@@ -35,10 +40,16 @@ public class IotHubServiceImpl implements IotHubService {
   @Autowired
   private IotDeviceSnapshotMapper deviceSnapshotMapper;
 
+  @Autowired
+  private IotGatewayMapper gatewayMapper;
+
   /** @Lazy 打破与 IotWebSocketServiceImpl 的循环依赖（后者依赖本服务读取中枢配置）。 */
   @Autowired
   @org.springframework.context.annotation.Lazy
   private com.familyhome.iot.service.IotWebSocketService wsService;
+
+  @Autowired(required = false)
+  private GatewaySessionRegistry gatewaySessionRegistry;
 
   @Override
   public IotHubVO getHub(Long householdId) {
@@ -47,6 +58,9 @@ public class IotHubServiceImpl implements IotHubService {
       IotHubVO vo = new IotHubVO();
       vo.setConfigured(false);
       vo.setDemo(false);
+      vo.setGateway(false);
+      vo.setGatewayOnline(false);
+      vo.setPhoneLocal(false);
       return vo;
     }
 
@@ -54,7 +68,17 @@ public class IotHubServiceImpl implements IotHubService {
     vo.setId(hub.getId());
     vo.setConfigured(true);
     vo.setDemo(DemoHub.isDemo(hub.getBaseUrl()));
-    // 注意：不返回 baseUrl 给客户端，只返回 configured 状态
+    boolean gateway = GatewayHub.isGateway(hub.getBaseUrl());
+    vo.setGateway(gateway);
+    vo.setGatewayOnline(
+        gateway && gatewaySessionRegistry != null && gatewaySessionRegistry.isOnline(householdId));
+    boolean phoneLocal =
+        !vo.getDemo() && !gateway && UrlValidator.isSafeUrl(hub.getBaseUrl());
+    vo.setPhoneLocal(phoneLocal);
+    // 手机局域网直连需要知道家里中枢地址；令牌走 /hub/local-access
+    if (phoneLocal) {
+      vo.setBaseUrl(hub.getBaseUrl());
+    }
     vo.setUpdatedAt(hub.getUpdatedAt());
     return vo;
   }
@@ -62,14 +86,15 @@ public class IotHubServiceImpl implements IotHubService {
   @Override
   public IotHubVO bindHub(Long householdId, IotHubBindDTO dto) throws Exception {
     boolean demo = DemoHub.isDemo(dto.getBaseUrl());
+    boolean phoneLocal = Boolean.TRUE.equals(dto.getPhoneLocal());
 
     // 1. 验证 URL 安全性（演示中枢不走网络，不需要校验地址）
     if (!demo && !UrlValidator.isSafeUrl(dto.getBaseUrl())) {
       throw new IllegalArgumentException("中枢地址必须为私网或 localhost");
     }
 
-    // 2. 测试连接
-    if (!demo && !homeAssistantClient.testConnection(dto.getBaseUrl(), dto.getAccessToken())) {
+    // 2. 测试连接：phone-local 由手机在家里 WiFi 已测通，云端进不了局域网故跳过
+    if (!demo && !phoneLocal && !homeAssistantClient.testConnection(dto.getBaseUrl(), dto.getAccessToken())) {
       throw new RuntimeException("无法连接到 Home Assistant，请检查地址和令牌");
     }
 
@@ -92,8 +117,8 @@ public class IotHubServiceImpl implements IotHubService {
       hubMapper.insert(hub);
     }
 
-    // 绑定成功后尝试建立实时连接（演示中枢跳过；失败不影响绑定结果）
-    if (!demo) {
+    // 绑定成功后尝试建立实时连接（演示 / 手机局域网直连跳过）
+    if (!demo && !phoneLocal) {
       final Long hid = householdId;
       Thread t = new Thread(() -> {
         try {
@@ -113,6 +138,9 @@ public class IotHubServiceImpl implements IotHubService {
   public void unbindHub(Long householdId) {
     // 先断开实时连接，避免解绑后仍在接收并写入已清除的快照
     wsService.disconnect(householdId);
+    if (gatewaySessionRegistry != null) {
+      gatewaySessionRegistry.disconnect(householdId);
+    }
 
     QueryWrapper<IotHub> qw = new QueryWrapper<>();
     qw.eq("household_id", householdId);
@@ -122,6 +150,9 @@ public class IotHubServiceImpl implements IotHubService {
     QueryWrapper<IotDeviceSnapshot> devices = new QueryWrapper<>();
     devices.eq("household_id", householdId);
     deviceSnapshotMapper.delete(devices);
+
+    // 家侧网关凭据一并清除，下次需重新配对
+    gatewayMapper.delete(new QueryWrapper<IotGateway>().eq("household_id", householdId));
 
     log.info("家庭 {} 的中枢已解绑", householdId);
   }
@@ -154,12 +185,33 @@ public class IotHubServiceImpl implements IotHubService {
 
   @Override
   public java.util.List<Long> listBoundHouseholdIds() {
-    // 排除演示中枢：demo:// 没有可连接的 WebSocket 地址
+    // 排除演示/网关/手机局域网：云端都连不上家里私网 HA
     return hubMapper.selectList(null).stream()
         .filter(hub -> !DemoHub.isDemo(hub.getBaseUrl()))
+        .filter(hub -> !GatewayHub.isGateway(hub.getBaseUrl()))
+        .filter(hub -> !UrlValidator.isSafeUrl(hub.getBaseUrl()))
         .map(IotHub::getHouseholdId)
         .filter(java.util.Objects::nonNull)
         .distinct()
         .toList();
+  }
+
+  @Override
+  public IotHubAccessVO getLocalAccess(Long householdId) {
+    IotHub hub = getHubInternal(householdId);
+    if (hub == null) {
+      throw new IllegalArgumentException("中枢未配置");
+    }
+    if (DemoHub.isDemo(hub.getBaseUrl()) || GatewayHub.isGateway(hub.getBaseUrl())) {
+      throw new IllegalArgumentException("当前模式无需本机直连凭据");
+    }
+    if (!UrlValidator.isSafeUrl(hub.getBaseUrl())) {
+      throw new IllegalArgumentException("仅私网中枢支持手机直连");
+    }
+    IotHubAccessVO vo = new IotHubAccessVO();
+    vo.setBaseUrl(hub.getBaseUrl());
+    vo.setAccessToken(hub.getAccessToken());
+    vo.setPhoneLocal(true);
+    return vo;
   }
 }

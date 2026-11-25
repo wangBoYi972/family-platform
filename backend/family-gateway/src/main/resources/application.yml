@@ -54,6 +54,10 @@ spring:
           uri: lb:ws://family-media-svc
           predicates:
             - Path=/ws/call
+        - id: family-iot-gateway-ws
+          uri: lb:ws://family-iot-svc
+          predicates:
+            - Path=/ws/iot-gateway
   data:
     redis:
       host: ${REDIS_HOST:127.0.0.1}

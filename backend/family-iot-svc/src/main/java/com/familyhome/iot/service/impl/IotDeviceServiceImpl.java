@@ -10,7 +10,11 @@ import com.familyhome.iot.vo.AreaDevicesVO;
 import com.familyhome.iot.vo.DeviceStateEventVO;
 import com.familyhome.iot.vo.IotDeviceVO;
 import com.familyhome.iot.client.HomeAssistantClient;
+import com.familyhome.iot.dto.LocalDeviceSyncDTO;
 import com.familyhome.iot.util.DemoHub;
+import com.familyhome.iot.util.GatewayHub;
+import com.familyhome.iot.util.UrlValidator;
+import org.springframework.transaction.annotation.Transactional;
 import com.familyhome.messaging.OutboxEventStore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -44,6 +48,7 @@ public class IotDeviceServiceImpl implements IotDeviceService {
 
   @Override
   public List<AreaDevicesVO> getDevicesByArea(Long householdId) {
+    ensureDemoCatalog(householdId);
     List<IotDeviceSnapshot> devices = deviceSnapshotMapper.selectByHouseholdId(householdId);
 
     // 按区域分组
@@ -62,6 +67,28 @@ public class IotDeviceServiceImpl implements IotDeviceService {
                 .collect(Collectors.toList())
         ))
         .collect(Collectors.toList());
+  }
+
+  /**
+   * 已绑定演示中枢的家庭，若快照仍是旧版（无空调/影音），在读取时补种完整演示目录。
+   */
+  private void ensureDemoCatalog(Long householdId) {
+    IotHub hub = hubService.getHubInternal(householdId);
+    if (hub == null || !DemoHub.isDemo(hub.getBaseUrl())) {
+      return;
+    }
+    List<IotDeviceSnapshot> existing = deviceSnapshotMapper.selectByHouseholdId(householdId);
+    boolean hasClimate =
+        existing.stream().anyMatch(d -> "climate".equals(d.getEntityType()));
+    if (hasClimate) {
+      return;
+    }
+    try {
+      seedDemoDevices(householdId);
+      log.info("演示中枢：家庭 {} 已补种空调/影音设备", householdId);
+    } catch (Exception e) {
+      log.warn("演示中枢补种失败 household={}: {}", householdId, e.getMessage());
+    }
   }
 
   @Override
@@ -86,6 +113,18 @@ public class IotDeviceServiceImpl implements IotDeviceService {
       return;
     }
 
+    if (GatewayHub.isGateway(hub.getBaseUrl())) {
+      // 设备由家侧网关上报，云端不主动拉取
+      log.info("网关中枢：家庭 {} 等待网关上报设备", householdId);
+      return;
+    }
+
+    if (UrlValidator.isSafeUrl(hub.getBaseUrl())) {
+      // 私网 HA：云端进不了家，由手机在 WiFi 下拉设备后 local-sync
+      log.info("手机局域网中枢：家庭 {} 等待手机同步设备", householdId);
+      return;
+    }
+
     try {
       JsonNode states = homeAssistantClient.getStates(hub);
 
@@ -103,7 +142,7 @@ public class IotDeviceServiceImpl implements IotDeviceService {
 
           String domain = parts[0];
 
-          // 过滤：只关心 light/switch/sensor/scene
+          // 过滤：灯/插座/传感器/场景/空调/电视音响
           if (!isRelevantDomain(domain)) continue;
 
           IotDeviceSnapshot snapshot = new IotDeviceSnapshot();
@@ -195,6 +234,48 @@ public class IotDeviceServiceImpl implements IotDeviceService {
     log.warn("家庭 {} 中枢已离线，所有设备标记为离线", householdId);
   }
 
+  @Override
+  @Transactional
+  public void replaceLocalDevices(Long householdId, LocalDeviceSyncDTO report) {
+    IotHub hub = hubService.getHubInternal(householdId);
+    if (hub == null) {
+      throw new IllegalArgumentException("中枢未配置");
+    }
+    if (DemoHub.isDemo(hub.getBaseUrl()) || GatewayHub.isGateway(hub.getBaseUrl())) {
+      throw new IllegalArgumentException("仅手机直连家里中枢时可同步本机设备");
+    }
+    if (!UrlValidator.isSafeUrl(hub.getBaseUrl())) {
+      throw new IllegalArgumentException("仅私网中枢支持本机同步");
+    }
+
+    deviceSnapshotMapper.delete(
+        new QueryWrapper<IotDeviceSnapshot>().eq("household_id", householdId));
+    if (report == null || report.getDevices() == null) return;
+    for (LocalDeviceSyncDTO.DeviceItem item : report.getDevices()) {
+      IotDeviceSnapshot snapshot = new IotDeviceSnapshot();
+      snapshot.setHouseholdId(householdId);
+      snapshot.setEntityId(item.getEntityId());
+      snapshot.setEntityType(item.getEntityType());
+      snapshot.setDeviceName(
+          item.getDeviceName() == null || item.getDeviceName().isBlank()
+              ? item.getEntityId()
+              : item.getDeviceName());
+      snapshot.setAreaName(
+          item.getAreaName() == null || item.getAreaName().isBlank() ? "未分组" : item.getAreaName());
+      snapshot.setState(item.getState() == null ? "off" : item.getState());
+      try {
+        snapshot.setAttributes(
+            item.getAttributes() == null
+                ? null
+                : objectMapper.writeValueAsString(item.getAttributes()));
+      } catch (Exception e) {
+        throw new IllegalArgumentException("设备属性无法序列化");
+      }
+      snapshot.setIsOnline(item.getOnline() == null || item.getOnline());
+      deviceSnapshotMapper.insert(snapshot);
+    }
+  }
+
   /**
    * 演示中枢的内置设备。
    *
@@ -232,12 +313,36 @@ public class IotDeviceServiceImpl implements IotDeviceService {
               "on",
               Map.of("brightness", 204, "supported_features", 1)),
           new DemoDevice(
+              "climate.living_room_ac",
+              "客厅空调",
+              "客厅",
+              "cool",
+              Map.of(
+                  "temperature", 26,
+                  "current_temperature", 28,
+                  "hvac_mode", "cool",
+                  "fan_mode", "auto")),
+          new DemoDevice(
+              "media_player.living_room_tv",
+              "客厅电视",
+              "客厅",
+              "off",
+              Map.of("volume_level", 0.4, "is_volume_muted", false, "source", "HDMI 1")),
+          new DemoDevice(
+              "media_player.living_room_speaker",
+              "客厅音响",
+              "客厅",
+              "playing",
+              Map.of(
+                  "volume_level", 0.55,
+                  "is_volume_muted", false,
+                  "media_title", "示例音乐")),
+          new DemoDevice(
               "light.living_room_strip",
               "沙发氛围灯",
               "客厅",
               "off",
               Map.of("brightness", 120, "supported_features", 1)),
-          new DemoDevice("switch.living_room_tv", "电视插座", "客厅", "off", Map.of()),
           new DemoDevice(
               "sensor.living_room_temp",
               "客厅温度",
@@ -250,6 +355,16 @@ public class IotDeviceServiceImpl implements IotDeviceService {
               "主卧",
               "off",
               Map.of("brightness", 180, "supported_features", 1)),
+          new DemoDevice(
+              "climate.bedroom_ac",
+              "主卧空调",
+              "主卧",
+              "off",
+              Map.of(
+                  "temperature", 24,
+                  "current_temperature", 26,
+                  "hvac_mode", "off",
+                  "fan_mode", "low")),
           new DemoDevice("switch.bedroom_humidifier", "加湿器", "主卧", "on", Map.of()),
           new DemoDevice("switch.kitchen_kettle", "电热水壶", "厨房", "off", Map.of()),
           new DemoDevice(
@@ -288,6 +403,11 @@ public class IotDeviceServiceImpl implements IotDeviceService {
   }
 
   private boolean isRelevantDomain(String domain) {
-    return "light".equals(domain) || "switch".equals(domain) || "sensor".equals(domain) || "scene".equals(domain);
+    return "light".equals(domain)
+        || "switch".equals(domain)
+        || "sensor".equals(domain)
+        || "scene".equals(domain)
+        || "climate".equals(domain)
+        || "media_player".equals(domain);
   }
 }
