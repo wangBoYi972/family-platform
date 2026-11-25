@@ -44,7 +44,11 @@
         <div class="detail-head">
           <button class="back-btn" @click="closeDetail">‹ 返回</button>
           <span class="detail-title">{{ detailDevice.deviceName }}</span>
-          <button class="text-danger" @click="removeDevice(detailDevice)">删除</button>
+          <button
+            v-if="canRemove(detailDevice)"
+            class="text-danger"
+            @click="removeDevice(detailDevice)"
+          >删除</button>
         </div>
 
         <div class="remote-hero">
@@ -62,6 +66,7 @@
           >{{ isOn(detailDevice) ? "关闭" : "开启" }}</button>
         </div>
 
+        <p v-if="detailError" class="error-line">{{ detailError }}</p>
         <div v-if="pending[detailDevice.entityId]" class="detail-pending">指令发送中…</div>
 
         <div v-if="detailDevice.entityType === 'climate'" class="remote-pad">
@@ -239,6 +244,7 @@ export default {
       pending: {},
       pollTimer: null,
       detailDevice: null,
+      detailError: "",
       showDeviceDialog: false,
       dialogError: "",
       savingDevice: false,
@@ -302,11 +308,18 @@ export default {
       return getLightBrightness(device);
     },
 
+    /** API 仅允许删除 MANUAL / CLOUD；HUB 同步设备不可删。 */
+    canRemove(device) {
+      const src = device?.deviceSource;
+      return !src || src === "MANUAL" || src === "CLOUD";
+    },
     openDetail(device) {
+      this.detailError = "";
       this.detailDevice = device;
     },
     closeDetail() {
       this.detailDevice = null;
+      this.detailError = "";
     },
 
     load() {
@@ -444,26 +457,30 @@ export default {
     },
 
     async removeDevice(device) {
-      if (!device?.entityId) return;
+      if (!device?.entityId || !this.canRemove(device)) return;
+      this.detailError = "";
       try {
         await request(`/iot/devices/${encodeURIComponent(device.entityId)}`, { method: "DELETE" });
         this.closeDetail();
         await this.loadDevices();
       } catch (e) {
-        this.error = e.message || "删除失败";
+        this.detailError = e.message || "删除失败";
       }
     },
 
     async executeCommand(device, commandType, parameters = null) {
       this.pending = { ...this.pending, [device.entityId]: true };
       this.error = "";
+      this.detailError = "";
       try {
         await request(`/iot/devices/${device.entityId}/command`, {
           method: "POST", data: { commandType, parameters },
         });
         await this.loadDevices();
       } catch (e) {
-        this.error = e.message || "操作失败";
+        const msg = e.message || "操作失败";
+        if (this.detailDevice) this.detailError = msg;
+        else this.error = msg;
       } finally {
         const next = { ...this.pending };
         delete next[device.entityId];
