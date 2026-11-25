@@ -83,17 +83,27 @@ public class TuyaCloudClient implements IotCloudClient {
   public boolean sendCommand(String cloudDeviceId, String entityType, String commandType, JsonNode parameters)
       throws Exception {
     ensureReady();
-    ArrayNode commands = mapper.createArrayNode();
-    ObjectNode cmd = commands.addObject();
-    String code = mapCommandCode(entityType, commandType, parameters);
-    cmd.put("code", code);
-    cmd.set("value", mapCommandValue(code, commandType, parameters));
-
+    ArrayNode commands = buildCommands(entityType, commandType, parameters);
     ObjectNode body = mapper.createObjectNode();
     body.set("commands", commands);
     String path = "/v1.0/devices/" + cloudDeviceId + "/commands";
     JsonNode root = signedPost(path, body.toString());
     return root.path("success").asBoolean(false);
+  }
+
+  /** 组装涂鸦 commands；灯调亮度时同时开灯（switch_led）。 */
+  private ArrayNode buildCommands(String entityType, String commandType, JsonNode parameters) {
+    ArrayNode commands = mapper.createArrayNode();
+    String code = mapCommandCode(entityType, commandType, parameters);
+    ObjectNode cmd = commands.addObject();
+    cmd.put("code", code);
+    cmd.set("value", mapCommandValue(code, commandType, parameters));
+    if ("bright_value_v2".equals(code)) {
+      ObjectNode power = commands.addObject();
+      power.put("code", "switch_led");
+      power.set("value", mapper.getNodeFactory().booleanNode(true));
+    }
+    return commands;
   }
 
   private void ensureReady() {
@@ -184,6 +194,11 @@ public class TuyaCloudClient implements IotCloudClient {
     if ("light".equals(entityType) && "turn_on".equals(commandType)
         && parameters != null && parameters.has("brightness")) {
       return "bright_value_v2";
+    }
+    // 灯用 switch_led；插座/开关等用 switch
+    if ("light".equals(entityType)
+        && ("turn_on".equals(commandType) || "turn_off".equals(commandType))) {
+      return "switch_led";
     }
     if ("turn_off".equals(commandType) || "turn_on".equals(commandType)) return "switch";
     return "switch";
