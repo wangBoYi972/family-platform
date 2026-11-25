@@ -40,8 +40,8 @@ public class HubUrlValidator {
   /** 校验地址是否可用作中枢地址。 */
   public boolean isAllowed(String url) {
     if (url == null || url.isBlank()) return false;
-    // 演示中枢是伪协议，不走网络，直接放行
-    if (DemoHub.isDemo(url)) return true;
+    // 演示 / 云端直连是伪协议，不走 HA HTTP，直接放行
+    if (DemoHub.isDemo(url) || CloudHub.isCloud(url)) return true;
 
     // 第一层：原有 SSRF 防护（私网/localhost 直接通过）
     if (UrlValidator.isSafeUrl(url)) return true;

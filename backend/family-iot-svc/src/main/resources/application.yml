@@ -40,3 +40,12 @@ family:
     auto-hub-token: ${FAMILY_IOT_AUTO_HUB_TOKEN:}
     # 加密密钥（从环境变量读取，本地开发环境需设置）
     encryption-key: ${FAMILY_IOT_ENCRYPTION_KEY:}
+    # 云端直连（推荐落地，无需 Home Assistant）
+    # provider=sim 仅联调；正式环境改为 tuya 并配置下面三个密钥
+    cloud:
+      provider: ${FAMILY_IOT_CLOUD_PROVIDER:sim}
+      tuya:
+        base-url: ${FAMILY_IOT_TUYA_BASE_URL:https://openapi.tuyacn.com}
+        access-id: ${FAMILY_IOT_TUYA_ACCESS_ID:}
+        access-secret: ${FAMILY_IOT_TUYA_ACCESS_SECRET:}
+        uid: ${FAMILY_IOT_TUYA_UID:}

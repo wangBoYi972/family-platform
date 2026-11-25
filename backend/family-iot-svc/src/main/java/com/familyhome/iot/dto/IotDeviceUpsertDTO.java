@@ -36,4 +36,11 @@ public class IotDeviceUpsertDTO {
 
   /** 初始属性（温度、风速、音量、频道等），JSON 对象 */
   private JsonNode attributes;
+
+  /**
+   * 涂鸦等云平台设备 ID。填写后设备按 CLOUD 真机接入（不经 Home Assistant）；
+   * 留空则为 MANUAL 本地模拟。
+   */
+  @Size(max = 64, message = "云设备 ID 最多 64 字")
+  private String cloudDeviceId;
 }

@@ -1,6 +1,7 @@
 package com.familyhome.iot.controller;
 
 import com.familyhome.common.api.ApiResponse;
+import com.familyhome.iot.dto.IotCloudImportDTO;
 import com.familyhome.iot.dto.IotCommandDTO;
 import com.familyhome.iot.dto.IotDeviceUpsertDTO;
 import com.familyhome.iot.dto.IotHubBindDTO;
@@ -8,6 +9,7 @@ import com.familyhome.iot.service.IotCommandService;
 import com.familyhome.iot.service.IotDeviceService;
 import com.familyhome.iot.service.IotHubService;
 import com.familyhome.iot.vo.AreaDevicesVO;
+import com.familyhome.iot.vo.CloudDeviceVO;
 import com.familyhome.iot.vo.DeviceTestResultVO;
 import com.familyhome.iot.vo.HubDiscoveryVO;
 import com.familyhome.iot.vo.IotDeviceVO;
@@ -157,7 +159,7 @@ public class IotController {
   }
 
   /**
-   * 手动添加设备（本地模拟，不依赖中枢）。家庭成员均可操作。
+   * 添加设备：不填 cloudDeviceId=本地模拟；填写=云端真机（涂鸦）。家庭成员均可操作。
    */
   @PostMapping("/devices")
   public ApiResponse<IotDeviceVO> addDevice(
@@ -166,8 +168,42 @@ public class IotController {
     long householdId = SessionPrincipal.from(r).householdId();
     try {
       return ApiResponse.success(deviceService.addManualDevice(householdId, dto));
-    } catch (IllegalArgumentException e) {
+    } catch (IllegalArgumentException | IllegalStateException e) {
       return ApiResponse.failure(400, e.getMessage());
+    }
+  }
+
+  /**
+   * 云账号下可导入的设备列表（涂鸦 / sim 联调样例）。
+   */
+  @GetMapping("/devices/cloud")
+  public ApiResponse<List<CloudDeviceVO>> listCloudDevices(HttpServletRequest r) {
+    long householdId = SessionPrincipal.from(r).householdId();
+    try {
+      return ApiResponse.success(deviceService.listCloudDevices(householdId));
+    } catch (IllegalStateException e) {
+      return ApiResponse.failure(400, e.getMessage());
+    } catch (Exception e) {
+      log.error("拉取云设备列表失败", e);
+      return ApiResponse.failure(500, "拉取云设备失败");
+    }
+  }
+
+  /**
+   * 按云设备 ID 一键导入到本家庭。
+   */
+  @PostMapping("/devices/cloud-import")
+  public ApiResponse<IotDeviceVO> importCloudDevice(
+      HttpServletRequest r,
+      @Valid @RequestBody IotCloudImportDTO dto) {
+    long householdId = SessionPrincipal.from(r).householdId();
+    try {
+      return ApiResponse.success(deviceService.importCloudDevice(householdId, dto.getCloudDeviceId()));
+    } catch (IllegalArgumentException | IllegalStateException e) {
+      return ApiResponse.failure(400, e.getMessage());
+    } catch (Exception e) {
+      log.error("导入云设备失败", e);
+      return ApiResponse.failure(500, "导入失败");
     }
   }
 

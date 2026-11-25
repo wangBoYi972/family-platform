@@ -40,9 +40,14 @@ public class IotDeviceSnapshot {
   // 只能写不能读（select 回来恒为 null，前端亮度条永远是 0），换成文本字段在 VO 层再解析。
   private String attributes;
 
-  // 设备来源：HUB（中枢同步）/ MANUAL（手动添加）
-  // 手动设备是本地模拟设备，不依赖真实中枢，同步时不会被覆盖。
+  // 设备来源：HUB（中枢同步）/ MANUAL（本地模拟）/ CLOUD（云端真机）
   private String deviceSource;
+
+  /** 云平台设备 ID（涂鸦 device_id 等）；CLOUD 设备必填 */
+  private String cloudDeviceId;
+
+  /** 云平台标识：tuya / sim */
+  private String cloudProvider;
 
   // 中枢是否在线
   @TableField(value = "is_online", fill = FieldFill.INSERT)
