@@ -103,7 +103,7 @@ public class IotDeviceServiceImpl implements IotDeviceService {
 
           String domain = parts[0];
 
-          // 过滤：只关心 light/switch/sensor/scene
+          // 过滤：灯/插座/传感器/场景/空调/电视音响
           if (!isRelevantDomain(domain)) continue;
 
           IotDeviceSnapshot snapshot = new IotDeviceSnapshot();
@@ -232,12 +232,36 @@ public class IotDeviceServiceImpl implements IotDeviceService {
               "on",
               Map.of("brightness", 204, "supported_features", 1)),
           new DemoDevice(
+              "climate.living_room_ac",
+              "客厅空调",
+              "客厅",
+              "cool",
+              Map.of(
+                  "temperature", 26,
+                  "current_temperature", 28,
+                  "hvac_mode", "cool",
+                  "fan_mode", "auto")),
+          new DemoDevice(
+              "media_player.living_room_tv",
+              "客厅电视",
+              "客厅",
+              "off",
+              Map.of("volume_level", 0.4, "is_volume_muted", false, "source", "HDMI 1")),
+          new DemoDevice(
+              "media_player.living_room_speaker",
+              "客厅音响",
+              "客厅",
+              "playing",
+              Map.of(
+                  "volume_level", 0.55,
+                  "is_volume_muted", false,
+                  "media_title", "示例音乐")),
+          new DemoDevice(
               "light.living_room_strip",
               "沙发氛围灯",
               "客厅",
               "off",
               Map.of("brightness", 120, "supported_features", 1)),
-          new DemoDevice("switch.living_room_tv", "电视插座", "客厅", "off", Map.of()),
           new DemoDevice(
               "sensor.living_room_temp",
               "客厅温度",
@@ -250,6 +274,16 @@ public class IotDeviceServiceImpl implements IotDeviceService {
               "主卧",
               "off",
               Map.of("brightness", 180, "supported_features", 1)),
+          new DemoDevice(
+              "climate.bedroom_ac",
+              "主卧空调",
+              "主卧",
+              "off",
+              Map.of(
+                  "temperature", 24,
+                  "current_temperature", 26,
+                  "hvac_mode", "cool",
+                  "fan_mode", "low")),
           new DemoDevice("switch.bedroom_humidifier", "加湿器", "主卧", "on", Map.of()),
           new DemoDevice("switch.kitchen_kettle", "电热水壶", "厨房", "off", Map.of()),
           new DemoDevice(
@@ -288,6 +322,11 @@ public class IotDeviceServiceImpl implements IotDeviceService {
   }
 
   private boolean isRelevantDomain(String domain) {
-    return "light".equals(domain) || "switch".equals(domain) || "sensor".equals(domain) || "scene".equals(domain);
+    return "light".equals(domain)
+        || "switch".equals(domain)
+        || "sensor".equals(domain)
+        || "scene".equals(domain)
+        || "climate".equals(domain)
+        || "media_player".equals(domain);
   }
 }

@@ -1,72 +1,69 @@
 <template>
   <div class="iot-panel">
-    <!-- 加载中 -->
     <div v-if="loading" class="mf-empty">正在读取家里的设备…</div>
 
-    <!-- 未配置中枢 -->
+    <!-- 未配置：演示优先，真实 HA 收到折叠区 -->
     <template v-else-if="!hubConfigured">
       <div class="mf-card setup-card mf-rise">
         <div class="setup-head">
           <div class="setup-icon">🏠</div>
           <div class="setup-copy">
-            <div class="setup-title">连接家里的智能中枢</div>
+            <div class="setup-title">家里的设备</div>
             <div class="setup-desc">
-              支持 Home Assistant。连上以后，家里每个人都能直接开关灯、插座和场景。
+              先用演示设备体验空调、电视、音响和灯光的开关控制。真实中枢（Home Assistant）可在下方展开连接。
             </div>
           </div>
         </div>
 
-        <label class="field">
-          <span class="field-label">中枢地址</span>
-          <input
-            v-model="hubForm.baseUrl"
-            class="field-input"
-            type="url"
-            placeholder="http://192.168.1.100:8123"
-          />
-          <span class="field-hint">仅支持私网地址或 localhost</span>
-        </label>
-
-        <label class="field">
-          <span class="field-label">访问令牌</span>
-          <input
-            v-model="hubForm.accessToken"
-            class="field-input"
-            type="password"
-            placeholder="Home Assistant 里创建的长效令牌"
-          />
-        </label>
-
-        <div class="setup-actions">
-          <button class="ghost-btn" :disabled="testing" @click="testConnection">
-            {{ testing ? "测试中…" : "测试连接" }}
-          </button>
-          <button class="solid-btn" :disabled="binding || !connected" @click="bindHub">
-            {{ binding ? "绑定中…" : "绑定中枢" }}
-          </button>
-        </div>
+        <button class="solid-btn demo-primary" :disabled="binding" @click="bindDemo">
+          {{ binding ? "准备中…" : "用演示设备体验" }}
+        </button>
+        <p class="demo-hint">演示数据在本平台内，不依赖家里路由器或红外扫描。</p>
 
         <p v-if="error" class="error-line">{{ error }}</p>
 
-        <div class="demo-block">
-          <span class="demo-hint">没有中枢设备？先用演示设备体验，家里任何人都能操作。</span>
-          <button class="ghost-btn demo-btn" :disabled="binding" @click="bindDemo">
-            {{ binding ? "准备中…" : "用演示设备体验" }}
-          </button>
-        </div>
+        <details class="advanced-ha">
+          <summary>我有 Home Assistant，连接真实中枢</summary>
+          <label class="field">
+            <span class="field-label">中枢地址</span>
+            <input
+              v-model="hubForm.baseUrl"
+              class="field-input"
+              type="url"
+              placeholder="http://192.168.1.100:8123"
+            />
+            <span class="field-hint">仅支持私网地址或 localhost；云端无法扫描你家局域网</span>
+          </label>
+          <label class="field">
+            <span class="field-label">访问令牌</span>
+            <input
+              v-model="hubForm.accessToken"
+              class="field-input"
+              type="password"
+              placeholder="Home Assistant 长效令牌"
+            />
+          </label>
+          <div class="setup-actions">
+            <button class="ghost-btn" :disabled="testing" @click="testConnection">
+              {{ testing ? "测试中…" : "测试连接" }}
+            </button>
+            <button class="solid-btn" :disabled="binding || !connected" @click="bindHub">
+              {{ binding ? "绑定中…" : "绑定中枢" }}
+            </button>
+          </div>
+        </details>
       </div>
     </template>
 
-    <!-- 已配置中枢 -->
+    <!-- 已配置 -->
     <template v-else>
       <div class="panel-bar">
         <span class="mf-chip">{{ hubIsDemo ? "演示设备" : "已连接中枢" }}</span>
         <button class="mini-btn" @click="showUnbindConfirm = true">更换中枢</button>
       </div>
 
-      <div v-if="hubOffline" class="offline-banner">⚠️ 中枢暂时连不上，设备状态可能不是最新的</div>
+      <div v-if="hubOffline" class="offline-banner">中枢暂时连不上，设备状态可能不是最新的</div>
       <p v-if="error" class="error-line">{{ error }}</p>
-
       <div v-if="loadError" class="mf-empty">{{ loadError }}</div>
 
       <template v-else>
@@ -76,11 +73,13 @@
             <span class="area-count">{{ devices.length }} 台</span>
           </div>
           <div class="devices-grid">
-            <div
+            <button
               v-for="device in devices"
               :key="device.entityId"
+              type="button"
               class="device-card mf-card"
-              :class="{ offline: device.isOnline === false, active: device.state === 'on' }"
+              :class="{ offline: device.isOnline === false, active: isDeviceOn(device) }"
+              @click="openDetail(device)"
             >
               <div class="device-top">
                 <span class="device-icon">{{ getDeviceIcon(device) }}</span>
@@ -88,41 +87,25 @@
                   <span class="device-name">{{ device.deviceName || device.entityId }}</span>
                   <span class="device-sub">{{ deviceSubtitle(device) }}</span>
                 </div>
-                <button
-                  v-if="device.entityType === 'light' || device.entityType === 'switch'"
-                  class="switch-pill"
-                  :class="{ on: device.state === 'on' }"
-                  :disabled="device.isOnline === false || pending[device.entityId]"
-                  @click="toggle(device)"
+                <span
+                  v-if="isSwitchable(device)"
+                  class="power-btn"
+                  :class="{ on: isDeviceOn(device) }"
+                  @click.stop="toggle(device)"
                 >
-                  <span class="knob"></span>
-                </button>
+                  {{ isDeviceOn(device) ? "开" : "关" }}
+                </span>
               </div>
-
-              <div
-                v-if="device.entityType === 'light' && device.state === 'on' && supportsColorControl(device)"
-                class="brightness-row"
-              >
-                <!-- 不用 <input type="range">：uni-app 会把它编译成文本框，根本没有滑块 -->
-                <div
-                  class="track"
-                  @click="jumpBrightness(device, $event)"
-                  @touchstart.prevent="startDrag(device, $event)"
-                  @touchmove.prevent="moveDrag(device, $event)"
-                  @touchend="endDrag(device)"
-                  @mousedown="startDrag(device, $event)"
-                  @mousemove="moveDrag(device, $event)"
-                  @mouseup="endDrag(device)"
-                >
-                  <div class="track-fill" :style="{ width: brightnessPct(device) + '%' }"></div>
-                  <div class="track-knob" :style="{ left: brightnessPct(device) + '%' }"></div>
-                </div>
-                <span class="range-num">{{ brightnessPct(device) }}%</span>
-              </div>
-              <div v-else-if="device.entityType === 'sensor'" class="sensor-value">
+              <div v-if="device.entityType === 'sensor'" class="sensor-value">
                 {{ getSensorValue(device) }}
               </div>
-            </div>
+              <div v-else-if="device.entityType === 'climate'" class="card-hint">
+                {{ climateHint(device) }}
+              </div>
+              <div v-else-if="device.entityType === 'media_player'" class="card-hint">
+                {{ mediaHint(device) }}
+              </div>
+            </button>
           </div>
         </div>
 
@@ -149,6 +132,117 @@
         </div>
       </template>
 
+      <!-- 设备明细：电源按钮 + 按类型控件 -->
+      <div v-if="detail" class="modal-overlay" @click.self="detail = null">
+        <div class="mf-card modal-card detail-card">
+          <div class="detail-head">
+            <div>
+              <p class="modal-title">{{ detail.deviceName || detail.entityId }}</p>
+              <p class="modal-desc">{{ deviceTypeLabel(detail) }} · {{ deviceSubtitle(detail) }}</p>
+            </div>
+            <button
+              v-if="isSwitchable(detail)"
+              class="power-btn large"
+              :class="{ on: isDeviceOn(detail) }"
+              :disabled="detail.isOnline === false || pending[detail.entityId]"
+              @click="toggle(detail)"
+            >
+              {{ isDeviceOn(detail) ? "开启" : "关闭" }}
+            </button>
+          </div>
+
+          <div
+            v-if="detail.entityType === 'light' && isDeviceOn(detail) && supportsColorControl(detail)"
+            class="brightness-row"
+          >
+            <div
+              class="track"
+              @click="jumpBrightness(detail, $event)"
+              @touchstart.prevent="startDrag(detail, $event)"
+              @touchmove.prevent="moveDrag(detail, $event)"
+              @touchend="endDrag(detail)"
+              @mousedown="startDrag(detail, $event)"
+              @mousemove="moveDrag(detail, $event)"
+              @mouseup="endDrag(detail)"
+            >
+              <div class="track-fill" :style="{ width: brightnessPct(detail) + '%' }"></div>
+              <div class="track-knob" :style="{ left: brightnessPct(detail) + '%' }"></div>
+            </div>
+            <span class="range-num">{{ brightnessPct(detail) }}%</span>
+          </div>
+
+          <div v-else-if="detail.entityType === 'climate'" class="control-block">
+            <div class="temp-row">
+              <button class="ghost-btn square" :disabled="!isDeviceOn(detail)" @click="nudgeTemp(-1)">−</button>
+              <div class="temp-display">
+                <span class="temp-num">{{ getClimateTargetTemp(detail) }}</span>
+                <span class="temp-unit">°C</span>
+              </div>
+              <button class="ghost-btn square" :disabled="!isDeviceOn(detail)" @click="nudgeTemp(1)">+</button>
+            </div>
+            <div class="chip-row">
+              <button
+                v-for="mode in hvacModes"
+                :key="mode.value"
+                class="chip-btn"
+                :class="{ on: climateMode(detail) === mode.value }"
+                @click="setHvacMode(mode.value)"
+              >
+                {{ mode.label }}
+              </button>
+            </div>
+            <div class="chip-row">
+              <button
+                v-for="fan in fanModes"
+                :key="fan.value"
+                class="chip-btn"
+                :class="{ on: fanMode(detail) === fan.value }"
+                :disabled="!isDeviceOn(detail)"
+                @click="setFanMode(fan.value)"
+              >
+                {{ fan.label }}
+              </button>
+            </div>
+          </div>
+
+          <div v-else-if="detail.entityType === 'media_player'" class="control-block">
+            <div class="temp-row">
+              <button class="ghost-btn square" @click="nudgeVolume(-5)">−</button>
+              <div class="temp-display">
+                <span class="temp-num">{{ getMediaVolumePct(detail) }}</span>
+                <span class="temp-unit">%</span>
+              </div>
+              <button class="ghost-btn square" @click="nudgeVolume(5)">+</button>
+            </div>
+            <div class="chip-row">
+              <button class="chip-btn" @click="toggleMute">
+                {{ detail.attributes?.is_volume_muted ? "取消静音" : "静音" }}
+              </button>
+              <button class="chip-btn" @click="playPause">播放/暂停</button>
+            </div>
+            <div class="chip-row">
+              <button
+                v-for="source in mediaSources"
+                :key="source"
+                class="chip-btn"
+                :class="{ on: detail.attributes?.source === source }"
+                @click="selectSource(source)"
+              >
+                {{ source }}
+              </button>
+            </div>
+          </div>
+
+          <div v-else-if="detail.entityType === 'sensor'" class="sensor-value">
+            {{ getSensorValue(detail) }}
+          </div>
+
+          <div class="modal-actions">
+            <button class="ghost-btn" @click="detail = null">关闭</button>
+          </div>
+        </div>
+      </div>
+
       <div v-if="showUnbindConfirm" class="modal-overlay" @click.self="showUnbindConfirm = false">
         <div class="mf-card modal-card">
           <p class="modal-title">解绑当前中枢？</p>
@@ -165,10 +259,17 @@
 
 <script>
 import { request } from "@app/utils/request";
-import { getLightBrightness, getSensorValue, supportsColorControl } from "./iot-logic.mjs";
+import {
+  getLightBrightness,
+  getSensorValue,
+  supportsColorControl,
+  isDeviceOn,
+  isSwitchable,
+  getClimateTargetTemp,
+  getMediaVolumePct,
+  deviceTypeLabel,
+} from "./iot-logic.mjs";
 
-// 智能家居对家庭成员开放：任何已登录成员都可以连接中枢、控制设备、触发场景。
-// 后端 /api/iot/** 只校验登录身份，不再区分管理员与成员。
 const DEMO_HUB = { baseUrl: "demo://local", accessToken: "demo" };
 
 export default {
@@ -191,7 +292,23 @@ export default {
       dragPct: {},
       dragging: null,
       showUnbindConfirm: false,
+      detail: null,
       pollTimer: null,
+      hvacModes: [
+        { value: "cool", label: "制冷" },
+        { value: "heat", label: "制热" },
+        { value: "dry", label: "除湿" },
+        { value: "fan_only", label: "送风" },
+        { value: "auto", label: "自动" },
+        { value: "off", label: "关闭" },
+      ],
+      fanModes: [
+        { value: "auto", label: "风速自动" },
+        { value: "low", label: "低" },
+        { value: "medium", label: "中" },
+        { value: "high", label: "高" },
+      ],
+      mediaSources: ["HDMI 1", "HDMI 2", "AV", "电视直播"],
     };
   },
 
@@ -209,19 +326,71 @@ export default {
     getLightBrightness,
     getSensorValue,
     supportsColorControl,
+    isDeviceOn,
+    isSwitchable,
+    getClimateTargetTemp,
+    getMediaVolumePct,
+    deviceTypeLabel,
 
     getDeviceIcon(device) {
-      const icons = { light: "💡", switch: "🔌", sensor: "📊", scene: "🎬" };
+      const icons = {
+        light: "💡",
+        switch: "🔌",
+        sensor: "📊",
+        climate: "❄️",
+        media_player: "📺",
+        scene: "🎬",
+      };
       return icons[device.entityType] || "📱";
     },
 
     deviceSubtitle(device) {
       if (device.isOnline === false) return "离线";
       if (device.entityType === "sensor") return "传感器";
+      if (device.entityType === "climate") {
+        if (device.state === "off") return "已关闭";
+        const modeMap = { cool: "制冷中", heat: "制热中", dry: "除湿中", fan_only: "送风中", auto: "自动" };
+        return modeMap[device.state] || "运行中";
+      }
+      if (device.entityType === "media_player") {
+        if (device.state === "playing") return "播放中";
+        if (device.state === "paused") return "已暂停";
+        return "已关闭";
+      }
       return device.state === "on" ? "已开启" : "已关闭";
     },
 
-    /** 供父页面在切换标签时主动刷新 */
+    climateHint(device) {
+      if (device.state === "off") return "已关闭 · 点开调节";
+      return `${this.getClimateTargetTemp(device)}°C · 点开调节`;
+    },
+
+    mediaHint(device) {
+      if (!this.isDeviceOn(device)) return "已关闭 · 点开调节";
+      const title = device.attributes?.media_title || device.attributes?.source || "影音";
+      return `${title} · ${this.getMediaVolumePct(device)}%`;
+    },
+
+    climateMode(device) {
+      return device.attributes?.hvac_mode || device.state || "off";
+    },
+
+    fanMode(device) {
+      return device.attributes?.fan_mode || "auto";
+    },
+
+    openDetail(device) {
+      this.detail = device;
+      this.error = "";
+    },
+
+    refreshDetail() {
+      if (!this.detail) return;
+      const all = this.areaKeys.flatMap(area => this.devicesByArea[area] || []);
+      const next = all.find(d => d.entityId === this.detail.entityId);
+      this.detail = next || null;
+    },
+
     load() {
       return this.init();
     },
@@ -291,6 +460,7 @@ export default {
 
     async unbindHub() {
       this.showUnbindConfirm = false;
+      this.detail = null;
       try {
         await request("/iot/hub", { method: "DELETE" });
         this.hubConfigured = false;
@@ -315,6 +485,7 @@ export default {
         }
         this.devicesByArea = grouped;
         this.scenes = scenes || [];
+        this.refreshDetail();
       } catch (e) {
         if (e.status === 401) {
           this.$emit("session-ended");
@@ -325,17 +496,53 @@ export default {
     },
 
     async toggle(device) {
-      const command = device.state === "on" ? "turn_off" : "turn_on";
+      const command = this.isDeviceOn(device) ? "turn_off" : "turn_on";
       await this.executeCommand(device, command);
     },
 
-    /** 拖动中的乐观百分比：没有它，滑一下要等一次请求才动。 */
+    async nudgeTemp(delta) {
+      if (!this.detail) return;
+      const next = Math.min(35, Math.max(16, this.getClimateTargetTemp(this.detail) + delta));
+      await this.executeCommand(this.detail, "set_temperature", { temperature: next });
+    },
+
+    async setHvacMode(mode) {
+      if (!this.detail) return;
+      await this.executeCommand(this.detail, "set_hvac_mode", { hvac_mode: mode });
+    },
+
+    async setFanMode(mode) {
+      if (!this.detail) return;
+      await this.executeCommand(this.detail, "set_fan_mode", { fan_mode: mode });
+    },
+
+    async nudgeVolume(delta) {
+      if (!this.detail) return;
+      const next = Math.min(100, Math.max(0, this.getMediaVolumePct(this.detail) + delta));
+      await this.executeCommand(this.detail, "volume_set", { volume_level: next / 100 });
+    },
+
+    async toggleMute() {
+      if (!this.detail) return;
+      const muted = !!this.detail.attributes?.is_volume_muted;
+      await this.executeCommand(this.detail, "volume_mute", { is_volume_muted: !muted });
+    },
+
+    async playPause() {
+      if (!this.detail) return;
+      await this.executeCommand(this.detail, "media_play_pause");
+    },
+
+    async selectSource(source) {
+      if (!this.detail) return;
+      await this.executeCommand(this.detail, "select_source", { source });
+    },
+
     brightnessPct(device) {
       const dragging = this.dragPct[device.entityId];
       return dragging === undefined ? getLightBrightness(device) : dragging;
     },
 
-    /** 把点击/拖动位置换算成 0–100。track 的 currentTarget 才是滑块本体。 */
     ratioOf(event) {
       const el = event.currentTarget;
       const rect = el.getBoundingClientRect();
@@ -363,7 +570,6 @@ export default {
     },
 
     jumpBrightness(device, event) {
-      // 拖拽结束时浏览器还会补一次 click，别把刚设好的亮度又按旧位置覆盖
       if (this.dragging) return;
       this.commitBrightness(device, this.ratioOf(event));
     },
@@ -411,7 +617,6 @@ export default {
 
   mounted() {
     this.init();
-    // 状态轮询：中枢那边可能有别的家人或自动化在改设备
     this.pollTimer = setInterval(() => {
       if (this.hubConfigured && !this.loading) this.loadDevices();
     }, 5000);
@@ -428,7 +633,6 @@ export default {
   padding: 4px 0 24px;
 }
 
-/* ---------- 未配置：连接中枢 ---------- */
 .setup-card {
   padding: 22px 20px;
 }
@@ -465,6 +669,37 @@ export default {
   color: var(--c-muted);
 }
 
+.demo-primary {
+  width: 100%;
+  height: 48px;
+  border: none;
+  border-radius: 30px;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.demo-hint {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--c-muted);
+  text-align: center;
+}
+
+.advanced-ha {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--c-line);
+}
+
+.advanced-ha summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-ink-2);
+  margin-bottom: 12px;
+}
+
 .field {
   display: block;
   margin-bottom: 14px;
@@ -491,11 +726,6 @@ export default {
   outline: none;
 }
 
-.field-input:focus {
-  border-color: rgba(79, 125, 198, 0.42);
-  box-shadow: 0 0 0 3px rgba(134, 187, 255, 0.22);
-}
-
 .field-hint {
   display: block;
   margin-top: 6px;
@@ -506,7 +736,7 @@ export default {
 .setup-actions {
   display: flex;
   gap: 10px;
-  margin-top: 18px;
+  margin-top: 12px;
 }
 
 .setup-actions button {
@@ -516,7 +746,6 @@ export default {
   font-size: 14px;
   font-weight: 600;
   height: 46px;
-  letter-spacing: 0.02em;
 }
 
 .ghost-btn {
@@ -541,30 +770,6 @@ button[disabled] {
   color: var(--c-danger);
 }
 
-.demo-block {
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px dashed var(--c-line);
-  text-align: center;
-}
-
-.demo-hint {
-  display: block;
-  margin: 0 0 12px;
-  font-size: 12px;
-  line-height: 1.7;
-  color: var(--c-muted);
-}
-
-.demo-btn {
-  height: 40px;
-  padding: 0 22px;
-  border-radius: 30px;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-/* ---------- 已配置 ---------- */
 .panel-bar {
   display: flex;
   align-items: center;
@@ -610,8 +815,13 @@ button[disabled] {
 }
 
 .device-card {
+  display: block;
+  width: 100%;
+  text-align: left;
   padding: 15px 16px;
   border-radius: 24px;
+  border: none;
+  cursor: pointer;
   transition: transform 220ms var(--e-out), box-shadow 220ms var(--e-out);
 }
 
@@ -663,46 +873,42 @@ button[disabled] {
   color: var(--c-muted);
 }
 
-/* 胶囊开关 */
-.switch-pill {
-  position: relative;
+.power-btn {
   flex: none;
-  width: 52px;
+  min-width: 44px;
   height: 30px;
-  min-height: 30px;
-  padding: 0;
+  padding: 0 12px;
   border-radius: 999px;
   border: 1px solid var(--c-line);
   background: rgba(255, 255, 255, 0.7);
-  transition: background 220ms var(--e-out), border-color 220ms var(--e-out);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-ink-2);
 }
 
-.switch-pill .knob {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 2px 6px rgba(20, 43, 83, 0.18);
-  transition: transform 240ms var(--e-spring);
-}
-
-.switch-pill.on {
+.power-btn.on {
   background: #4f7dc6;
   border-color: rgba(79, 125, 198, 0.7);
+  color: #f4f7ff;
 }
 
-.switch-pill.on .knob {
-  transform: translateX(22px);
+.power-btn.large {
+  height: 40px;
+  min-width: 72px;
+  font-size: 13px;
+}
+
+.card-hint {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--c-muted);
 }
 
 .brightness-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-top: 10px;
+  margin-top: 14px;
 }
 
 .track {
@@ -742,7 +948,6 @@ button[disabled] {
   border-radius: 50%;
   background: #fff;
   border: 2px solid #4f7dc6;
-  box-shadow: 0 3px 8px rgba(79, 125, 198, 0.35);
   box-sizing: border-box;
 }
 
@@ -766,6 +971,68 @@ button[disabled] {
   font-variant-numeric: tabular-nums;
 }
 
+.control-block {
+  margin-top: 16px;
+}
+
+.temp-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.temp-display {
+  min-width: 88px;
+  text-align: center;
+}
+
+.temp-num {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--c-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.temp-unit {
+  margin-left: 4px;
+  font-size: 14px;
+  color: var(--c-muted);
+}
+
+.ghost-btn.square {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.chip-btn {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--c-line);
+  background: rgba(255, 255, 255, 0.66);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-ink-2);
+}
+
+.chip-btn.on {
+  background: #4f7dc6;
+  border-color: rgba(79, 125, 198, 0.7);
+  color: #f4f7ff;
+}
+
 .scenes-grid {
   display: flex;
   flex-wrap: wrap;
@@ -784,7 +1051,6 @@ button[disabled] {
   box-shadow: var(--sh-1);
 }
 
-/* ---------- 解绑确认 ---------- */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -801,6 +1067,17 @@ button[disabled] {
 .modal-card {
   width: min(360px, 100%);
   padding: 22px 20px;
+}
+
+.detail-card {
+  width: min(420px, 100%);
+}
+
+.detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .modal-title {

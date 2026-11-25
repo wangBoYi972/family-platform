@@ -17,9 +17,7 @@ import com.familyhome.iot.util.DemoHub;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -30,14 +28,29 @@ import java.util.Set;
 @Service
 public class IotCommandServiceImpl implements IotCommandService {
 
-  // 白名单：只允许这些命令
-  private static final String[] ALLOWED_COMMANDS = {
+  // 白名单：灯/插座/空调/电视音响/场景。越权命令直接拒。
+  private static final Set<String> ALLOWED_COMMANDS = Set.of(
       "light.turn_on",
       "light.turn_off",
       "switch.turn_on",
       "switch.turn_off",
-      "scene.turn_on"
-  };
+      "scene.turn_on",
+      "climate.turn_on",
+      "climate.turn_off",
+      "climate.set_temperature",
+      "climate.set_hvac_mode",
+      "climate.set_fan_mode",
+      "media_player.turn_on",
+      "media_player.turn_off",
+      "media_player.volume_set",
+      "media_player.volume_mute",
+      "media_player.media_play_pause",
+      "media_player.select_source"
+  );
+
+  private static final Set<String> HVAC_MODES =
+      Set.of("off", "cool", "heat", "dry", "fan_only", "auto");
+  private static final Set<String> FAN_MODES = Set.of("auto", "low", "medium", "high");
 
   @Autowired
   private IotHubService hubService;
@@ -173,26 +186,104 @@ public class IotCommandServiceImpl implements IotCommandService {
   }
 
   /**
-   * 演示中枢：本地翻转设备状态，模拟一次成功的服务调用。
+   * 演示中枢：本地改快照状态，模拟一次成功的服务调用（含空调/电视/音响）。
    */
   @SuppressWarnings("unchecked")
   private boolean applyDemoCommand(IotDeviceSnapshot device, String commandType, JsonNode parameters)
       throws Exception {
-    String state;
-    if ("turn_on".equals(commandType)) {
-      state = "on";
-    } else if ("turn_off".equals(commandType)) {
-      state = "off";
-    } else {
-      return false;
-    }
-
     Map<String, Object> attributes = new HashMap<>();
     if (device.getAttributes() != null && !device.getAttributes().isBlank()) {
       attributes.putAll(objectMapper.readValue(device.getAttributes(), Map.class));
     }
-    if ("light".equals(device.getEntityType()) && "on".equals(state) && parameters.hasNonNull("brightness")) {
-      attributes.put("brightness", parameters.get("brightness").asInt());
+
+    String type = device.getEntityType();
+    String state = device.getState();
+
+    switch (commandType) {
+      case "turn_on" -> {
+        if ("climate".equals(type)) {
+          Object previous = attributes.getOrDefault("hvac_mode", "cool");
+          String mode = String.valueOf(previous);
+          if ("off".equals(mode) || mode.isBlank()) mode = "cool";
+          state = mode;
+          attributes.put("hvac_mode", mode);
+        } else if ("media_player".equals(type)) {
+          state = "playing";
+        } else {
+          state = "on";
+          if ("light".equals(type) && parameters.hasNonNull("brightness")) {
+            attributes.put("brightness", parameters.get("brightness").asInt());
+          }
+        }
+      }
+      case "turn_off" -> state = "off";
+      case "set_temperature" -> {
+        if (!parameters.hasNonNull("temperature")) {
+          throw new IllegalArgumentException("缺少目标温度");
+        }
+        int temp = parameters.get("temperature").asInt();
+        if (temp < 16 || temp > 35) {
+          throw new IllegalArgumentException("温度需在 16–35°C");
+        }
+        attributes.put("temperature", temp);
+        if ("off".equals(state)) {
+          state = "cool";
+          attributes.put("hvac_mode", "cool");
+        }
+      }
+      case "set_hvac_mode" -> {
+        if (!parameters.hasNonNull("hvac_mode")) {
+          throw new IllegalArgumentException("缺少运行模式");
+        }
+        String mode = parameters.get("hvac_mode").asText();
+        if (!HVAC_MODES.contains(mode)) {
+          throw new IllegalArgumentException("不支持的空调模式: " + mode);
+        }
+        attributes.put("hvac_mode", mode);
+        state = "off".equals(mode) ? "off" : mode;
+      }
+      case "set_fan_mode" -> {
+        if (!parameters.hasNonNull("fan_mode")) {
+          throw new IllegalArgumentException("缺少风速");
+        }
+        String fan = parameters.get("fan_mode").asText();
+        if (!FAN_MODES.contains(fan)) {
+          throw new IllegalArgumentException("不支持的风速: " + fan);
+        }
+        attributes.put("fan_mode", fan);
+      }
+      case "volume_set" -> {
+        if (!parameters.hasNonNull("volume_level")) {
+          throw new IllegalArgumentException("缺少音量");
+        }
+        double volume = parameters.get("volume_level").asDouble();
+        if (volume < 0 || volume > 1) {
+          throw new IllegalArgumentException("音量需在 0–1");
+        }
+        attributes.put("volume_level", volume);
+        attributes.put("is_volume_muted", false);
+      }
+      case "volume_mute" -> {
+        if (!parameters.hasNonNull("is_volume_muted")) {
+          throw new IllegalArgumentException("缺少静音参数");
+        }
+        attributes.put("is_volume_muted", parameters.get("is_volume_muted").asBoolean());
+      }
+      case "media_play_pause" -> {
+        state = "playing".equals(state) ? "paused" : "playing";
+      }
+      case "select_source" -> {
+        if (!parameters.hasNonNull("source")) {
+          throw new IllegalArgumentException("缺少音源/频道");
+        }
+        attributes.put("source", parameters.get("source").asText());
+        if ("off".equals(state) || "idle".equals(state) || "standby".equals(state)) {
+          state = "playing";
+        }
+      }
+      default -> {
+        return false;
+      }
     }
 
     deviceService.updateDeviceState(
@@ -201,8 +292,6 @@ public class IotCommandServiceImpl implements IotCommandService {
   }
 
   private boolean isCommandAllowed(String command) {
-    // 使用 Set 而非数组，提高查询效率
-    final Set<String> allowed = new HashSet<>(Arrays.asList(ALLOWED_COMMANDS));
-    return allowed.contains(command);
+    return ALLOWED_COMMANDS.contains(command);
   }
 }

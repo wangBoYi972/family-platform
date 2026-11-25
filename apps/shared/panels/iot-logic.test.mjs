@@ -85,11 +85,11 @@ export function runTests() {
   // 测试 3：亮度获取
   try {
     const brightness = getLightBrightness(device);
-    if (brightness === 79) { // 200/255*100 ≈ 78
+    if (brightness === 78) { // Math.round(200/255*100) = 78
       console.log('✓ 亮度获取测试通过');
       passed++;
     } else {
-      console.error(`✗ 亮度获取测试失败: 期望 ~78，得到 ${brightness}`);
+      console.error(`✗ 亮度获取测试失败: 期望 78，得到 ${brightness}`);
       failed++;
     }
   } catch (e) {
