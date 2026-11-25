@@ -41,6 +41,8 @@ family:
     mock-code: ${FAMILY_AUTH_MOCK_CODE:}
     jwt-secret: ${FAMILY_JWT_SECRET:}
     token-expiration-minutes: ${FAMILY_TOKEN_EXPIRATION_MINUTES:60}
+    # Redis 不可用时：false=503 fail-closed（生产）；true=放行（本地/CI）
+    login-rate-limit-failopen: ${FAMILY_LOGIN_RATE_LIMIT_FAILOPEN:false}
   bootstrap:
     enabled: ${FAMILY_BOOTSTRAP_ENABLED:false}
     household-name: ${FAMILY_BOOTSTRAP_HOUSEHOLD_NAME:}

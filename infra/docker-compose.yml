@@ -78,9 +78,13 @@ services:
       FAMILY_BOOTSTRAP_HOUSEHOLD_NAME: ${FAMILY_BOOTSTRAP_HOUSEHOLD_NAME:-}
       FAMILY_BOOTSTRAP_ADMIN_PHONE: ${FAMILY_BOOTSTRAP_ADMIN_PHONE:-}
       FAMILY_BOOTSTRAP_ADMIN_PASSWORD: ${FAMILY_BOOTSTRAP_ADMIN_PASSWORD:-}
+      # 登录/注册限流依赖 Redis；未配置时生产默认 fail-closed
+      REDIS_HOST: redis
+      FAMILY_LOGIN_RATE_LIMIT_FAILOPEN: "false"
     depends_on:
       - nacos
       - mysql
+      - redis
 
   family-content-svc:
     build:
