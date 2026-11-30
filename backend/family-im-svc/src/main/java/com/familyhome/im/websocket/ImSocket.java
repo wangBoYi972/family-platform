@@ -146,16 +146,25 @@ public class ImSocket extends TextWebSocketHandler implements WebSocketConfigure
     public void afterConnectionEstablished(WebSocketSession session) {
         sessions.put(session.getId(), session);
         Object household = session.getAttributes().get("householdId");
-        if (onlineRegistry != null && household instanceof Number n)
-            onlineMembers.put(session.getId(), onlineRegistry.register(n.longValue(), session.getId()));
+        Object userId = session.getAttributes().get("userId");
+        if (onlineRegistry != null && household instanceof Number n) {
+            String member = onlineRegistry.register(n.longValue(), session.getId());
+            onlineMembers.put(session.getId(), member);
+            // 按用户的在线标记：离线推送（微信订阅消息）靠它判断该不该发
+            if (userId instanceof Number u) onlineRegistry.registerUser(u.longValue(), member);
+        }
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         sessions.remove(session.getId());
         Object household = session.getAttributes().get("householdId");
+        Object userId = session.getAttributes().get("userId");
         String member = onlineMembers.remove(session.getId());
-        if (onlineRegistry != null && household instanceof Number n) onlineRegistry.unregister(n.longValue(), member);
+        if (onlineRegistry != null && household instanceof Number n) {
+            onlineRegistry.unregister(n.longValue(), member);
+            if (userId instanceof Number u && member != null) onlineRegistry.unregisterUser(u.longValue(), member);
+        }
     }
 
     public void notifyFamily(long household) {

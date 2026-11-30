@@ -40,13 +40,3 @@ family:
     household-name: ${FAMILY_BOOTSTRAP_HOUSEHOLD_NAME:}
     admin-phone: ${FAMILY_BOOTSTRAP_ADMIN_PHONE:}
     admin-password: ${FAMILY_BOOTSTRAP_ADMIN_PASSWORD:}
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,prometheus
-springdoc:
-  api-docs:
-    enabled: ${FAMILY_DOCS_ENABLED:false}
-  swagger-ui:
-    enabled: ${FAMILY_DOCS_ENABLED:false}

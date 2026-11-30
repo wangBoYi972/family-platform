@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { request, upload, loadImageUrl, loadAudioUrl, loadFileUrl } from "@app/utils/request";
 import { sumUnread } from "@shared/unread.mjs";
 import { mergeReceipt, readMemberIds } from "@shared/receipts.mjs";
+import { requestNotify, TEMPLATE_KEYS } from "@shared/wx-notify.mjs";
 
 const props = defineProps({
   peerId: { type: [Number, String], default: null },
@@ -316,6 +317,9 @@ async function ensureGroup() {
 async function sendText() {
   const text = draft.value.trim();
   if (!text || sending.value || !active.value) return;
+  // 微信端借这次点击顺带申请订阅授权（必须在点击同步链里触发，不能等 await 之后）；
+  // 不 await：弹窗归弹窗，消息该发就发。对方离线时后端会消耗授权发服务通知。
+  requestNotify(request, [TEMPLATE_KEYS.imMessage]).catch(() => {});
   sending.value = true;
   const clientId = uuid();
   try {

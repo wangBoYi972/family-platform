@@ -35,4 +35,12 @@ public class UserFeignClientFallback implements UserFeignClient {
         log.error("UserFeignClient.batchGetUsers 调用失败,触发降级,userIds: {}", userIds);
         return ApiResponse.failure(503, "用户服务暂时不可用");
     }
+
+    @Override
+    public ApiResponse<com.familyhome.api.user.vo.WxNotifyResultApiVO> wxNotify(
+            String bearer, com.familyhome.api.user.vo.WxNotifyApiVO request) {
+        // 推送失败静默降级：订阅消息是锦上添花，不能把调用方的业务拖出异常
+        log.warn("UserFeignClient.wxNotify 调用失败,触发降级,userId: {}", request == null ? null : request.userId());
+        return ApiResponse.failure(503, "用户服务暂时不可用");
+    }
 }

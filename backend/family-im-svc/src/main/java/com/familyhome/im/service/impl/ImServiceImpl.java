@@ -3,6 +3,8 @@ package com.familyhome.im.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.familyhome.api.file.feign.FileFeignClient;
 import com.familyhome.api.user.feign.UserFeignClient;
+import com.familyhome.api.user.service.MemberCacheService;
+import com.familyhome.api.user.vo.WxNotifyApiVO;
 import com.familyhome.common.api.PageQuery;
 import com.familyhome.im.converter.ImConverter;
 import com.familyhome.im.dto.*;
@@ -13,10 +15,13 @@ import com.familyhome.im.vo.*;
 import com.familyhome.im.websocket.ImSocket;
 import com.familyhome.security.SessionPrincipal;
 import com.familyhome.messaging.OutboxEventStore;
+import com.familyhome.messaging.RedisOnlineConnectionRegistry;
 
 import java.time.LocalDateTime;
 import java.util.*;
 
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
@@ -26,6 +31,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
+@Slf4j
 @Service
 public class ImServiceImpl implements ImService {
 
@@ -43,6 +49,11 @@ public class ImServiceImpl implements ImService {
     private ImSocket socket;
     @Autowired
     private OutboxEventStore outbox;
+    /** 按用户的在线标记：只有真不在线的家人才值得动用微信服务通知。 */
+    @Autowired
+    private ObjectProvider<RedisOnlineConnectionRegistry> onlineRegistry;
+    @Autowired
+    private MemberCacheService memberCache;
 
     private LambdaQueryWrapper<Conversation> visible(SessionPrincipal p) {
         return new LambdaQueryWrapper<Conversation>()
@@ -184,6 +195,7 @@ public class ImServiceImpl implements ImService {
         frame.put("body", m.getBody());
         frame.put("createdAt", m.getCreatedAt() == null ? null : m.getCreatedAt().toString());
         pushAfterCommit(p.householdId(), frame, audience(c));
+        notifyWxAfterCommit(bearer, p, c, m);
         outbox.append("message", String.valueOf(m.getId()), "message.sent", p.householdId(),
             Map.of("messageId", m.getId(), "conversationId", id, "senderId", p.userId()));
         return ImConverter.toVO(m);
@@ -247,6 +259,54 @@ public class ImServiceImpl implements ImService {
                         socket.notifyFamilyEvent(household, frame, audience);
                     }
                 });
+    }
+
+    /**
+     * 给「不在线」的收件人补一条微信服务通知（消耗对方授权过的订阅配额）。
+     *
+     * <p>只盯私聊/群聊里真正不在的人：人就在应用里，实时帧已经秒到了，再弹服务通知是打扰。
+     * 发送方名字和正文预览由 user-svc 翻译（它管用户数据，也管模板字段映射），
+     * 这里只递语义字段。整条链路 try/catch 兜底——服务通知是锦上添花，绝不影响发消息主流程。
+     */
+    private void notifyWxAfterCommit(String bearer, SessionPrincipal sender, Conversation c, ChatMessage m) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            pushWx(bearer, sender, c, m);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        pushWx(bearer, sender, c, m);
+                    }
+                });
+    }
+
+    private void pushWx(String bearer, SessionPrincipal sender, Conversation c, ChatMessage m) {
+        try {
+            RedisOnlineConnectionRegistry registry = onlineRegistry.getIfAvailable();
+            if (registry == null) return;
+            List<Long> recipients =
+                audience(c) == null
+                    ? memberCache.getMembers(bearer, sender.householdId()).stream()
+                        .map(mm -> mm.id())
+                        .filter(id -> id != sender.userId())
+                        .toList()
+                    : audience(c).stream().filter(id -> id != sender.userId()).toList();
+            Map<String, Object> data = Map.of("sender", sender.userId(), "preview", preview(m));
+            for (Long uid : recipients) {
+                if (registry.isUserOnline(uid)) continue;
+                users.wxNotify(bearer, new WxNotifyApiVO(uid, "im-message", null, data));
+            }
+        } catch (Exception ex) {
+            log.debug("离线订阅消息跳过：{}", ex.getMessage());
+        }
+    }
+
+    /** 预览截断在 user-svc 做（它知道微信字段的长度上限），这里只砍掉超长正文省带宽。 */
+    private static String preview(ChatMessage m) {
+        String body = m.getBody() == null ? "" : m.getBody();
+        return body.length() > 60 ? body.substring(0, 60) : body;
     }
 
     @Transactional

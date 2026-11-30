@@ -18,6 +18,7 @@ import CallPanel from "@shared/call/CallPanel.vue";
 import { MOBILE_NAV_TARGETS, resolveNavTarget } from "@shared/navigation.mjs";
 import { FamilySocket } from "@shared/family-socket.js";
 import { refreshPlan, hitsTopic } from "@shared/refresh-topics.mjs";
+import { bindWxSession } from "@shared/wx-notify.mjs";
 import { sumUnread } from "@shared/unread.mjs";
 
 /** 后端会发哪些领域事件，这里就认识哪些主题；新事件类型上来先加进这个集合。 */
@@ -88,10 +89,10 @@ async function refreshUnread() {
   try { unread.value = sumUnread(await request("/im/conversations")); }
   catch { /* 角标失败不值得打扰用户，下次推送再试 */ }
 }
-onMounted(() => { if (token.value) { familySocket.connect(); refreshUnread(); } });
+onMounted(() => { if (token.value) { familySocket.connect(); refreshUnread(); bindWxSession(request).catch(() => {}); } });
 onUnmounted(() => familySocket.close());
 watch(token, value => {
-  if (value) { familySocket.connect(); refreshUnread(); }
+  if (value) { familySocket.connect(); refreshUnread(); bindWxSession(request).catch(() => {}); }
   else { familySocket.close(); unread.value = 0; }
 });
 

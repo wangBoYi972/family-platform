@@ -253,6 +253,22 @@
 - 两条兜底：帧没带 event（旧版后端）或类型前端不认识（新增事件没进映射表）都回退全量刷新，
   宁可多刷不能漏。新增 4 项前端单测 + 1 项 WebSocket 契约测试（刷新帧必须带 event 字段）。
 
+## 2026-11-02（续十一）小程序订阅消息推送（待凭证）
+
+- 家人**不在线**时，新消息走微信服务通知触达。链路：客户端在点击里 `requestSubscribeMessage`
+  授权 → 上报落 `wx_subscribe_grant` 配额（一行 = 可推一条）→ im-svc 发消息后对离线收件人
+  （新增按用户在线标记）经 Feign 调 user-svc 消耗配额、`subscribe/send` 推送。
+- 全部微信集成收敛在 user-svc：openid 绑定（code2session）、配额台账、access_token 缓存、
+  语义字段 → 模板字段 ID 映射。im-svc 只递 `{sender, preview}` + 目标 userId，不碰模板细节。
+- **未配置自动关闭**：`family.wx.enabled=false`（当前缺省）时 bind 503、notify skipped 且不耗配额，
+  客户端全部静默兜底——上线拿到 appid/secret/模板 ID 后只填 yml，代码不动。
+- 防打扰设计：只在用户点击同步链里申请授权（ChatPanel 发送时顺带），会话内只问一次，
+  明确拒绝后 7 天退避；在线的人不推（实时帧已秒到）。
+- 测试 +6：未配置形态（bind 拒绝/台账读写/notify 跳过）与已配置形态（openid 缺失跳过、
+  无配额不调微信、配额消耗与微信不可达时优雅降级）。
+- 踩坑：`@DynamicPropertySource` 的 supplier 会被多次取值，JWT 密钥必须固定成局部变量，
+  每次随机会让签发与校验密钥错开、全接口 401。
+
 ## 生产上线前必须验收（发布阻断项）
 
 MySQL 与 Nacos 实例联调、真实短信/微信认证、对象存储、SFU/TURN 部署与压测、双小程序真机回归、监控告警及备份恢复演练。详见 `docs/企业级工程化交付记录.md`。

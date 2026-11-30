@@ -30,6 +30,26 @@ public class RedisOnlineConnectionRegistry {
     }
     public void touch(long householdId, String member) { redis.opsForSet().add("family:online:" + householdId, member); redis.expire("family:online:" + householdId, Duration.ofMinutes(2)); }
     public void unregister(long householdId, String member) { redis.opsForSet().remove("family:online:" + householdId, member); }
+
+    /**
+     * 按用户的在线标记：离线推送（微信订阅消息）只发给不在线的人。
+     * 同一个 key 结构（成员集合 + 2 分钟过期），靠心跳维持。
+     */
+    public void registerUser(long userId, String member) {
+        redis.opsForSet().add("family:online-user:" + userId, member);
+        redis.expire("family:online-user:" + userId, Duration.ofMinutes(2));
+    }
+
+    public void unregisterUser(long userId, String member) {
+        redis.opsForSet().remove("family:online-user:" + userId, member);
+    }
+
+    /** 用户是否至少有一条活连接；空集合在 Redis 里自动消失，size 判断就够。 */
+    public boolean isUserOnline(long userId) {
+        Long size = redis.opsForSet().size("family:online-user:" + userId);
+        return size != null && size > 0;
+    }
+
     public void broadcast(long householdId) { redis.convertAndSend(REFRESH_CHANNEL, String.valueOf(householdId)); }
 
     /**
